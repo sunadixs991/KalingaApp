@@ -11,7 +11,7 @@ import {
   Button,
   Text,
 } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, Callout } from "react-native-maps";
 import * as Location from "expo-location";
 import Icon from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -22,10 +22,11 @@ import {
   addDoc,
   serverTimestamp,
   getDocs,
+  doc,
+  updateDoc,
 } from "firebase/firestore";
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from "react-native-responsive-screen";
 import { getUserInfo } from "../services/getinfo"; // Add this import
-
 
 export default function MapScreen() {
   const [location, setLocation] = useState(null);
@@ -67,9 +68,11 @@ export default function MapScreen() {
               latitude: data.latitude,
               longitude: data.longitude,
               userId: data.userId,
-              userFirstName: data.userFirstName, // Add this line
+              userFirstName: data.userFirstName,
               description: data.description,
               createdAt: data.createdAt,
+              upvotes: data.upvotes || 0,      // Add this
+              downvotes: data.downvotes || 0,  // Add this
             });
           }
         });
@@ -129,9 +132,11 @@ export default function MapScreen() {
         latitude: pendingPin.latitude,
         longitude: pendingPin.longitude,
         userId: userInfo || "anonymous",
-        userFirstName: userFirstName || "anonymous", // Add this line
+        userFirstName: userFirstName || "anonymous",
         description: description.trim(),
         createdAt: serverTimestamp(),
+        upvotes: 0, // Add this
+        downvotes: 0, // Add this
       });
       setDescModalVisible(false);
       setDescription("");
@@ -163,6 +168,23 @@ export default function MapScreen() {
         "Error",
         "There was an error pinning your location. Please try again."
       );
+    }
+  };
+
+  const handleVote = async (pinId, type) => {
+    try {
+      const pinRef = doc(db, "pins", pinId);
+      const pin = allPins.find((p) => p.id === pinId);
+      if (!pin) return;
+      const newValue = (pin[type] || 0) + 1;
+      await updateDoc(pinRef, { [type]: newValue });
+      setAllPins((prevPins) =>
+        prevPins.map((p) =>
+          p.id === pinId ? { ...p, [type]: newValue } : p
+        )
+      );
+    } catch (error) {
+      Alert.alert("Error", "Could not vote. Try again.");
     }
   };
 
@@ -203,7 +225,24 @@ export default function MapScreen() {
             title={pin.description || "Pinned Location"}
             description={`Pinned by: ${pin.userFirstName || "anonymous"}`}
             pinColor="blue"
-          />
+          >
+            <Callout>
+              <View style={{ alignItems: "center" }}>
+                <Text>{pin.description || "Pinned Location"}</Text>
+                <Text>Pinned by: {pin.userFirstName || "anonymous"}</Text>
+                <View style={{ flexDirection: "row", marginTop: 5 }}>
+                  <TouchableOpacity onPress={() => handleVote(pin.id, "upvotes")} style={{ marginRight: 10, alignItems: "center" }}>
+                    <Icon name="thumbs-up" size={20} color="#49A5A2" />
+                    <Text>{pin.upvotes || 0}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleVote(pin.id, "downvotes")} style={{ alignItems: "center" }}>
+                    <Icon name="thumbs-down" size={20} color="#EC6135" />
+                    <Text>{pin.downvotes || 0}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Callout>
+          </Marker>
         ))}
         {pin && (
           <Marker coordinate={pin} title="Pinned Location" pinColor="blue" />
