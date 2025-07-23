@@ -4,14 +4,9 @@ import {
   View,
   StyleSheet,
   ActivityIndicator,
-  TouchableOpacity,
   Alert,
-  TextInput,
-  Modal,
-  Button,
-  Text,
 } from "react-native";
-import MapView, { Marker, Callout } from "react-native-maps";
+import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
 import Icon from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -22,11 +17,14 @@ import {
   addDoc,
   serverTimestamp,
   getDocs,
-  doc,
-  updateDoc,
 } from "firebase/firestore";
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from "react-native-responsive-screen";
 import { getUserInfo } from "../services/getinfo"; // Add this import
+import MapPinModal from '../components/MapPinModal';
+import FloatingButtons from '../components/FloatingButtons';
+import PinMarker from '../components/PinMarker';
+
+
 
 export default function MapScreen() {
   const [location, setLocation] = useState(null);
@@ -68,11 +66,9 @@ export default function MapScreen() {
               latitude: data.latitude,
               longitude: data.longitude,
               userId: data.userId,
-              userFirstName: data.userFirstName,
+              userFirstName: data.userFirstName, // Add this line
               description: data.description,
               createdAt: data.createdAt,
-              upvotes: data.upvotes || 0,      // Add this
-              downvotes: data.downvotes || 0,  // Add this
             });
           }
         });
@@ -132,11 +128,9 @@ export default function MapScreen() {
         latitude: pendingPin.latitude,
         longitude: pendingPin.longitude,
         userId: userInfo || "anonymous",
-        userFirstName: userFirstName || "anonymous",
+        userFirstName: userFirstName || "anonymous", // Add this line
         description: description.trim(),
         createdAt: serverTimestamp(),
-        upvotes: 0, // Add this
-        downvotes: 0, // Add this
       });
       setDescModalVisible(false);
       setDescription("");
@@ -157,6 +151,7 @@ export default function MapScreen() {
             latitude: data.latitude,
             longitude: data.longitude,
             userId: data.userId,
+            userFirstName: data.userFirstName || "anonymous",
             description: data.description,
             createdAt: data.createdAt,
           });
@@ -168,23 +163,6 @@ export default function MapScreen() {
         "Error",
         "There was an error pinning your location. Please try again."
       );
-    }
-  };
-
-  const handleVote = async (pinId, type) => {
-    try {
-      const pinRef = doc(db, "pins", pinId);
-      const pin = allPins.find((p) => p.id === pinId);
-      if (!pin) return;
-      const newValue = (pin[type] || 0) + 1;
-      await updateDoc(pinRef, { [type]: newValue });
-      setAllPins((prevPins) =>
-        prevPins.map((p) =>
-          p.id === pinId ? { ...p, [type]: newValue } : p
-        )
-      );
-    } catch (error) {
-      Alert.alert("Error", "Could not vote. Try again.");
     }
   };
 
@@ -209,94 +187,29 @@ export default function MapScreen() {
         }}
         onLongPress={handleLongPress}
       >
-        <Marker
-          coordinate={{
-            latitude: location.latitude,
-            longitude: location.longitude,
-          }}
-          title="You are here!"
-        >
-          <Icon name="location" size={36} color="#EC6135" />
-        </Marker>
-        {allPins.map((pin) => (
-          <Marker
-            key={pin.id}
-            coordinate={{ latitude: pin.latitude, longitude: pin.longitude }}
-            title={pin.description || "Pinned Location"}
-            description={`Pinned by: ${pin.userFirstName || "anonymous"}`}
-            pinColor="blue"
-          >
-            <Callout>
-              <View style={{ alignItems: "center" }}>
-                <Text>{pin.description || "Pinned Location"}</Text>
-                <Text>Pinned by: {pin.userFirstName || "anonymous"}</Text>
-                <View style={{ flexDirection: "row", marginTop: 5 }}>
-                  <TouchableOpacity onPress={() => handleVote(pin.id, "upvotes")} style={{ marginRight: 10, alignItems: "center" }}>
-                    <Icon name="thumbs-up" size={20} color="#49A5A2" />
-                    <Text>{pin.upvotes || 0}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => handleVote(pin.id, "downvotes")} style={{ alignItems: "center" }}>
-                    <Icon name="thumbs-down" size={20} color="#EC6135" />
-                    <Text>{pin.downvotes || 0}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </Callout>
-          </Marker>
-        ))}
-        {pin && (
-          <Marker coordinate={pin} title="Pinned Location" pinColor="blue" />
-        )}
+        <PinMarker
+          pins={allPins}
+          currentLocation={{ latitude: location.latitude, longitude: location.longitude }}
+          icon={<Icon name="location" size={36} color="#EC6135" />}
+        />
+
       </MapView>
 
-      <TouchableOpacity
-        style={[styles.circleButton, styles.pinButton]}
-        onPress={handlePinButton}
-      >
-        <Icon name="add" size={24} color="#fff" />
-      </TouchableOpacity>
+      <FloatingButtons onPin={handlePinButton} onLocate={goToMyLocation} />
 
-      <TouchableOpacity style={styles.circleButton} onPress={goToMyLocation}>
-        <Icon name="locate" size={28} color="#fff" />
-      </TouchableOpacity>
 
-      <Modal
+      <MapPinModal
         visible={descModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setDescModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Pin Description</Text>
-            <TextInput
-              placeholder="Enter a brief description"
-              value={description}
-              onChangeText={setDescription}
-              style={styles.input}
-              placeholderTextColor="#999"
-            />
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => {
-                  setDescModalVisible(false);
-                  setDescription("");
-                  setPendingPin(null);
-                }}
-              >
-                <Text style={styles.buttonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
-                onPress={handleSavePin}
-              >
-                <Text style={styles.buttonText}>Save</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        description={description}
+        onChangeDescription={setDescription}
+        onCancel={() => {
+          setDescModalVisible(false);
+          setDescription("");
+          setPendingPin(null);
+        }}
+        onSave={handleSavePin}
+      />
+
     </View>
   );
 }
@@ -304,79 +217,5 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  circleButton: {
-    position: "absolute",
-    bottom: hp("3.5%"),
-    right: wp("5%"),
-    backgroundColor: "#EC6135",
-    width: wp("13%"),
-    height: wp("13%"),
-    borderRadius: wp("6.5%"),
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 2,
-  },
-  pinButton: {
-    bottom: hp("11%"),
-    backgroundColor: "#49A5A2",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: wp("6%"),
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    padding: wp("5%"),
-    borderRadius: wp("5%"),
-    width: "90%",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: hp("0.5%") },
-    shadowOpacity: 0.25,
-    shadowRadius: wp("2%"),
-  },
-  modalTitle: {
-    fontWeight: "700",
-    fontSize: wp("5%"),
-    marginBottom: hp("2%"),
-    textAlign: "center",
-    color: "#333",
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: wp("3%"),
-    paddingVertical: hp("1.5%"),
-    paddingHorizontal: wp("4%"),
-    marginBottom: hp("2.5%"),
-    fontSize: wp("3.8%"),
-    color: "#333",
-  },
-  buttonRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: hp("1.5%"),
-    borderRadius: wp("3%"),
-    alignItems: "center",
-    marginHorizontal: wp("1.5%"),
-    elevation: 2,
-  },
-  cancelButton: {
-    backgroundColor: "#EC6135",
-  },
-  saveButton: {
-    backgroundColor: "#49A5A2",
-  },
-  buttonText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: wp("3.5%"),
   },
 });
