@@ -50,6 +50,7 @@ export default function MapScreen() {
   const [descModalVisible, setDescModalVisible] = useState(false);
   const [pendingPin, setPendingPin] = useState(null);
   const [description, setDescription] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
   const mapRef = useRef(null);
   const navigation = useNavigation();
 
@@ -88,6 +89,7 @@ export default function MapScreen() {
               userId: data.userId,
               userFirstName: data.userFirstName,
               description: data.description,
+              category: data.category || "Unknown",
               createdAt: data.createdAt,
               upvotes: data.upvotes || 0,
               downvotes: data.downvotes || 0,
@@ -278,6 +280,10 @@ export default function MapScreen() {
   };
 
   const handleSavePin = async () => {
+    if (!selectedCategory.trim()) {
+      Alert.alert("Category required", "Please select a category.");
+      return;
+    }
     if (!description.trim()) {
       Alert.alert("Description required", "Please enter a description.");
       return;
@@ -289,12 +295,14 @@ export default function MapScreen() {
         userId: userInfo || "anonymous",
         userFirstName: userFirstName || "anonymous",
         description: description.trim(),
+        category: selectedCategory.trim(),
         createdAt: serverTimestamp(),
         upvotes: 0,
         downvotes: 0,
       });
       setDescModalVisible(false);
       setDescription("");
+      setSelectedCategory("");
       setPinMode(false);
       setPendingPin(null);
       Alert.alert(
@@ -314,6 +322,7 @@ export default function MapScreen() {
             userId: data.userId,
             userFirstName: data.userFirstName || "anonymous",
             description: data.description,
+            category: data.category || "Unknown",
             createdAt: data.createdAt,
             upvotes: data.upvotes || 0,
             downvotes: data.downvotes || 0,
@@ -367,14 +376,17 @@ export default function MapScreen() {
 
       <FloatingButtons onPin={handlePinButton} onLocate={goToMyLocation} />
 
-      {/* EXISTING PIN CREATION MODAL */}
+      {/* PIN CREATION MODAL WITH CATEGORY */}
       <MapPinModal
         visible={descModalVisible}
         description={description}
         onChangeDescription={setDescription}
+        selectedCategory={selectedCategory}
+        onCategoryChange={setSelectedCategory}
         onCancel={() => {
           setDescModalVisible(false);
           setDescription("");
+          setSelectedCategory("");
           setPendingPin(null);
         }}
         onSave={handleSavePin}
@@ -394,6 +406,11 @@ export default function MapScreen() {
                 {/* Title */}
                 <Text style={styles.modalTitle} numberOfLines={0}>
                   {selectedPin.description || 'User'}
+                </Text>
+                
+                {/* Category */}
+                <Text style={styles.modalCategory} numberOfLines={0}>
+                  {selectedPin.category}
                 </Text>
                 
                 {/* User */}
@@ -496,9 +513,20 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 12,
+    marginBottom: 8,
     textAlign: 'center',
     color: '#333',
+  },
+  modalCategory: {
+    fontSize: 14,
+    marginBottom: 8,
+    textAlign: 'center',
+    color: '#EC6135',
+    fontWeight: '600',
+    backgroundColor: '#FFF3F0',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   modalUser: {
     fontSize: 16,
