@@ -161,7 +161,7 @@ export default function HomeScreen({ route, navigation }) {
         {
           text: "View on Map",
           onPress: () => {
-            navigation.navigate("MapScreen", {
+            navigation.navigate("Map", {
               focusPin: {
                 latitude: pin.latitude,
                 longitude: pin.longitude,
@@ -221,7 +221,7 @@ export default function HomeScreen({ route, navigation }) {
         {nearbyPins.length >= 10 && (
           <TouchableOpacity
             style={styles.viewMoreButton}
-            onPress={() => navigation.navigate("MapScreen")}
+            onPress={() => navigation.navigate("Map")}
           >
             <Text style={styles.viewMoreText}>View all on map</Text>
             <Icon name="chevron-forward" size={16} color="#e75e33" />

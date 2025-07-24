@@ -40,7 +40,10 @@ console.log("getUserVoteStatus import:", getUserVoteStatus);
 console.log("getUpdatedPinData import:", getUpdatedPinData);
 console.log("===================");
 
-export default function MapScreen() {
+export default function MapScreen({ route }) {
+  // Get focusPin from route params
+  const focusPin = route?.params?.focusPin;
+  
   const [location, setLocation] = useState(null);
   const [pin, setPin] = useState(null);
   const [pinMode, setPinMode] = useState(false);
@@ -102,6 +105,34 @@ export default function MapScreen() {
       }
     })();
   }, []);
+
+  // Handle focusPin when map is ready and pins are loaded
+  useEffect(() => {
+    if (focusPin && mapRef.current && allPins.length > 0) {
+      // Focus on the specific pin
+      setTimeout(() => {
+        console.log("Focusing on pin:", focusPin);
+        mapRef.current.animateToRegion(
+          {
+            latitude: focusPin.latitude,
+            longitude: focusPin.longitude,
+            latitudeDelta: 0.005,
+            longitudeDelta: 0.005,
+          },
+          1000
+        );
+
+        // Find and show the pin info modal for the focused pin
+        const targetPin = allPins.find(pin => pin.id === focusPin.id);
+        if (targetPin) {
+          console.log("Found target pin, opening modal:", targetPin);
+          setTimeout(() => {
+            handlePinMarkerPress(targetPin);
+          }, 1500); // Delay to let the map animation complete
+        }
+      }, 500); // Small delay to ensure map is ready
+    }
+  }, [focusPin, allPins]);
 
   const goToMyLocation = () => {
     if (!location || !mapRef.current) return;
@@ -346,17 +377,30 @@ export default function MapScreen() {
     );
   }
 
+  // Determine initial region based on focusPin or user location
+  const getInitialRegion = () => {
+    if (focusPin) {
+      return {
+        latitude: focusPin.latitude,
+        longitude: focusPin.longitude,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      };
+    }
+    return {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    };
+  };
+
   return (
     <View style={styles.container}>
       <MapView
         ref={mapRef}
         style={{ flex: 1 }}
-        initialRegion={{
-          latitude: location.latitude,
-          longitude: location.longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        }}
+        initialRegion={getInitialRegion()}
         onLongPress={handleLongPress}
       >
         {/* RENDER ALL PIN MARKERS */}
@@ -365,6 +409,7 @@ export default function MapScreen() {
             key={pin.id}
             coordinate={{ latitude: pin.latitude, longitude: pin.longitude }}
             onPress={() => handlePinMarkerPress(pin)}
+            pinColor={focusPin && pin.id === focusPin.id ? "#FF6B35" : "#EC6135"}
           />
         ))}
 
@@ -417,6 +462,22 @@ export default function MapScreen() {
                 <Text style={styles.modalUser} numberOfLines={0}>
                   {selectedPin.userFirstName}
                 </Text>
+                
+
+                {focusPin && selectedPin.id === focusPin.id 
+                  // <View style={styles.focusedPinBadge}>
+                  //   {/* <Text style={styles.focusedPinText}>📍 From Home Screen</Text> */}
+                  // </View>
+                }
+
+                {/* Show if this pin was focused from HomeScreen */}
+                {/* {focusPin && selectedPin.id === focusPin.id && (
+                  <View style={styles.focusedPinBadge}>
+                    <Text style={styles.focusedPinText}>📍 From Home Screen</Text>
+                  </View>
+                )} */}
+
+                
                 
                 {/* Vote Counts */}
                 <View style={styles.votesContainer}>
@@ -533,6 +594,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
     color: '#666',
+  },
+  focusedPinBadge: {
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#2196F3',
+  },
+  focusedPinText: {
+    fontSize: 12,
+    color: '#1976D2',
+    fontWeight: '600',
   },
   votesContainer: {
     marginBottom: 20,

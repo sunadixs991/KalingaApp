@@ -1,3 +1,4 @@
+// navigation/TabNavigator.js
 import React, { useState, useEffect } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { View, Keyboard } from "react-native";
@@ -8,7 +9,6 @@ import ContactScreen from "../screens/ContactScreen";
 import ChatScreen from "../screens/ChatScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import MapScreen from "../screens/MapScreen";
-import LoginScreen from "../screens/LoginScreen";
 
 const Tab = createBottomTabNavigator();
 
@@ -38,8 +38,6 @@ export default function TabNavigator({ route }) {
           display: isKeyboardVisible ? "none" : "flex",
         },
         tabBarIcon: ({ focused, color, size }) => {
-          if (route.name === "Login") return null; // Don't render icon or space for Login tab
-
           let iconName;
           let iconColor = focused ? "#49A5A2" : "gray";
 
