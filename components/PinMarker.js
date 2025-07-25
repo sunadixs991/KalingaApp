@@ -59,7 +59,7 @@ const PinMarker = ({ pins, currentLocation, icon }) => {
                 
                 {/* Votes */}
                 <Text style={styles.modalVotes} numberOfLines={0}>
-                  👍 {selectedPin.upvotes || 0}   👎 {selectedPin.downvotes || 0}
+                  👍 {selectedPin.upvotes || 0} 👎 {selectedPin.downvotes || 0}
                 </Text>
                 
                 {/* Additional info can be added here */}

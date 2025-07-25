@@ -7,6 +7,14 @@ const contacts = [
   { name: 'Police', number: '911' },
   { name: 'Fire Department', number: '922' },
   { name: 'Ambulance', number: '933' },
+  { name: 'DRRM', number: '0945 685 2435' },
+  { name: 'Local Government', number: '0945 685 2436' },
+  { name: 'Red Cross', number: '0945 685 2437' },
+  { name: 'Disaster Response Team', number: '0945 685 2438' },
+  { name: 'Community Support', number: '0945 685 2439' },
+  { name: 'Local Hospital', number: '0945 685 2440' },
+  { name: 'Local Clinic', number: '0945 685 2441' },
+  { name: 'Veterinary Services', number: '0945 685 2442' },
   // Add more contacts as needed
 ];
 

@@ -1,0 +1,170 @@
+// ../components/PinCard.js
+import React from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+} from 'react-native';
+import Icon from 'react-native-vector-icons/Ionicons';
+import {
+  widthPercentageToDP as wp,
+  heightPercentageToDP as hp,
+} from 'react-native-responsive-screen';
+import { formatVotes, getPinVoteScore } from '../services/PinService';
+
+const PinCard = ({ pin, onPress }) => {
+  const voteScore = getPinVoteScore(pin);
+  const voteColor = voteScore > 0 ? '#4CAF50' : voteScore < 0 ? '#F44336' : '#666';
+  
+  // Category colors for visual distinction
+  const getCategoryColor = (category) => {
+    const colors = {
+      'Clean Drinking Water': '#2196F3',
+      'Medical Aid': '#F44336',
+      'First Aid Kit': '#FF9800',
+      'Charging Station': '#9C27B0',
+      'Free Wi-Fi Access': '#00BCD4',
+      'Clothing Supply': '#795548',
+      'Blankets Supply': '#607D8B',
+      'Animal Shelter': '#8BC34A',
+      'Temporary Shelter': '#FF5722',
+      'Rescue Equipment': '#E91E63',
+      'Sanitation Facility': '#009688',
+      'Portable Toilets': '#3F51B5',
+    };
+    return colors[category] || '#666';
+  };
+
+  return (
+    <TouchableOpacity style={styles.card} onPress={() => onPress && onPress(pin)}>
+      {/* Header with category and distance */}
+      <View style={styles.cardHeader}>
+        <View style={[styles.categoryBadge, { backgroundColor: getCategoryColor(pin.category) }]}>
+          <Text style={styles.categoryText}>{pin.category}</Text>
+        </View>
+        <View style={styles.distanceContainer}>
+          <Icon name="location-outline" size={12} color="#666" />
+          <Text style={styles.distanceText}>{pin.formattedDistance}</Text>
+        </View>
+      </View>
+
+      {/* Description */}
+      <Text style={styles.description} numberOfLines={2}>
+        {pin.description}
+      </Text>
+
+      {/* Footer with votes and user info */}
+      <View style={styles.cardFooter}>
+        <View style={styles.userInfo}>
+          <Icon name="person-outline" size={14} color="#666" />
+          <Text style={styles.userName}>{pin.userFirstName}</Text>
+        </View>
+        
+        <View style={styles.voteInfo}>
+          <Text style={[styles.voteText, { color: voteColor }]}>
+            {voteScore > 0 ? '+' : ''}{voteScore}
+          </Text>
+          <View style={styles.voteDetails}>
+            <Text style={styles.voteCount}>👍{pin.upvotes || 0}</Text>
+            <Text style={styles.voteCount}>👎{pin.downvotes || 0}</Text>
+          </View>
+        </View>
+      </View>
+      <Text style={styles.modalTime}>
+        {getHoursAgo(selectedPin.createdAt)}
+      </Text>
+    </TouchableOpacity>
+  );
+};
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: wp('4%'),
+    marginBottom: hp('1.5%'),
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: hp('1%'),
+  },
+  categoryBadge: {
+    paddingHorizontal: wp('2.5%'),
+    paddingVertical: hp('0.5%'),
+    borderRadius: 12,
+    flex: 1,
+    marginRight: wp('2%'),
+  },
+  categoryText: {
+    color: '#fff',
+    fontSize: wp('3%'),
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  distanceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  distanceText: {
+    fontSize: wp('3%'),
+    color: '#666',
+    marginLeft: wp('1%'),
+    fontWeight: '500',
+  },
+  description: {
+    fontSize: wp('3.5%'),
+    color: '#333',
+    lineHeight: wp('5%'),
+    marginBottom: hp('1%'),
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: hp('0.5%'),
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  userName: {
+    fontSize: wp('3.2%'),
+    color: '#666',
+    marginLeft: wp('1%'),
+    fontWeight: '500',
+  },
+  voteInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  voteText: {
+    fontSize: wp('3.5%'),
+    fontWeight: 'bold',
+    marginRight: wp('2%'),
+  },
+  voteDetails: {
+    flexDirection: 'row',
+  },
+  voteCount: {
+    fontSize: wp('3%'),
+    color: '#888',
+    marginLeft: wp('1%'),
+  },
+  modalTime: {
+    fontSize: 13,
+    color: '#999',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+});
+
+export default PinCard;

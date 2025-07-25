@@ -27,10 +27,10 @@ import MapPinModal from '../components/MapPinModal';
 import FloatingButtons from '../components/FloatingButtons';
 
 // Try importing with explicit names
-import { 
-  castVote, 
-  getUserVoteStatus, 
-  getUpdatedPinData 
+import {
+  castVote,
+  getUserVoteStatus,
+  getUpdatedPinData
 } from '../services/VotesHandler';
 
 // Debug: Log the imports immediately
@@ -43,7 +43,7 @@ console.log("===================");
 export default function MapScreen({ route }) {
   // Get focusPin from route params
   const focusPin = route?.params?.focusPin;
-  
+
   const [location, setLocation] = useState(null);
   const [pin, setPin] = useState(null);
   const [pinMode, setPinMode] = useState(false);
@@ -184,13 +184,13 @@ export default function MapScreen({ route }) {
       try {
         console.log('Getting vote status for pin:', pin.id, 'user:', userInfo);
         console.log('getUserVoteStatus function check:', typeof getUserVoteStatus);
-        
+
         if (typeof getUserVoteStatus !== 'function') {
           console.error('getUserVoteStatus is not a function!');
           setUserVoteStatus({ hasVoted: false, voteType: null });
           return;
         }
-        
+
         const voteStatus = await getUserVoteStatus(pin.id, userInfo);
         console.log('Vote status result:', voteStatus);
         setUserVoteStatus(voteStatus);
@@ -214,13 +214,13 @@ export default function MapScreen({ route }) {
   const handleVote = async (voteType) => {
     console.log('handleVote called with:', voteType);
     console.log('castVote function check:', typeof castVote);
-    
+
     if (typeof castVote !== 'function') {
       console.error('castVote is not a function:', castVote);
       Alert.alert("Error", "Voting function not available. Please restart the app.");
       return;
     }
-    
+
     if (!userInfo) {
       Alert.alert(
         "Sign in required",
@@ -255,15 +255,15 @@ export default function MapScreen({ route }) {
         // Get updated pin data
         console.log('Getting updated pin data...');
         console.log('getUpdatedPinData function check:', typeof getUpdatedPinData);
-        
+
         if (typeof getUpdatedPinData === 'function') {
           const updatedPin = await getUpdatedPinData(selectedPin.id);
           console.log('Updated pin data:', updatedPin);
-          
+
           if (updatedPin) {
             // Update selected pin
             setSelectedPin(updatedPin);
-            
+
             // Update the pin in allPins array
             setAllPins(prevPins =>
               prevPins.map(pin =>
@@ -295,9 +295,9 @@ export default function MapScreen({ route }) {
             message = `Changed from ${result.previousVote} to ${voteType}.`;
             break;
         }
-        
+
         console.log('Vote success message:', message);
-        
+
       } else {
         console.error('Vote failed:', result.error);
         Alert.alert("Error", result.error || "Failed to record vote. Please try again.");
@@ -452,19 +452,19 @@ export default function MapScreen({ route }) {
                 <Text style={styles.modalTitle} numberOfLines={0}>
                   {selectedPin.description || 'User'}
                 </Text>
-                
+
                 {/* Category */}
                 <Text style={styles.modalCategory} numberOfLines={0}>
                   {selectedPin.category}
                 </Text>
-                
+
                 {/* User */}
                 <Text style={styles.modalUser} numberOfLines={0}>
                   {selectedPin.userFirstName}
                 </Text>
-                
 
-                {focusPin && selectedPin.id === focusPin.id 
+
+                {focusPin && selectedPin.id === focusPin.id
                   // <View style={styles.focusedPinBadge}>
                   //   {/* <Text style={styles.focusedPinText}>📍 From Home Screen</Text> */}
                   // </View>
@@ -477,15 +477,19 @@ export default function MapScreen({ route }) {
                   </View>
                 )} */}
 
-                
-                
+
+
                 {/* Vote Counts */}
                 <View style={styles.votesContainer}>
                   <Text style={styles.modalVotes}>
                     👍 {selectedPin.upvotes || 0}   👎 {selectedPin.downvotes || 0}
                   </Text>
+                   <Text style={styles.modalTime}>
+                  {getHoursAgo(selectedPin.createdAt)}
+                </Text>
                 </View>
-
+               
+                
                 {/* Voting Buttons */}
                 <View style={styles.votingButtons}>
                   <TouchableOpacity
@@ -545,6 +549,26 @@ export default function MapScreen({ route }) {
       </Modal>
     </View>
   );
+}
+
+function getHoursAgo(createdAt) {
+  if (!createdAt) return '';
+  // Firestore timestamp: createdAt.seconds
+  const pinTime = createdAt.seconds ? createdAt.seconds * 1000 : new Date(createdAt).getTime();
+  const now = Date.now();
+  const diffMs = now - pinTime;
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  
+  if (diffHours === 0) {
+    return 'Just now';
+  }
+  
+  if (diffHours >= 24) {
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} Day${diffDays !== 1 ? 's' : ''} ago`;
+  }
+  
+  return `${diffHours} Hour${diffHours !== 1 ? 's' : ''} ago`;
 }
 
 const styles = StyleSheet.create({
@@ -671,5 +695,11 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  modalTime: {
+    fontSize: 13,
+    color: '#999',
+    marginBottom: 8,
+    textAlign: 'center',
   },
 });
