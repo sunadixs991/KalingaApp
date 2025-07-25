@@ -2,9 +2,9 @@
   "expo": {
     "name": "Kalinga_App",
     "slug": "Kalinga_App",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/Kalinga_logo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -21,13 +21,19 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.Kalinga_App"
+      "package": "com.anonymous.Kalinga_App",
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "0829c385-79fd-4724-b36b-c62a29cd8aa5"
+      }
+    }
   }
 }
