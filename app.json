@@ -2,7 +2,7 @@
   "expo": {
     "name": "Kalinga_App",
     "slug": "Kalinga_App",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/Kalinga_logo.png",
     "userInterfaceStyle": "light",
@@ -22,7 +22,8 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.Kalinga_App",
-      "versionCode": 2
+      "versionCode": 2,
+      "permissions": ["ACCESS_FINE_LOCATION"]
     },
     "web": {
       "favicon": "./assets/favicon.png"
