@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Modal } from "react-native";
 import {
   View,
   Text,
@@ -27,23 +28,25 @@ import { fetchNearbyPins } from "../services/PinService";
 
 // Simple PinCard component defined inline to avoid import issues
 const SimplePinCard = ({ pin, onPress }) => (
-  <TouchableOpacity 
+  <TouchableOpacity
     style={{
-      backgroundColor: '#fff',
+      backgroundColor: "#fff",
       borderRadius: 12,
-      padding: 16,
+      padding: 20,
       marginBottom: 12,
       elevation: 3,
-    }} 
+    }}
     onPress={() => onPress && onPress(pin)}
   >
-    <Text style={{ fontWeight: 'bold', marginBottom: 8 }}>{pin.category}</Text>
+    <Text style={{ fontWeight: "bold", marginBottom: 8, fontSize: 15, color: '#e75e33'}}>{pin.category}</Text>
     <Text style={{ marginBottom: 8 }}>{pin.description}</Text>
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-      <Text>By: {pin.userFirstName}</Text>
-      <Text>{pin.formattedDistance}</Text>
+    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+      <Text style={{ fontWeight: "bold", marginBottom: 8}}>Posted by: {pin.userFirstName}</Text>
+      <Text style={{color: '#49A5A2'}}>{pin.formattedDistance}</Text>
     </View>
-    <Text>👍{pin.upvotes || 0} 👎{pin.downvotes || 0}</Text>
+    <Text style={{ fontWeight: "bold" }}>
+      👍{pin.upvotes || 0} 👎{pin.downvotes || 0}
+    </Text>
   </TouchableOpacity>
 );
 
@@ -55,6 +58,8 @@ export default function HomeScreen({ route, navigation }) {
   const [nearbyPins, setNearbyPins] = useState([]);
   const [loadingPins, setLoadingPins] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedPin, setSelectedPin] = useState(null);
+  const [pinModalVisible, setPinModalVisible] = useState(false);
 
   // Test the import
   useEffect(() => {
@@ -95,7 +100,7 @@ export default function HomeScreen({ route, navigation }) {
           );
           return;
         }
-        
+
         let loc = await Location.getCurrentPositionAsync({});
         setCurrentLocation(loc.coords);
 
@@ -140,7 +145,10 @@ export default function HomeScreen({ route, navigation }) {
       setNearbyPins(pins);
     } catch (error) {
       console.error("Error fetching nearby pins:", error);
-      Alert.alert("Error", "Failed to load nearby resources. Please try again.");
+      Alert.alert(
+        "Error",
+        "Failed to load nearby resources. Please try again."
+      );
     } finally {
       setLoadingPins(false);
     }
@@ -153,25 +161,8 @@ export default function HomeScreen({ route, navigation }) {
   };
 
   const handlePinPress = (pin) => {
-    Alert.alert(
-      pin.category,
-      `${pin.description}\n\nPosted by: ${pin.userFirstName}\nDistance: ${pin.formattedDistance}\nVotes: 👍${pin.upvotes || 0} 👎${pin.downvotes || 0}`,
-      [
-        { text: "Close", style: "cancel" },
-        {
-          text: "View on Map",
-          onPress: () => {
-            navigation.navigate("Map", {
-              focusPin: {
-                latitude: pin.latitude,
-                longitude: pin.longitude,
-                id: pin.id
-              }
-            });
-          }
-        }
-      ]
-    );
+    setSelectedPin(pin);
+    setPinModalVisible(true);
   };
 
   const renderNearbyResources = () => {
@@ -211,13 +202,9 @@ export default function HomeScreen({ route, navigation }) {
     return (
       <View style={styles.pinsContainer}>
         {nearbyPins.map((pin) => (
-          <SimplePinCard
-            key={pin.id}
-            pin={pin}
-            onPress={handlePinPress}
-          />
+          <SimplePinCard key={pin.id} pin={pin} onPress={handlePinPress} />
         ))}
-        
+
         {nearbyPins.length >= 10 && (
           <TouchableOpacity
             style={styles.viewMoreButton}
@@ -233,10 +220,7 @@ export default function HomeScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor="#e75e33"
-      />
+      <StatusBar barStyle="light-content" backgroundColor="#e75e33" />
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -251,13 +235,13 @@ export default function HomeScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
 
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContainer}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              colors={['#e75e33']}
+              colors={["#e75e33"]}
               tintColor="#e75e33"
             />
           }
@@ -328,16 +312,80 @@ export default function HomeScreen({ route, navigation }) {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Nearby Resources</Text>
               {nearbyPins.length > 0 && (
-                <TouchableOpacity onPress={handleRefresh} disabled={loadingPins}>
-                  <Icon 
-                    name="refresh" 
-                    size={20} 
-                    color={loadingPins ? "#ccc" : "#e75e33"} 
+                <TouchableOpacity
+                  onPress={handleRefresh}
+                  disabled={loadingPins}
+                >
+                  <Icon
+                    name="refresh"
+                    size={20}
+                    color={loadingPins ? "#ccc" : "#e75e33"}
                   />
                 </TouchableOpacity>
               )}
             </View>
             {renderNearbyResources()}
+            {selectedPin && (
+              <Modal
+                visible={pinModalVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setPinModalVisible(false)}
+              >
+                <View style={styles.modalOverlay}>
+                  <View style={styles.modalContainer}>
+                    {/* Close Button */}
+                    <TouchableOpacity
+                      onPress={() => setPinModalVisible(false)}
+                      style={styles.closeIcon}
+                    >
+                      <Icon name="close" size={30} color="#666" />
+                    </TouchableOpacity>
+
+                    {/* Content */}
+                    <Text style={styles.modalTitle}>
+                      {selectedPin.userFirstName}
+                    </Text>
+                    <Text style={styles.modalDescription}>
+                      {selectedPin.description}
+                    </Text>
+                    <Text style={styles.modalCategory}>
+                       {selectedPin.category}
+                    </Text>
+                    <Text style={styles.modalDistance}>
+                      Distance: {selectedPin.formattedDistance}
+                    </Text>
+                    <Text style={styles.modalMeta}>
+                      👍{selectedPin.upvotes || 0} 👎
+                      {selectedPin.downvotes || 0}
+                    </Text>
+
+                    {/* View on Map Button */}
+                    <TouchableOpacity
+                      onPress={() => {
+                        setPinModalVisible(false);
+                        navigation.navigate("Map", {
+                          focusPin: {
+                            latitude: selectedPin.latitude,
+                            longitude: selectedPin.longitude,
+                            id: selectedPin.id,
+                          },
+                        });
+                      }}
+                      style={styles.viewMapButton}
+                    >
+                      <Icon
+                        name="eye-outline"
+                        size={20}
+                        color="#fff"
+                        style={styles.viewMapIcon}
+                      />
+                      <Text style={styles.viewMapText}>View on Map</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </Modal>
+            )}
           </View>
         </ScrollView>
       </View>
@@ -363,14 +411,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: wp("4%"),
   },
-  locationRow: { 
-    flexDirection: "row", 
+  locationRow: {
+    flexDirection: "row",
     alignItems: "center",
     flex: 1,
   },
-  locationText: { 
-    color: "#fff", 
-    marginLeft: 4, 
+  locationText: {
+    color: "#fff",
+    marginLeft: 4,
     fontWeight: "bold",
     fontSize: wp("3.5%"),
     flexShrink: 1,
@@ -378,7 +426,7 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     padding: wp("4%"),
-    paddingBottom: hp("4%"),
+    paddingBottom: hp("0.5%"),
   },
   welcomeContainer: {
     flexDirection: "row",
@@ -393,14 +441,14 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginRight: 12,
   },
-  welcomeText: { 
-    fontSize: 16, 
-    color: "#333" 
+  welcomeText: {
+    fontSize: 16,
+    color: "#333",
   },
-  userName: { 
-    fontSize: 18, 
-    fontWeight: "bold", 
-    color: "#000" 
+  userName: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#000",
   },
   searchContainer: {
     flexDirection: "row",
@@ -428,11 +476,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: hp("2%"),
   },
   sectionTitle: {
     fontSize: wp("5%"),
     fontWeight: "bold",
+    marginBottom: 12,
   },
   cardRow: {
     flexDirection: "row",
@@ -460,8 +508,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: "center",
   },
-  placeholder: { 
-    backgroundColor: "#e1e1e1" 
+  placeholder: {
+    backgroundColor: "#e1e1e1",
   },
   // Nearby Resources Styles
   pinsContainer: {
@@ -523,5 +571,79 @@ const styles = StyleSheet.create({
     color: "#e75e33",
     fontWeight: "600",
     marginRight: wp("1%"),
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 25,
+  },
+  modalContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+    width: "100%",
+    maxWidth: 400,
+    elevation: 5,
+    position: "relative",
+  },
+  closeIcon: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    padding: 5,
+  },
+  modalTitle: {
+    fontWeight: "bold",
+    fontSize: 18,
+    marginBottom: 8,
+  },
+  modalCategory: {
+    fontSize: 14,
+    marginBottom: 8,
+    textAlign: 'center',
+    color: '#EC6135',
+    fontWeight: '600',
+    backgroundColor: '#FFF3F0',
+    paddingVertical: 7,
+    borderRadius: 12,
+  },
+  modalDescription: {
+    marginBottom: 12,
+    color: "#333",
+  },
+  modalMeta: {
+    marginBottom: 4,
+    color: "#555",
+    fontSize: 16,
+    paddingLeft: 8,
+    fontWeight: "bold",
+    alignSelf: "center",
+  },
+  modalDistance: {
+    fontSize: 14,
+    color: "#49A5A2",
+    marginBottom: 12,
+    fontWeight: 600,
+    paddingLeft: 8,
+  },
+  viewMapButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginTop: 10,
+    backgroundColor: "#e75e33",
+  },
+  viewMapIcon: {
+    marginRight: 6,
+  },
+  viewMapText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
   },
 });
