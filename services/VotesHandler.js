@@ -60,7 +60,7 @@ export const getPinVotes = async (pinId) => {
 
 // Cast a vote (upvote or downvote)
 export const castVote = async (pinId, userId, voteType, onPinDeleted) => {
-  console.log("castVote function called with:", { pinId, userId, voteType });
+  // console.log("castVote function called with:", { pinId, userId, voteType });
 
   try {
     const voteId = `${pinId}_${userId}`;
@@ -69,7 +69,7 @@ export const castVote = async (pinId, userId, voteType, onPinDeleted) => {
 
     // Check if user has already voted
     const existingVote = await hasUserVoted(pinId, userId);
-    console.log("Existing vote:", existingVote);
+    // console.log("Existing vote:", existingVote);
 
     let result;
 
@@ -134,7 +134,7 @@ export const castVote = async (pinId, userId, voteType, onPinDeleted) => {
       const upvotes = pinData.upvotes || 0;
       const downvotes = pinData.downvotes || 0;
 
-      console.log(`Pin ${pinId} vote counts - Upvotes: ${upvotes}, Downvotes: ${downvotes}`);
+      // console.log(`Pin ${pinId} vote counts - Upvotes: ${upvotes}, Downvotes: ${downvotes}`);
 
       // Delete when downvotes exceed upvotes by 20 or more
       // Note: downvotes are typically stored as negative values
@@ -159,11 +159,11 @@ export const castVote = async (pinId, userId, voteType, onPinDeleted) => {
 
 // Get user's vote status for a pin
 export const getUserVoteStatus = async (pinId, userId) => {
-  console.log("getUserVoteStatus called with:", { pinId, userId });
+  // console.log("getUserVoteStatus called with:", { pinId, userId });
 
   try {
     const existingVote = await hasUserVoted(pinId, userId);
-    console.log("Vote status result:", existingVote);
+    // console.log("Vote status result:", existingVote);
 
     return {
       hasVoted: !!existingVote,
@@ -177,7 +177,7 @@ export const getUserVoteStatus = async (pinId, userId) => {
 
 // Get updated pin data with current vote counts
 export const getUpdatedPinData = async (pinId) => {
-  console.log("getUpdatedPinData called with:", pinId);
+  // console.log("getUpdatedPinData called with:", pinId);
 
   try {
     const pinRef = doc(db, "pins", pinId);
@@ -185,7 +185,7 @@ export const getUpdatedPinData = async (pinId) => {
 
     if (pinDoc.exists()) {
       const result = { id: pinDoc.id, ...pinDoc.data() };
-      console.log("Updated pin data:", result);
+      // console.log("Updated pin data:", result);
       return result;
     }
     return null;

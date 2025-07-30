@@ -62,10 +62,10 @@ export default function HomeScreen({ route, navigation }) {
   const [pinModalVisible, setPinModalVisible] = useState(false);
 
   // Test the import
-  useEffect(() => {
-    console.log("fetchNearbyPins function:", fetchNearbyPins);
-    console.log("typeof fetchNearbyPins:", typeof fetchNearbyPins);
-  }, []);
+  // useEffect(() => {
+  //   console.log("fetchNearbyPins function:", fetchNearbyPins);
+  //   console.log("typeof fetchNearbyPins:", typeof fetchNearbyPins);
+  // }, []);
 
   useEffect(() => {
     const fetchUserInfo = async () => {
@@ -79,7 +79,7 @@ export default function HomeScreen({ route, navigation }) {
           setUserInfo(querySnapshot.docs[0].data());
         }
       } catch (error) {
-        console.error("Error fetching user info:", error);
+        // console.error("Error fetching user info:", error);
       }
     };
 
@@ -121,7 +121,7 @@ export default function HomeScreen({ route, navigation }) {
           );
         }
       } catch (error) {
-        console.error("Error getting location:", error);
+        // console.error("Error getting location:", error);
         Alert.alert("Error", "Failed to get your location. Please try again.");
       }
     })();
@@ -139,12 +139,12 @@ export default function HomeScreen({ route, navigation }) {
 
     setLoadingPins(true);
     try {
-      console.log("About to call fetchNearbyPins...");
+      // console.log("About to call fetchNearbyPins...");
       const pins = await fetchNearbyPins(currentLocation, 50, 10); // 50km radius, max 10 pins
-      console.log("fetchNearbyPins returned:", pins);
+      // console.log("fetchNearbyPins returned:", pins);
       setNearbyPins(pins);
     } catch (error) {
-      console.error("Error fetching nearby pins:", error);
+      // console.error("Error fetching nearby pins:", error);
       Alert.alert(
         "Error",
         "Failed to load nearby resources. Please try again."
@@ -277,7 +277,7 @@ export default function HomeScreen({ route, navigation }) {
             <View style={styles.cardRow}>
               <TouchableOpacity
                 style={styles.card}
-                onPress={() => console.log("Food Distribution")}
+                onPress={() => navigation.navigate("FoodDistribution")}
               >
                 <Image
                   source={require("../assets/Kalinga_logo.png")}
@@ -288,7 +288,7 @@ export default function HomeScreen({ route, navigation }) {
 
               <TouchableOpacity
                 style={styles.card}
-                onPress={() => console.log("Medical Support")}
+                onPress={() =>navigation.navigate("MedicalSupport")}
               >
                 <Image
                   source={require("../assets/Kalinga_logo.png")}
@@ -299,7 +299,7 @@ export default function HomeScreen({ route, navigation }) {
 
               <TouchableOpacity
                 style={styles.card}
-                onPress={() => console.log("Evacuation Centers")}
+                onPress={() => navigation.navigate("EvacuationCenters")}
               >
                 <View style={[styles.cardImage, styles.placeholder]} />
                 <Text style={styles.cardText}>Evacuation Centers</Text>

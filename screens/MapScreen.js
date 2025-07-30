@@ -34,11 +34,11 @@ import {
 } from '../services/VotesHandler';
 
 // Debug: Log the imports immediately
-console.log("=== IMPORT DEBUG ===");
-console.log("castVote import:", castVote);
-console.log("getUserVoteStatus import:", getUserVoteStatus);
-console.log("getUpdatedPinData import:", getUpdatedPinData);
-console.log("===================");
+// console.log("=== IMPORT DEBUG ===");
+// console.log("castVote import:", castVote);
+// console.log("getUserVoteStatus import:", getUserVoteStatus);
+// console.log("getUpdatedPinData import:", getUpdatedPinData);
+// console.log("===================");
 
 export default function MapScreen({ route }) {
   // Get focusPin from route params
@@ -193,7 +193,7 @@ export default function MapScreen({ route }) {
         }
 
         const voteStatus = await getUserVoteStatus(pin.id, userInfo);
-        console.log('Vote status result:', voteStatus);
+        // console.log('Vote status result:', voteStatus);
         setUserVoteStatus(voteStatus);
       } catch (error) {
         console.error('Error getting vote status:', error);
@@ -246,18 +246,93 @@ export default function MapScreen({ route }) {
     }
 
     setIsVoting(true);
+// Determine the next voteType for the user
+let nextVoteType;
+if (userVoteStatus.voteType === voteType) {
+  // Unvote
+  nextVoteType = null;
+} else {
+  // New vote or switch
+  nextVoteType = voteType;
+}
+
+// OPTIMISTIC UPDATE
+setAllPins(prevPins =>
+  prevPins.map(pin => {
+    if (pin.id !== selectedPin.id) return pin;
+
+    let upvotes = pin.upvotes || 0;
+    let downvotes = pin.downvotes || 0;
+
+    if (userVoteStatus.voteType === "upvote" && voteType === "downvote") {
+      upvotes = upvotes - 1;
+      downvotes = downvotes + 1;
+    } else if (userVoteStatus.voteType === "downvote" && voteType === "upvote") {
+      downvotes = downvotes - 1;
+      upvotes = upvotes + 1;
+    } else if (userVoteStatus.voteType === voteType) {
+      // Unvote (toggle off)
+      if (voteType === "upvote") upvotes = upvotes - 1;
+      if (voteType === "downvote") downvotes = downvotes - 1;
+    } else {
+      // New vote
+      if (voteType === "upvote") upvotes = upvotes + 1;
+      if (voteType === "downvote") downvotes = downvotes + 1;
+    }
+
+    return {
+      ...pin,
+      upvotes,
+      downvotes,
+    };
+  })
+);
+
+setSelectedPin(prev => {
+  if (!prev) return prev;
+
+  let upvotes = prev.upvotes || 0;
+  let downvotes = prev.downvotes || 0;
+
+  if (userVoteStatus.voteType === "upvote" && voteType === "downvote") {
+    upvotes = upvotes - 1;
+    downvotes = downvotes + 1;
+  } else if (userVoteStatus.voteType === "downvote" && voteType === "upvote") {
+    downvotes = downvotes - 1;
+    upvotes = upvotes + 1;
+  } else if (userVoteStatus.voteType === voteType) {
+    if (voteType === "upvote") upvotes = upvotes - 1;
+    if (voteType === "downvote") downvotes = downvotes - 1;
+  } else {
+    if (voteType === "upvote") upvotes = upvotes + 1;
+    if (voteType === "downvote") downvotes = downvotes + 1;
+  }
+
+  return {
+    ...prev,
+    upvotes,
+    downvotes,
+  };
+});
+
+// Optimistically update userVoteStatus for instant color feedback
+setUserVoteStatus({
+  hasVoted: !!nextVoteType,
+  voteType: nextVoteType,
+});
+    // --- OPTIMISTIC UPDATE END ---
 
     try {
       console.log('Calling castVote with:', selectedPin.id, userInfo, voteType);
       await castVote(selectedPin.id, userInfo, voteType, closePinInfoModal);
 
       // Get updated pin data
-      console.log('Getting updated pin data...');
-      console.log('getUpdatedPinData function check:', typeof getUpdatedPinData);
+      // console.log('Getting updated pin data...');
+      // console.log('getUpdatedPinData function check:', typeof getUpdatedPinData);
 
       if (typeof getUpdatedPinData === 'function') {
         const updatedPin = await getUpdatedPinData(selectedPin.id);
-        console.log('Updated pin data:', updatedPin);
+        // console.log('Updated pin data:', updatedPin);
 
         if (updatedPin) {
           // Update selected pin
@@ -537,6 +612,7 @@ export default function MapScreen({ route }) {
                     ]}
                     onPress={() => handleVote("downvote")}
                     disabled={isVoting}
+                    
                   >
                     <Text
                       style={[

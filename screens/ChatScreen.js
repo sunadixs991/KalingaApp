@@ -17,6 +17,13 @@ import { getUserInfo } from "../services/getinfo"; // ✅ corrected path
 import * as Location from "expo-location";
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 
+const FAQS = [
+  "What services are available in my area?",
+  "How do I request for medical assistance?",
+  "Where is the nearest evacuation center?",
+  "How do I report an emergency?",
+  "What are the food distribution schedules?",
+];
 
 export default function ChatScreen({ route }) {
   const username = route?.params?.username;
@@ -34,6 +41,7 @@ export default function ChatScreen({ route }) {
   const [infoLoading, setInfoLoading] = useState(true);
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [placeName, setPlaceName] = useState("");
+  const [showFaqs, setShowFaqs] = useState(true);
 
   useEffect(() => {
     let timeoutId = setTimeout(() => {
@@ -76,6 +84,58 @@ export default function ChatScreen({ route }) {
 
     return () => clearTimeout(timeoutId);
   }, [username]);
+
+  // Add this function to handle FAQ quick send
+  function handleFAQPress(faq) {
+    setInput(faq);
+    sendMessageWithText(faq);
+  }
+
+  // Helper to send a message with a specific text (for FAQ)
+  async function sendMessageWithText(text) {
+    if (!text.trim()) return;
+
+    let USER_INFO;
+    let locationText = placeName ? `My current location is: ${placeName}.` : "";
+
+    if (userInfo) {
+      USER_INFO = `
+My name is ${userInfo.firstName.trim()} ${userInfo.lastName.trim()}.
+I am from ${userInfo.barangay}, ${userInfo.city}, ${userInfo.province}.
+I was born on ${userInfo.dob} and I identify as ${userInfo.gender}.
+My civil status is ${userInfo.status}.
+My location is ${locationText}.
+You should remember this information and use it to personalize your responses.
+`;
+    } else if (loadTimeout) {
+      USER_INFO = `
+This is not a signed-in account. If the user asks for personal information, politely tell them to sign in first(except for location).
+My location is ${locationText}
+`;
+    } else {
+      // Still loading, do not send
+      return;
+    }
+
+    // Add the user's message to the chat first
+    const userMessage = {
+      id: Date.now().toString(),
+      sender: "user",
+      text,
+    };
+    setMessages((prev) => [...prev, userMessage]);
+    setLoading(true);
+
+    const prompt = USER_INFO + "\nUser: " + text;
+    const botText = await getGeminiResponse(prompt);
+
+    setMessages((prev) => [
+      ...prev,
+      { id: Date.now().toString() + "_bot", sender: "bot", text: botText },
+    ]);
+    setInput("");
+    setLoading(false);
+  }
 
   async function sendMessage() {
     if (!input.trim()) return;
@@ -157,7 +217,7 @@ My location is ${locationText}
         <FlatList
           data={messages}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
             <View
               style={[
                 styles.message,
@@ -165,6 +225,27 @@ My location is ${locationText}
               ]}
             >
               <Text style={styles.messageText}>{item.text}</Text>
+              {/* Show FAQ buttons right after the bot's greeting */}
+              {index === 0 && item.sender === "bot" && (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 10 }}>
+                  {FAQS.map((faq, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      style={{
+                        backgroundColor: "#e75e33",
+                        borderRadius: 20,
+                        paddingHorizontal: 14,
+                        paddingVertical: 8,
+                        margin: 4,
+                      }}
+                      onPress={() => handleFAQPress(faq)}
+                      disabled={loading}
+                    >
+                      <Text style={{ color: "#fff", fontSize: 13 }}>{faq}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
           )}
           contentContainerStyle={styles.chatContainer}

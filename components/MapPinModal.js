@@ -38,21 +38,21 @@ const MapPinModal = ({
   const [showCategories, setShowCategories] = useState(false);
 
   // Debug logging
-  console.log("MapPinModal Props:", {
-    visible,
-    description,
-    selectedCategory,
-    onCategoryChange: typeof onCategoryChange
-  });
+  // console.log("MapPinModal Props:", {
+  //   visible,
+  //   description,
+  //   selectedCategory,
+  //   onCategoryChange: typeof onCategoryChange
+  // });
 
   const handleCategorySelect = (category) => {
-    console.log("Category selected:", category);
+    // console.log("Category selected:", category);
     onCategoryChange(category);
     setShowCategories(false);
   };
 
   const handleSave = () => {
-    console.log("Save pressed. Category:", selectedCategory, "Description:", description);
+    // console.log("Save pressed. Category:", selectedCategory, "Description:", description);
     if (!selectedCategory) {
       Alert.alert("Category Required", "Please select a category for this pin.");
       return;
@@ -86,7 +86,7 @@ const MapPinModal = ({
             <TouchableOpacity 
               style={styles.categorySelector}
               onPress={() => {
-                console.log("Category selector pressed, current showCategories:", showCategories);
+                // console.log("Category selector pressed, current showCategories:", showCategories);
                 setShowCategories(!showCategories);
               }}
             >

@@ -76,9 +76,9 @@ export const formatVotes = (pin) => {
 export const fetchNearbyPins = async (userLocation, maxDistance = 50, limitCount = 20) => {
   try {
     console.log('Fetching pins from database...');
-    console.log('User location:', userLocation);
-    console.log('Max distance:', maxDistance, 'km');
-    console.log('Limit count:', limitCount);
+    // console.log('User location:', userLocation);
+    // console.log('Max distance:', maxDistance, 'km');
+    // console.log('Limit count:', limitCount);
     
     // Query pins from Firestore (ordered by creation date, newest first)
     const q = query(
@@ -94,7 +94,7 @@ export const fetchNearbyPins = async (userLocation, maxDistance = 50, limitCount
     
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      console.log(`Processing pin ${doc.id}:`, data);
+      // console.log(`Processing pin ${doc.id}:`, data);
       
       if (data.latitude && data.longitude) {
         // Calculate distance from user's location
@@ -105,7 +105,7 @@ export const fetchNearbyPins = async (userLocation, maxDistance = 50, limitCount
           data.longitude
         );
         
-        console.log(`Pin ${doc.id} distance: ${distance}km`);
+        // console.log(`Pin ${doc.id} distance: ${distance}km`);
         
         // Only include pins within maxDistance
         if (distance <= maxDistance) {
@@ -134,7 +134,7 @@ export const fetchNearbyPins = async (userLocation, maxDistance = 50, limitCount
     
     // Return only the requested number of pins
     const result = pins.slice(0, limitCount);
-    console.log(`Returning ${result.length} nearby pins within ${maxDistance}km`);
+    // console.log(`Returning ${result.length} nearby pins within ${maxDistance}km`);
     
     return result;
     
