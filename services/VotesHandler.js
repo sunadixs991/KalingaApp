@@ -59,7 +59,7 @@ export const getPinVotes = async (pinId) => {
 
 
 // Cast a vote (upvote or downvote)
-export const castVote = async (pinId, userId, voteType) => {
+export const castVote = async (pinId, userId, voteType, onPinDeleted) => {
   console.log("castVote function called with:", { pinId, userId, voteType });
 
   try {
@@ -141,7 +141,7 @@ export const castVote = async (pinId, userId, voteType) => {
       const downvoteThreshold = Math.abs(downvotes) - upvotes;
 
       if (downvoteThreshold >= 20) {
-        const deleted = await deletePinCompletely(pinId);
+        const deleted = await deletePinCompletely(pinId, onPinDeleted);
         if (deleted) {
           result.pinDeleted = true;
           result.deleteReason = `Downvotes exceed upvotes by ${downvoteThreshold} (threshold: 20)`;

@@ -25,7 +25,7 @@ import { widthPercentageToDP as wp, heightPercentageToDP as hp } from "react-nat
 import { getUserInfo } from "../services/getinfo";
 import MapPinModal from '../components/MapPinModal';
 import FloatingButtons from '../components/FloatingButtons';
-
+import { deletePinCompletely } from '../services/deletepins';
 // Try importing with explicit names
 import {
   castVote,
@@ -249,60 +249,66 @@ export default function MapScreen({ route }) {
 
     try {
       console.log('Calling castVote with:', selectedPin.id, userInfo, voteType);
-      const result = await castVote(selectedPin.id, userInfo, voteType);
-      console.log('Vote result:', result);
+      await castVote(selectedPin.id, userInfo, voteType, closePinInfoModal);
 
-      if (result.success) {
-        // Get updated pin data
-        console.log('Getting updated pin data...');
-        console.log('getUpdatedPinData function check:', typeof getUpdatedPinData);
+      // Get updated pin data
+      console.log('Getting updated pin data...');
+      console.log('getUpdatedPinData function check:', typeof getUpdatedPinData);
 
-        if (typeof getUpdatedPinData === 'function') {
-          const updatedPin = await getUpdatedPinData(selectedPin.id);
-          console.log('Updated pin data:', updatedPin);
+      if (typeof getUpdatedPinData === 'function') {
+        const updatedPin = await getUpdatedPinData(selectedPin.id);
+        console.log('Updated pin data:', updatedPin);
 
-          if (updatedPin) {
-            // Update selected pin
-            setSelectedPin(updatedPin);
+        if (updatedPin) {
+          // Update selected pin
+          setSelectedPin(updatedPin);
 
-            // Update the pin in allPins array
-            setAllPins(prevPins =>
-              prevPins.map(pin =>
-                pin.id === selectedPin.id
-                  ? { ...pin, upvotes: updatedPin.upvotes, downvotes: updatedPin.downvotes }
-                  : pin
-              )
-            );
-          }
+          // Update the pin in allPins array
+          setAllPins(prevPins =>
+            prevPins.map(pin =>
+              pin.id === selectedPin.id
+                ? { ...pin, upvotes: updatedPin.upvotes, downvotes: updatedPin.downvotes }
+                : pin
+            )
+          );
         }
-
-        // Update user vote status
-        if (typeof getUserVoteStatus === 'function') {
-          const newVoteStatus = await getUserVoteStatus(selectedPin.id, userInfo);
-          console.log('New vote status:', newVoteStatus);
-          setUserVoteStatus(newVoteStatus);
-        }
-
-        // Show feedback message
-        let message = "";
-        switch (result.action) {
-          case "added":
-            message = `You ${voteType}d this pin!`;
-            break;
-          case "removed":
-            message = `Your ${voteType} has been removed.`;
-            break;
-          case "changed":
-            message = `Changed from ${result.previousVote} to ${voteType}.`;
-            break;
-        }
-
-        console.log('Vote success message:', message);
-
-      } else {
-        console.error('Vote failed:', result.error);
-        Alert.alert("Error", result.error || "Failed to record vote. Please try again.");
       }
+
+      // Update user vote status
+      if (typeof getUserVoteStatus === 'function') {
+        const newVoteStatus = await getUserVoteStatus(selectedPin.id, userInfo);
+        console.log('New vote status:', newVoteStatus);
+        setUserVoteStatus(newVoteStatus);
+      }
+            try {
+        const querySnapshot = await getDocs(collection(db, "pins"));
+        const pins = [];
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.latitude && data.longitude) {
+            pins.push({
+              id: doc.id,
+              latitude: data.latitude,
+              longitude: data.longitude,
+              userId: data.userId,
+              userFirstName: data.userFirstName,
+              description: data.description,
+              category: data.category || "Unknown",
+              createdAt: data.createdAt,
+              upvotes: data.upvotes || 0,
+              downvotes: data.downvotes || 0,
+            });
+          }
+        });
+        setAllPins(pins);
+      } catch (error) {
+        console.error("Error fetching pins:", error);
+      }
+
+   
+
+
+
     } catch (error) {
       console.error("Error voting:", error);
       Alert.alert("Error", "Failed to record vote. Please try again.");
@@ -310,6 +316,9 @@ export default function MapScreen({ route }) {
       setIsVoting(false);
     }
   };
+
+
+  
 
   const handleSavePin = async () => {
     if (!selectedCategory.trim()) {

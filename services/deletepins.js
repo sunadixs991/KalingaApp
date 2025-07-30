@@ -1,7 +1,7 @@
 import { doc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { Alert } from 'react-native';
 import { db } from '../firebase'; // Go up one level to find firebase.js
-import { closePinInfoModal } from '../screens/MapScreen';
+import { Alert } from 'react-native';
+
 
 
 /**
@@ -11,7 +11,7 @@ import { closePinInfoModal } from '../screens/MapScreen';
  */
 
 
-const deletePinCompletely = async (pinId, closePinInfoModal) => {
+export const deletePinCompletely = async (pinId, onDeleted) => {
   try {
     console.log(`Auto-deleting pin ${pinId} due to high downvote ratio`);
 
@@ -32,23 +32,17 @@ const deletePinCompletely = async (pinId, closePinInfoModal) => {
       {
         text: "OK",
         style: "default",
-        onPress: () => {
-          closePinInfoModal(); // ✅ Close modal after OK
-        },
+   
       },
     ]);
 
+  
+    if (typeof onDeleted === 'function') {
+      onDeleted();
+    }
     return true;
   } catch (error) {
     console.error("Error deleting pin:", error);
     return false;
   }
 };
-
-
-
-// Export the function
-export { deletePinCompletely };
-
-// Also provide default export as fallback
-export default deletePinCompletely;
