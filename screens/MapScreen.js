@@ -21,20 +21,17 @@ import {
   serverTimestamp,
   getDocs,
 } from "firebase/firestore";
-import {
-  widthPercentageToDP as wp,
-  heightPercentageToDP as hp,
-} from "react-native-responsive-screen";
+import { widthPercentageToDP as wp, heightPercentageToDP as hp } from "react-native-responsive-screen";
 import { getUserInfo } from "../services/getinfo";
-import MapPinModal from "../components/MapPinModal";
-import FloatingButtons from "../components/FloatingButtons";
+import MapPinModal from '../components/MapPinModal';
+import FloatingButtons from '../components/FloatingButtons';
 
 // Try importing with explicit names
 import {
   castVote,
   getUserVoteStatus,
-  getUpdatedPinData,
-} from "../services/VotesHandler";
+  getUpdatedPinData
+} from '../services/VotesHandler';
 
 // Debug: Log the imports immediately
 console.log("=== IMPORT DEBUG ===");
@@ -59,14 +56,12 @@ export default function MapScreen({ route }) {
   const [selectedCategory, setSelectedCategory] = useState("");
   const mapRef = useRef(null);
   const navigation = useNavigation();
+  
 
   // PIN INFO MODAL STATES
   const [pinInfoModalVisible, setPinInfoModalVisible] = useState(false);
   const [selectedPin, setSelectedPin] = useState(null);
-  const [userVoteStatus, setUserVoteStatus] = useState({
-    hasVoted: false,
-    voteType: null,
-  });
+  const [userVoteStatus, setUserVoteStatus] = useState({ hasVoted: false, voteType: null });
   const [isVoting, setIsVoting] = useState(false);
 
   useEffect(() => {
@@ -129,7 +124,7 @@ export default function MapScreen({ route }) {
         );
 
         // Find and show the pin info modal for the focused pin
-        const targetPin = allPins.find((pin) => pin.id === focusPin.id);
+        const targetPin = allPins.find(pin => pin.id === focusPin.id);
         if (targetPin) {
           console.log("Found target pin, opening modal:", targetPin);
           setTimeout(() => {
@@ -181,30 +176,27 @@ export default function MapScreen({ route }) {
 
   // HANDLE PIN MARKER PRESS
   const handlePinMarkerPress = async (pin) => {
-    console.log("Pin marker pressed:", pin.id);
+    console.log('Pin marker pressed:', pin.id);
     setSelectedPin(pin);
     setPinInfoModalVisible(true);
 
     // Get user's vote status for this pin
     if (userInfo) {
       try {
-        console.log("Getting vote status for pin:", pin.id, "user:", userInfo);
-        console.log(
-          "getUserVoteStatus function check:",
-          typeof getUserVoteStatus
-        );
+        console.log('Getting vote status for pin:', pin.id, 'user:', userInfo);
+        console.log('getUserVoteStatus function check:', typeof getUserVoteStatus);
 
-        if (typeof getUserVoteStatus !== "function") {
-          console.error("getUserVoteStatus is not a function!");
+        if (typeof getUserVoteStatus !== 'function') {
+          console.error('getUserVoteStatus is not a function!');
           setUserVoteStatus({ hasVoted: false, voteType: null });
           return;
         }
 
         const voteStatus = await getUserVoteStatus(pin.id, userInfo);
-        console.log("Vote status result:", voteStatus);
+        console.log('Vote status result:', voteStatus);
         setUserVoteStatus(voteStatus);
       } catch (error) {
-        console.error("Error getting vote status:", error);
+        console.error('Error getting vote status:', error);
         setUserVoteStatus({ hasVoted: false, voteType: null });
       }
     } else {
@@ -221,69 +213,63 @@ export default function MapScreen({ route }) {
 
   // HANDLE VOTING
   const handleVote = async (voteType) => {
-    console.log("handleVote called with:", voteType);
-    console.log("castVote function check:", typeof castVote);
+    console.log('handleVote called with:', voteType);
+    console.log('castVote function check:', typeof castVote);
 
-    if (typeof castVote !== "function") {
-      console.error("castVote is not a function:", castVote);
-      Alert.alert(
-        "Error",
-        "Voting function not available. Please restart the app."
-      );
+    if (typeof castVote !== 'function') {
+      console.error('castVote is not a function:', castVote);
+      Alert.alert("Error", "Voting function not available. Please restart the app.");
       return;
     }
 
     if (!userInfo) {
-      Alert.alert("Sign in required", "You need to sign in to vote.", [
-        { text: "No thanks!", style: "cancel" },
-        {
-          text: "Sign in",
-          onPress: () => {
-            closePinInfoModal();
-            navigation.navigate("LoginScreen");
+      Alert.alert(
+        "Sign in required",
+        "You need to sign in to vote.",
+        [
+          { text: "No thanks!", style: "cancel" },
+          {
+            text: "Sign in",
+            onPress: () => {
+              closePinInfoModal();
+              navigation.navigate("LoginScreen");
+            },
           },
-        },
-      ]);
+        ]
+      );
       return;
     }
 
     if (!selectedPin) {
-      console.log("No selected pin");
+      console.log('No selected pin');
       return;
     }
 
     setIsVoting(true);
 
     try {
-      console.log("Calling castVote with:", selectedPin.id, userInfo, voteType);
+      console.log('Calling castVote with:', selectedPin.id, userInfo, voteType);
       const result = await castVote(selectedPin.id, userInfo, voteType);
-      console.log("Vote result:", result);
+      console.log('Vote result:', result);
 
       if (result.success) {
         // Get updated pin data
-        console.log("Getting updated pin data...");
-        console.log(
-          "getUpdatedPinData function check:",
-          typeof getUpdatedPinData
-        );
+        console.log('Getting updated pin data...');
+        console.log('getUpdatedPinData function check:', typeof getUpdatedPinData);
 
-        if (typeof getUpdatedPinData === "function") {
+        if (typeof getUpdatedPinData === 'function') {
           const updatedPin = await getUpdatedPinData(selectedPin.id);
-          console.log("Updated pin data:", updatedPin);
+          console.log('Updated pin data:', updatedPin);
 
           if (updatedPin) {
             // Update selected pin
             setSelectedPin(updatedPin);
 
             // Update the pin in allPins array
-            setAllPins((prevPins) =>
-              prevPins.map((pin) =>
+            setAllPins(prevPins =>
+              prevPins.map(pin =>
                 pin.id === selectedPin.id
-                  ? {
-                      ...pin,
-                      upvotes: updatedPin.upvotes,
-                      downvotes: updatedPin.downvotes,
-                    }
+                  ? { ...pin, upvotes: updatedPin.upvotes, downvotes: updatedPin.downvotes }
                   : pin
               )
             );
@@ -291,12 +277,9 @@ export default function MapScreen({ route }) {
         }
 
         // Update user vote status
-        if (typeof getUserVoteStatus === "function") {
-          const newVoteStatus = await getUserVoteStatus(
-            selectedPin.id,
-            userInfo
-          );
-          console.log("New vote status:", newVoteStatus);
+        if (typeof getUserVoteStatus === 'function') {
+          const newVoteStatus = await getUserVoteStatus(selectedPin.id, userInfo);
+          console.log('New vote status:', newVoteStatus);
           setUserVoteStatus(newVoteStatus);
         }
 
@@ -314,13 +297,11 @@ export default function MapScreen({ route }) {
             break;
         }
 
-        console.log("Vote success message:", message);
+        console.log('Vote success message:', message);
+
       } else {
-        console.error("Vote failed:", result.error);
-        Alert.alert(
-          "Error",
-          result.error || "Failed to record vote. Please try again."
-        );
+        console.error('Vote failed:', result.error);
+        Alert.alert("Error", result.error || "Failed to record vote. Please try again.");
       }
     } catch (error) {
       console.error("Error voting:", error);
@@ -429,19 +410,12 @@ export default function MapScreen({ route }) {
             key={pin.id}
             coordinate={{ latitude: pin.latitude, longitude: pin.longitude }}
             onPress={() => handlePinMarkerPress(pin)}
-            pinColor={
-              focusPin && pin.id === focusPin.id ? "#FF6B35" : "#EC6135"
-            }
+            pinColor={focusPin && pin.id === focusPin.id ? "#FF6B35" : "#EC6135"}
           />
         ))}
 
         {/* CURRENT LOCATION MARKER */}
-        <Marker
-          coordinate={{
-            latitude: location.latitude,
-            longitude: location.longitude,
-          }}
-        >
+        <Marker coordinate={{ latitude: location.latitude, longitude: location.longitude }}>
           <Icon name="location" size={36} color="#EC6135" />
         </Marker>
       </MapView>
@@ -477,13 +451,9 @@ export default function MapScreen({ route }) {
               <>
                 {/* Title */}
                 <Text style={styles.modalTitle} numberOfLines={0}>
-                  {selectedPin.description || "User"}
+                  {selectedPin.description || 'User'}
                 </Text>
 
-                <Text style={styles.modalTime}>
-                  {getHoursAgo(selectedPin.createdAt)}
-                </Text>
-                
                 {/* Category */}
                 <Text style={styles.modalCategory} numberOfLines={0}>
                   {selectedPin.category}
@@ -493,9 +463,11 @@ export default function MapScreen({ route }) {
                 <Text style={styles.modalUser} numberOfLines={0}>
                   {selectedPin.userFirstName}
                 </Text>
+                <Text style={styles.modalTime}>
+                  {getHoursAgo(selectedPin.createdAt)}
+                </Text>
 
-                {
-                  focusPin && selectedPin.id === focusPin.id
+                {focusPin && selectedPin.id === focusPin.id
                   // <View style={styles.focusedPinBadge}>
                   //   {/* <Text style={styles.focusedPinText}>📍 From Home Screen</Text> */}
                   // </View>
@@ -508,79 +480,80 @@ export default function MapScreen({ route }) {
                   </View>
                 )} */}
 
-                {/* Vote Counts */}
-                <View style={styles.votesContainer}>
-                  <Text style={styles.modalVotes}>
-                    👍 {selectedPin.upvotes || 0} 👎{" "}
-                    {selectedPin.downvotes || 0}
-                  </Text>
-                </View>
 
-                {/* Voting Buttons */}
-                <View style={styles.votingButtons}>
+
+                {/* Vote Counts */}
+                {/* Reddit-Style Voting System - Horizontal Layout */}
+                <View
+                  style={[
+                    styles.votingContainer,
+                    userVoteStatus.voteType === "upvote" && styles.containerUpvoted,
+                    userVoteStatus.voteType === "downvote" && styles.containerDownvoted,
+                  ]}
+                >
                   <TouchableOpacity
                     style={[
                       styles.voteButton,
-                      styles.upvoteButton,
-                      userVoteStatus.voteType === "upvote" &&
-                        styles.activeVoteButton,
+                      userVoteStatus.voteType === "upvote" && styles.activeUpvote,
                     ]}
                     onPress={() => handleVote("upvote")}
                     disabled={isVoting}
                   >
                     <Text
                       style={[
-                        styles.voteButtonText,
-                        userVoteStatus.voteType === "upvote" &&
-                          styles.activeVoteButtonText,
+                        styles.arrowText,
+                        userVoteStatus.voteType === "upvote" && styles.activeUpvoteText,
                       ]}
                     >
-                      👍{" "}
-                      {userVoteStatus.voteType === "upvote"
-                        ? "Upvoted"
-                        : "Upvote"}
+                      ⇧
                     </Text>
                   </TouchableOpacity>
 
+                  {/* Net Score Display */}
+                  <Text
+                    style={[
+                      styles.scoreText,
+                      userVoteStatus.voteType === "upvote" && styles.upvotedScore,
+                      userVoteStatus.voteType === "downvote" && styles.downvotedScore,
+                    ]}
+                  >
+                    {(selectedPin.upvotes || 0) - (selectedPin.downvotes || 0)}
+                  </Text>
+
+                  {/* Downvote Button */}
                   <TouchableOpacity
                     style={[
                       styles.voteButton,
-                      styles.downvoteButton,
-                      userVoteStatus.voteType === "downvote" &&
-                        styles.activeVoteButton,
+                      userVoteStatus.voteType === "downvote" && styles.activeDownvote,
                     ]}
                     onPress={() => handleVote("downvote")}
                     disabled={isVoting}
                   >
                     <Text
                       style={[
-                        styles.voteButtonText,
-                        userVoteStatus.voteType === "downvote" &&
-                          styles.activeVoteButtonText,
+                        styles.arrowText,
+                        userVoteStatus.voteType === "downvote" && styles.activeDownvoteText,
                       ]}
                     >
-                      👎{" "}
-                      {userVoteStatus.voteType === "downvote"
-                        ? "Downvoted"
-                        : "Downvote"}
+                      ⇩
                     </Text>
                   </TouchableOpacity>
                 </View>
 
                 {/* Loading indicator */}
-                {isVoting && (
+                {/* {isVoting && (
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator size="small" color="#EC6135" />
                     <Text style={styles.loadingText}>Recording vote...</Text>
                   </View>
-                )}
+                )} */}
 
                 {/* Close button */}
                 <TouchableOpacity
                   style={styles.closeButton}
                   onPress={closePinInfoModal}
                 >
-                  <Icon name="close" size={30} color="#666" />
+                  <Text style={styles.closeButtonText}>Close</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -592,25 +565,23 @@ export default function MapScreen({ route }) {
 }
 
 function getHoursAgo(createdAt) {
-  if (!createdAt) return "";
+  if (!createdAt) return '';
   // Firestore timestamp: createdAt.seconds
-  const pinTime = createdAt.seconds
-    ? createdAt.seconds * 1000
-    : new Date(createdAt).getTime();
+  const pinTime = createdAt.seconds ? createdAt.seconds * 1000 : new Date(createdAt).getTime();
   const now = Date.now();
   const diffMs = now - pinTime;
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
 
   if (diffHours === 0) {
-    return "Just now";
+    return 'Just now';
   }
 
   if (diffHours >= 24) {
     const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays} Day${diffDays !== 1 ? "s" : ""} ago`;
+    return `${diffDays} Day${diffDays !== 1 ? 's' : ''} ago`;
   }
 
-  return `${diffHours} Hour${diffHours !== 1 ? "s" : ""} ago`;
+  return `${diffHours} Hour${diffHours !== 1 ? 's' : ''} ago`;
 }
 
 const styles = StyleSheet.create({
@@ -619,40 +590,38 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContainer: {
-    backgroundColor: "white",
-    padding: 20,
+    backgroundColor: 'white',
+    padding: 24,
     borderRadius: 12,
-    width: "85%",
+    width: '85%',
     maxWidth: 400,
-    maxHeight: "80%",
-    alignItems: "center",
-    shadowColor: "#000",
+    maxHeight: '80%',
+    alignItems: 'center',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 8,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 2,
-    paddingVertical: 5,
-    textAlign: "center",
-    color: "#333",
-    padding: 20,
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+    color: '#333',
   },
   modalCategory: {
     fontSize: 14,
     marginBottom: 8,
-    textAlign: "center",
-    color: "#EC6135",
-    fontWeight: "600",
-    backgroundColor: "#FFF3F0",
+    textAlign: 'center',
+    color: '#EC6135',
+    fontWeight: '600',
+    backgroundColor: '#FFF3F0',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
@@ -660,35 +629,35 @@ const styles = StyleSheet.create({
   modalUser: {
     fontSize: 16,
     marginBottom: 8,
-    textAlign: "center",
-    color: "#666",
+    textAlign: 'center',
+    color: '#666',
   },
   focusedPinBadge: {
-    backgroundColor: "#E3F2FD",
+    backgroundColor: '#E3F2FD',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#2196F3",
+    borderColor: '#2196F3',
   },
   focusedPinText: {
     fontSize: 12,
-    color: "#1976D2",
-    fontWeight: "600",
+    color: '#1976D2',
+    fontWeight: '600',
   },
   votesContainer: {
     marginBottom: 20,
   },
   modalVotes: {
     fontSize: 16,
-    textAlign: "center",
-    color: "#888",
+    textAlign: 'center',
+    color: '#888',
   },
   votingButtons: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
     marginBottom: 20,
   },
   voteButton: {
@@ -700,49 +669,111 @@ const styles = StyleSheet.create({
     minWidth: 100,
   },
   upvoteButton: {
-    borderColor: "#4CAF50",
-    backgroundColor: "transparent",
+    borderColor: '#4CAF50',
+    backgroundColor: 'transparent',
   },
   downvoteButton: {
-    borderColor: "#F44336",
-    backgroundColor: "transparent",
+    borderColor: '#F44336',
+    backgroundColor: 'transparent',
   },
   activeVoteButton: {
     opacity: 0.8,
   },
   voteButtonText: {
-    textAlign: "center",
+    textAlign: 'center',
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   activeVoteButtonText: {
-    fontWeight: "bold",
+    fontWeight: 'bold',
   },
   loadingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 15,
   },
   loadingText: {
     marginLeft: 8,
     fontSize: 14,
-    color: "#666",
+    color: '#666',
   },
   closeButton: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    padding: 5,
+    backgroundColor: '#EC6135',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 8,
   },
   closeButtonText: {
-    color: "white",
+    color: 'white',
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   modalTime: {
     fontSize: 13,
-    color: "#999",
+    color: '#999',
     marginBottom: 8,
-    textAlign: "center",
+    textAlign: 'center',
+  },
+  votingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    minWidth: 120,
+    borderRadius: 90,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    borderColor: 'rgba(14, 14, 14, 0.3)',
+
+  },
+  containerUpvoted: {
+    backgroundColor: 'rgba(255, 139, 96, 0.15)', // Transparent orange
+    borderColor: 'rgba(255, 139, 96, 0.3)',
+  },
+  containerDownvoted: {
+    backgroundColor: 'rgba(148, 148, 255, 0.15)', // Transparent blue
+    borderColor: 'rgba(148, 148, 255, 0.3)',
+  },
+  voteButton: {
+    paddingVertical: 0,
+    paddingHorizontal: 12,
+    borderRadius: 90,
+    marginHorizontal: 0,
+    paddingBottom: 5,
+  },
+  activeUpvote: {
+    backgroundColor: '#FF8B60', // Reddit's upvote orange
+    
+  },
+  activeDownvote: {
+    backgroundColor: '#9494FF', // Reddit's downvote blue
+  },
+  arrowText: {
+    fontSize: 30,
+    fontWeight: 'bold',
+    color: '#878A8C', // Default gray
+  },
+  activeUpvoteText: {
+    color: '#FFFFFF',
+  },
+  activeDownvoteText: {
+    color: '#FFFFFF',
+  },
+  scoreText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1A1A1B', // Default dark text
+    marginHorizontal: 8,
+    minWidth: 30,
+    textAlign: 'center',
+  },
+  upvotedScore: {
+    color: '#FF8B60', // Orange when upvoted
+  },
+  downvotedScore: {
+    color: '#9494FF', // Blue when downvoted
   },
 });
+
