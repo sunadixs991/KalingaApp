@@ -41,7 +41,7 @@ const SimplePinCard = ({ pin, onPress }) => (
     <Text style={{ fontWeight: "bold", marginBottom: 8, fontSize: 15, color: '#e75e33'}}>{pin.category}</Text>
     <Text style={{ marginBottom: 8 }}>{pin.description}</Text>
     <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-      <Text style={{ fontWeight: "bold", marginBottom: 8}}>Posted by: {pin.userFirstName}</Text>
+      <Text style={{ fontWeight: "bold", marginBottom: 8}}>Pinned by: {pin.userFirstName}</Text>
       <Text style={{color: '#49A5A2'}}>{pin.formattedDistance}</Text>
     </View>
     <Text style={{ fontWeight: "bold" }}>
@@ -225,13 +225,13 @@ export default function HomeScreen({ route, navigation }) {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.locationRow}>
-            <Icon name="location-outline" size={16} color="#fff" />
+            <Icon name="location-outline" size={20} color="#fff" />
             <Text style={styles.locationText}>
               {placeName ? placeName : "Getting your location..."}
             </Text>
           </View>
           <TouchableOpacity>
-            <Icon name="notifications-outline" size={24} color="#fff" />
+            <Icon name="notifications-outline" size={25} color="#fff" />
           </TouchableOpacity>
         </View>
 
@@ -318,7 +318,7 @@ export default function HomeScreen({ route, navigation }) {
                 >
                   <Icon
                     name="refresh"
-                    size={20}
+                    size={25}
                     color={loadingPins ? "#ccc" : "#e75e33"}
                   />
                 </TouchableOpacity>
@@ -402,14 +402,18 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#e75e33",
+    paddingTop: hp("2%"),
   },
   header: {
     backgroundColor: "#e75e33",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: wp("4%"),
+    paddingTop: hp("3%"),
+    paddingBottom: hp("2%"),
+    paddingHorizontal: wp("4%"),
+    position: "fixed"
   },
   locationRow: {
     flexDirection: "row",
@@ -419,8 +423,10 @@ const styles = StyleSheet.create({
   locationText: {
     color: "#fff",
     marginLeft: 4,
+    alignSelf: "center",
+    flexDirection: "column",
     fontWeight: "bold",
-    fontSize: wp("3.5%"),
+    fontSize: wp("4%"),
     flexShrink: 1,
   },
   scrollContainer: {

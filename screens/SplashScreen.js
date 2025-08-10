@@ -1,17 +1,35 @@
 // screens/SplashScreen.js
-import React, { useEffect } from "react";
-import { View, Text, Image, StyleSheet } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { View, Text, Animated, StyleSheet } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFonts } from "expo-font";
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from "react-native-responsive-screen";
-
+import {
+  widthPercentageToDP as wp,
+  heightPercentageToDP as hp,
+} from "react-native-responsive-screen";
 
 export default function SplashScreen({ navigation }) {
   const [fontsLoaded] = useFonts({
     Caveat: require("../assets/fonts/Caveat-VariableFont_wght.ttf"),
   });
 
+  const rotateYValue = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
+    // Animate logo spin
+    Animated.sequence([
+      Animated.timing(rotateYValue, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(rotateYValue, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
     const checkLogin = async () => {
       const username = await AsyncStorage.getItem("user");
       console.log("Username from AsyncStorage:", username);
@@ -29,15 +47,31 @@ export default function SplashScreen({ navigation }) {
     }
   }, [fontsLoaded]);
 
-  if (!fontsLoaded) return null; // or show loading indicator
+  if (!fontsLoaded) return null;
+
+  const rotateY = rotateYValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
 
   return (
     <View style={styles.container}>
       <Text style={styles.text}>KALINGA</Text>
-      <Image
+
+      <Animated.Image
         source={require("../assets/Kalinga_logo.png")}
-        style={styles.logo}
+        style={[
+          styles.logo,
+          {
+            transform: [
+              { perspective: 1000 },
+              { rotateY: rotateY },
+            ],
+          },
+        ]}
+        resizeMode="contain"
       />
+
       <Text style={styles.subtitle}>
         Katalyst Application with Localized INteractive{"\n"}
         Guided-relief mAp
@@ -47,7 +81,7 @@ export default function SplashScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-   container: {
+  container: {
     flex: 1,
     backgroundColor: "#ffff",
     justifyContent: "center",

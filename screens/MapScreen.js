@@ -21,17 +21,20 @@ import {
   serverTimestamp,
   getDocs,
 } from "firebase/firestore";
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from "react-native-responsive-screen";
+import {
+  widthPercentageToDP as wp,
+  heightPercentageToDP as hp,
+} from "react-native-responsive-screen";
 import { getUserInfo } from "../services/getinfo";
-import MapPinModal from '../components/MapPinModal';
-import FloatingButtons from '../components/FloatingButtons';
-import { deletePinCompletely } from '../services/deletepins';
+import MapPinModal from "../components/MapPinModal";
+import FloatingButtons from "../components/FloatingButtons";
+import { deletePinCompletely } from "../services/deletepins";
 // Try importing with explicit names
 import {
   castVote,
   getUserVoteStatus,
-  getUpdatedPinData
-} from '../services/VotesHandler';
+  getUpdatedPinData,
+} from "../services/VotesHandler";
 
 // Debug: Log the imports immediately
 // console.log("=== IMPORT DEBUG ===");
@@ -56,12 +59,15 @@ export default function MapScreen({ route }) {
   const [selectedCategory, setSelectedCategory] = useState("");
   const mapRef = useRef(null);
   const navigation = useNavigation();
-  
+  const [pinModalVisible, setPinModalVisible] = useState(false);
 
   // PIN INFO MODAL STATES
   const [pinInfoModalVisible, setPinInfoModalVisible] = useState(false);
   const [selectedPin, setSelectedPin] = useState(null);
-  const [userVoteStatus, setUserVoteStatus] = useState({ hasVoted: false, voteType: null });
+  const [userVoteStatus, setUserVoteStatus] = useState({
+    hasVoted: false,
+    voteType: null,
+  });
   const [isVoting, setIsVoting] = useState(false);
 
   useEffect(() => {
@@ -124,7 +130,7 @@ export default function MapScreen({ route }) {
         );
 
         // Find and show the pin info modal for the focused pin
-        const targetPin = allPins.find(pin => pin.id === focusPin.id);
+        const targetPin = allPins.find((pin) => pin.id === focusPin.id);
         if (targetPin) {
           console.log("Found target pin, opening modal:", targetPin);
           setTimeout(() => {
@@ -176,18 +182,21 @@ export default function MapScreen({ route }) {
 
   // HANDLE PIN MARKER PRESS
   const handlePinMarkerPress = async (pin) => {
-    console.log('Pin marker pressed:', pin.id);
+    console.log("Pin marker pressed:", pin.id);
     setSelectedPin(pin);
     setPinInfoModalVisible(true);
 
     // Get user's vote status for this pin
     if (userInfo) {
       try {
-        console.log('Getting vote status for pin:', pin.id, 'user:', userInfo);
-        console.log('getUserVoteStatus function check:', typeof getUserVoteStatus);
+        console.log("Getting vote status for pin:", pin.id, "user:", userInfo);
+        console.log(
+          "getUserVoteStatus function check:",
+          typeof getUserVoteStatus
+        );
 
-        if (typeof getUserVoteStatus !== 'function') {
-          console.error('getUserVoteStatus is not a function!');
+        if (typeof getUserVoteStatus !== "function") {
+          console.error("getUserVoteStatus is not a function!");
           setUserVoteStatus({ hasVoted: false, voteType: null });
           return;
         }
@@ -196,7 +205,7 @@ export default function MapScreen({ route }) {
         // console.log('Vote status result:', voteStatus);
         setUserVoteStatus(voteStatus);
       } catch (error) {
-        console.error('Error getting vote status:', error);
+        console.error("Error getting vote status:", error);
         setUserVoteStatus({ hasVoted: false, voteType: null });
       }
     } else {
@@ -213,124 +222,129 @@ export default function MapScreen({ route }) {
 
   // HANDLE VOTING
   const handleVote = async (voteType) => {
-    console.log('handleVote called with:', voteType);
-    console.log('castVote function check:', typeof castVote);
+    console.log("handleVote called with:", voteType);
+    console.log("castVote function check:", typeof castVote);
 
-    if (typeof castVote !== 'function') {
-      console.error('castVote is not a function:', castVote);
-      Alert.alert("Error", "Voting function not available. Please restart the app.");
-      return;
-    }
-
-    if (!userInfo) {
+    if (typeof castVote !== "function") {
+      console.error("castVote is not a function:", castVote);
       Alert.alert(
-        "Sign in required",
-        "You need to sign in to vote.",
-        [
-          { text: "No thanks!", style: "cancel" },
-          {
-            text: "Sign in",
-            onPress: () => {
-              closePinInfoModal();
-              navigation.navigate("LoginScreen");
-            },
-          },
-        ]
+        "Error",
+        "Voting function not available. Please restart the app."
       );
       return;
     }
 
+    if (!userInfo) {
+      Alert.alert("Sign in required", "You need to sign in to vote.", [
+        { text: "No thanks!", style: "cancel" },
+        {
+          text: "Sign in",
+          onPress: () => {
+            closePinInfoModal();
+            navigation.navigate("LoginScreen");
+          },
+        },
+      ]);
+      return;
+    }
+
     if (!selectedPin) {
-      console.log('No selected pin');
+      console.log("No selected pin");
       return;
     }
 
     setIsVoting(true);
-// Determine the next voteType for the user
-let nextVoteType;
-if (userVoteStatus.voteType === voteType) {
-  // Unvote
-  nextVoteType = null;
-} else {
-  // New vote or switch
-  nextVoteType = voteType;
-}
-
-// OPTIMISTIC UPDATE
-setAllPins(prevPins =>
-  prevPins.map(pin => {
-    if (pin.id !== selectedPin.id) return pin;
-
-    let upvotes = pin.upvotes || 0;
-    let downvotes = pin.downvotes || 0;
-
-    if (userVoteStatus.voteType === "upvote" && voteType === "downvote") {
-      upvotes = upvotes - 1;
-      downvotes = downvotes + 1;
-    } else if (userVoteStatus.voteType === "downvote" && voteType === "upvote") {
-      downvotes = downvotes - 1;
-      upvotes = upvotes + 1;
-    } else if (userVoteStatus.voteType === voteType) {
-      // Unvote (toggle off)
-      if (voteType === "upvote") upvotes = upvotes - 1;
-      if (voteType === "downvote") downvotes = downvotes - 1;
+    // Determine the next voteType for the user
+    let nextVoteType;
+    if (userVoteStatus.voteType === voteType) {
+      // Unvote
+      nextVoteType = null;
     } else {
-      // New vote
-      if (voteType === "upvote") upvotes = upvotes + 1;
-      if (voteType === "downvote") downvotes = downvotes + 1;
+      // New vote or switch
+      nextVoteType = voteType;
     }
 
-    return {
-      ...pin,
-      upvotes,
-      downvotes,
-    };
-  })
-);
+    // OPTIMISTIC UPDATE
+    setAllPins((prevPins) =>
+      prevPins.map((pin) => {
+        if (pin.id !== selectedPin.id) return pin;
 
-setSelectedPin(prev => {
-  if (!prev) return prev;
+        let upvotes = pin.upvotes || 0;
+        let downvotes = pin.downvotes || 0;
 
-  let upvotes = prev.upvotes || 0;
-  let downvotes = prev.downvotes || 0;
+        if (userVoteStatus.voteType === "upvote" && voteType === "downvote") {
+          upvotes = upvotes - 1;
+          downvotes = downvotes + 1;
+        } else if (
+          userVoteStatus.voteType === "downvote" &&
+          voteType === "upvote"
+        ) {
+          downvotes = downvotes - 1;
+          upvotes = upvotes + 1;
+        } else if (userVoteStatus.voteType === voteType) {
+          // Unvote (toggle off)
+          if (voteType === "upvote") upvotes = upvotes - 1;
+          if (voteType === "downvote") downvotes = downvotes - 1;
+        } else {
+          // New vote
+          if (voteType === "upvote") upvotes = upvotes + 1;
+          if (voteType === "downvote") downvotes = downvotes + 1;
+        }
 
-  if (userVoteStatus.voteType === "upvote" && voteType === "downvote") {
-    upvotes = upvotes - 1;
-    downvotes = downvotes + 1;
-  } else if (userVoteStatus.voteType === "downvote" && voteType === "upvote") {
-    downvotes = downvotes - 1;
-    upvotes = upvotes + 1;
-  } else if (userVoteStatus.voteType === voteType) {
-    if (voteType === "upvote") upvotes = upvotes - 1;
-    if (voteType === "downvote") downvotes = downvotes - 1;
-  } else {
-    if (voteType === "upvote") upvotes = upvotes + 1;
-    if (voteType === "downvote") downvotes = downvotes + 1;
-  }
+        return {
+          ...pin,
+          upvotes,
+          downvotes,
+        };
+      })
+    );
 
-  return {
-    ...prev,
-    upvotes,
-    downvotes,
-  };
-});
+    setSelectedPin((prev) => {
+      if (!prev) return prev;
 
-// Optimistically update userVoteStatus for instant color feedback
-setUserVoteStatus({
-  hasVoted: !!nextVoteType,
-  voteType: nextVoteType,
-});
+      let upvotes = prev.upvotes || 0;
+      let downvotes = prev.downvotes || 0;
+
+      if (userVoteStatus.voteType === "upvote" && voteType === "downvote") {
+        upvotes = upvotes - 1;
+        downvotes = downvotes + 1;
+      } else if (
+        userVoteStatus.voteType === "downvote" &&
+        voteType === "upvote"
+      ) {
+        downvotes = downvotes - 1;
+        upvotes = upvotes + 1;
+      } else if (userVoteStatus.voteType === voteType) {
+        if (voteType === "upvote") upvotes = upvotes - 1;
+        if (voteType === "downvote") downvotes = downvotes - 1;
+      } else {
+        if (voteType === "upvote") upvotes = upvotes + 1;
+        if (voteType === "downvote") downvotes = downvotes + 1;
+      }
+
+      return {
+        ...prev,
+        upvotes,
+        downvotes,
+      };
+    });
+
+    // Optimistically update userVoteStatus for instant color feedback
+    setUserVoteStatus({
+      hasVoted: !!nextVoteType,
+      voteType: nextVoteType,
+    });
     // --- OPTIMISTIC UPDATE END ---
 
     try {
-      console.log('Calling castVote with:', selectedPin.id, userInfo, voteType);
+      console.log("Calling castVote with:", selectedPin.id, userInfo, voteType);
       await castVote(selectedPin.id, userInfo, voteType, closePinInfoModal);
 
       // Get updated pin data
       // console.log('Getting updated pin data...');
       // console.log('getUpdatedPinData function check:', typeof getUpdatedPinData);
 
-      if (typeof getUpdatedPinData === 'function') {
+      if (typeof getUpdatedPinData === "function") {
         const updatedPin = await getUpdatedPinData(selectedPin.id);
         // console.log('Updated pin data:', updatedPin);
 
@@ -339,10 +353,14 @@ setUserVoteStatus({
           setSelectedPin(updatedPin);
 
           // Update the pin in allPins array
-          setAllPins(prevPins =>
-            prevPins.map(pin =>
+          setAllPins((prevPins) =>
+            prevPins.map((pin) =>
               pin.id === selectedPin.id
-                ? { ...pin, upvotes: updatedPin.upvotes, downvotes: updatedPin.downvotes }
+                ? {
+                    ...pin,
+                    upvotes: updatedPin.upvotes,
+                    downvotes: updatedPin.downvotes,
+                  }
                 : pin
             )
           );
@@ -350,12 +368,12 @@ setUserVoteStatus({
       }
 
       // Update user vote status
-      if (typeof getUserVoteStatus === 'function') {
+      if (typeof getUserVoteStatus === "function") {
         const newVoteStatus = await getUserVoteStatus(selectedPin.id, userInfo);
-        console.log('New vote status:', newVoteStatus);
+        console.log("New vote status:", newVoteStatus);
         setUserVoteStatus(newVoteStatus);
       }
-            try {
+      try {
         const querySnapshot = await getDocs(collection(db, "pins"));
         const pins = [];
         querySnapshot.forEach((doc) => {
@@ -379,11 +397,6 @@ setUserVoteStatus({
       } catch (error) {
         console.error("Error fetching pins:", error);
       }
-
-   
-
-
-
     } catch (error) {
       console.error("Error voting:", error);
       Alert.alert("Error", "Failed to record vote. Please try again.");
@@ -391,9 +404,6 @@ setUserVoteStatus({
       setIsVoting(false);
     }
   };
-
-
-  
 
   const handleSavePin = async () => {
     if (!selectedCategory.trim()) {
@@ -494,12 +504,19 @@ setUserVoteStatus({
             key={pin.id}
             coordinate={{ latitude: pin.latitude, longitude: pin.longitude }}
             onPress={() => handlePinMarkerPress(pin)}
-            pinColor={focusPin && pin.id === focusPin.id ? "#FF6B35" : "#EC6135"}
+            pinColor={
+              focusPin && pin.id === focusPin.id ? "#FF6B35" : "#EC6135"
+            }
           />
         ))}
 
         {/* CURRENT LOCATION MARKER */}
-        <Marker coordinate={{ latitude: location.latitude, longitude: location.longitude }}>
+        <Marker
+          coordinate={{
+            latitude: location.latitude,
+            longitude: location.longitude,
+          }}
+        >
           <Icon name="location" size={36} color="#EC6135" />
         </Marker>
       </MapView>
@@ -535,7 +552,7 @@ setUserVoteStatus({
               <>
                 {/* Title */}
                 <Text style={styles.modalTitle} numberOfLines={0}>
-                  {selectedPin.description || 'User'}
+                  {selectedPin.description || "User"}
                 </Text>
 
                 {/* Category */}
@@ -551,7 +568,8 @@ setUserVoteStatus({
                   {getHoursAgo(selectedPin.createdAt)}
                 </Text>
 
-                {focusPin && selectedPin.id === focusPin.id
+                {
+                  focusPin && selectedPin.id === focusPin.id
                   // <View style={styles.focusedPinBadge}>
                   //   {/* <Text style={styles.focusedPinText}>📍 From Home Screen</Text> */}
                   // </View>
@@ -564,21 +582,22 @@ setUserVoteStatus({
                   </View>
                 )} */}
 
-
-
                 {/* Vote Counts */}
                 {/* Reddit-Style Voting System - Horizontal Layout */}
                 <View
                   style={[
                     styles.votingContainer,
-                    userVoteStatus.voteType === "upvote" && styles.containerUpvoted,
-                    userVoteStatus.voteType === "downvote" && styles.containerDownvoted,
+                    userVoteStatus.voteType === "upvote" &&
+                      styles.containerUpvoted,
+                    userVoteStatus.voteType === "downvote" &&
+                      styles.containerDownvoted,
                   ]}
                 >
                   <TouchableOpacity
                     style={[
                       styles.voteButton,
-                      userVoteStatus.voteType === "upvote" && styles.activeUpvote,
+                      userVoteStatus.voteType === "upvote" &&
+                        styles.activeUpvote,
                     ]}
                     onPress={() => handleVote("upvote")}
                     disabled={isVoting}
@@ -586,7 +605,8 @@ setUserVoteStatus({
                     <Text
                       style={[
                         styles.arrowText,
-                        userVoteStatus.voteType === "upvote" && styles.activeUpvoteText,
+                        userVoteStatus.voteType === "upvote" &&
+                          styles.activeUpvoteText,
                       ]}
                     >
                       ⇧
@@ -597,8 +617,10 @@ setUserVoteStatus({
                   <Text
                     style={[
                       styles.scoreText,
-                      userVoteStatus.voteType === "upvote" && styles.upvotedScore,
-                      userVoteStatus.voteType === "downvote" && styles.downvotedScore,
+                      userVoteStatus.voteType === "upvote" &&
+                        styles.upvotedScore,
+                      userVoteStatus.voteType === "downvote" &&
+                        styles.downvotedScore,
                     ]}
                   >
                     {(selectedPin.upvotes || 0) - (selectedPin.downvotes || 0)}
@@ -608,16 +630,17 @@ setUserVoteStatus({
                   <TouchableOpacity
                     style={[
                       styles.voteButton,
-                      userVoteStatus.voteType === "downvote" && styles.activeDownvote,
+                      userVoteStatus.voteType === "downvote" &&
+                        styles.activeDownvote,
                     ]}
                     onPress={() => handleVote("downvote")}
                     disabled={isVoting}
-                    
                   >
                     <Text
                       style={[
                         styles.arrowText,
-                        userVoteStatus.voteType === "downvote" && styles.activeDownvoteText,
+                        userVoteStatus.voteType === "downvote" &&
+                          styles.activeDownvoteText,
                       ]}
                     >
                       ⇩
@@ -638,7 +661,12 @@ setUserVoteStatus({
                   style={styles.closeButton}
                   onPress={closePinInfoModal}
                 >
-                  <Text style={styles.closeButtonText}>Close</Text>
+                  <TouchableOpacity
+                    onPress={() => setPinInfoModalVisible(false)}
+                    style={styles.closeIcon}
+                  >
+                    <Icon name="close" size={30} color="#666" />
+                  </TouchableOpacity>
                 </TouchableOpacity>
               </>
             )}
@@ -650,23 +678,25 @@ setUserVoteStatus({
 }
 
 function getHoursAgo(createdAt) {
-  if (!createdAt) return '';
+  if (!createdAt) return "";
   // Firestore timestamp: createdAt.seconds
-  const pinTime = createdAt.seconds ? createdAt.seconds * 1000 : new Date(createdAt).getTime();
+  const pinTime = createdAt.seconds
+    ? createdAt.seconds * 1000
+    : new Date(createdAt).getTime();
   const now = Date.now();
   const diffMs = now - pinTime;
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
 
   if (diffHours === 0) {
-    return 'Just now';
+    return "Just now";
   }
 
   if (diffHours >= 24) {
     const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays} Day${diffDays !== 1 ? 's' : ''} ago`;
+    return `${diffDays} Day${diffDays !== 1 ? "s" : ""} ago`;
   }
 
-  return `${diffHours} Hour${diffHours !== 1 ? 's' : ''} ago`;
+  return `${diffHours} Hour${diffHours !== 1 ? "s" : ""} ago`;
 }
 
 const styles = StyleSheet.create({
@@ -675,74 +705,88 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   modalContainer: {
-    backgroundColor: 'white',
-    padding: 24,
+    backgroundColor: "white",
+    padding: 20,
     borderRadius: 12,
-    width: '85%',
+    width: "85%",
     maxWidth: 400,
-    maxHeight: '80%',
-    alignItems: 'center',
-    shadowColor: '#000',
+    maxHeight: "80%",
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 8,
+    position: "relative",
+  },
+  closeIcon: {
+    position: "absolute",
+    bottom: 140,
+    left: 120,
+    padding: 5,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: "bold",
     marginBottom: 8,
-    textAlign: 'center',
-    color: '#333',
+    textAlign: "center",
+    color: "#333",
   },
   modalCategory: {
     fontSize: 14,
     marginBottom: 8,
-    textAlign: 'center',
-    color: '#EC6135',
-    fontWeight: '600',
-    backgroundColor: '#FFF3F0',
+    textAlign: "center",
+    color: "#EC6135",
+    fontWeight: "600",
+    backgroundColor: "#FFF3F0",
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
   },
   modalUser: {
     fontSize: 16,
-    marginBottom: 8,
-    textAlign: 'center',
-    color: '#666',
+    marginBottom: 4,
+    textAlign: "center",
+    color: "#666",
+  },
+  modalTime: {
+    fontSize: 13,
+    color: "#999",
+    marginBottom: 15,
+    textAlign: "center",
+  },
+  modalVotes: {
+    fontSize: 16,
+    textAlign: "center",
+    color: "#888",
   },
   focusedPinBadge: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: "#E3F2FD",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#2196F3',
+    borderColor: "#2196F3",
   },
   focusedPinText: {
     fontSize: 12,
-    color: '#1976D2',
-    fontWeight: '600',
+    color: "#1976D2",
+    fontWeight: "600",
   },
   votesContainer: {
     marginBottom: 20,
   },
-  modalVotes: {
-    fontSize: 16,
-    textAlign: 'center',
-    color: '#888',
-  },
+  
   votingButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
+    flexDirection: "row",
+    justifyContent: "space-around",
+    width: "100%",
     marginBottom: 20,
   },
   voteButton: {
@@ -754,72 +798,54 @@ const styles = StyleSheet.create({
     minWidth: 100,
   },
   upvoteButton: {
-    borderColor: '#4CAF50',
-    backgroundColor: 'transparent',
+    borderColor: "#4CAF50",
+    backgroundColor: "transparent",
   },
   downvoteButton: {
-    borderColor: '#F44336',
-    backgroundColor: 'transparent',
+    borderColor: "#F44336",
+    backgroundColor: "transparent",
   },
   activeVoteButton: {
     opacity: 0.8,
   },
   voteButtonText: {
-    textAlign: 'center',
+    textAlign: "center",
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   activeVoteButtonText: {
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 15,
   },
   loadingText: {
     marginLeft: 8,
     fontSize: 14,
-    color: '#666',
+    color: "#666",
   },
-  closeButton: {
-    backgroundColor: '#EC6135',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  closeButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  modalTime: {
-    fontSize: 13,
-    color: '#999',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
+  
   votingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 0,
     paddingVertical: 0,
     minWidth: 120,
     borderRadius: 90,
     borderWidth: 1,
-    borderColor: 'transparent',
-    borderColor: 'rgba(14, 14, 14, 0.3)',
-
+    borderColor: "transparent",
+    borderColor: "rgba(14, 14, 14, 0.3)",
   },
   containerUpvoted: {
-    backgroundColor: 'rgba(255, 139, 96, 0.15)', // Transparent orange
-    borderColor: 'rgba(255, 139, 96, 0.3)',
+    backgroundColor: "rgba(255, 139, 96, 0.15)", // Transparent orange
+    borderColor: "rgba(255, 139, 96, 0.3)",
   },
   containerDownvoted: {
-    backgroundColor: 'rgba(148, 148, 255, 0.15)', // Transparent blue
-    borderColor: 'rgba(148, 148, 255, 0.3)',
+    backgroundColor: "rgba(148, 148, 255, 0.15)", // Transparent blue
+    borderColor: "rgba(148, 148, 255, 0.3)",
   },
   voteButton: {
     paddingVertical: 0,
@@ -829,36 +855,34 @@ const styles = StyleSheet.create({
     paddingBottom: 5,
   },
   activeUpvote: {
-    backgroundColor: '#FF8B60', // Reddit's upvote orange
-    
+    backgroundColor: "#FF8B60", // Reddit's upvote orange
   },
   activeDownvote: {
-    backgroundColor: '#9494FF', // Reddit's downvote blue
+    backgroundColor: "#9494FF", // Reddit's downvote blue
   },
   arrowText: {
-    fontSize: 30,
-    fontWeight: 'bold',
-    color: '#878A8C', // Default gray
+    fontSize: 25,
+    fontWeight: "bold",
+    color: "#878A8C", // Default gray
   },
   activeUpvoteText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   activeDownvoteText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   scoreText: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1A1A1B', // Default dark text
+    fontWeight: "bold",
+    color: "#1A1A1B", // Default dark text
     marginHorizontal: 8,
     minWidth: 30,
-    textAlign: 'center',
+    textAlign: "center",
   },
   upvotedScore: {
-    color: '#FF8B60', // Orange when upvoted
+    color: "#FF8B60", // Orange when upvoted
   },
   downvotedScore: {
-    color: '#9494FF', // Blue when downvoted
+    color: "#9494FF", // Blue when downvoted
   },
 });
-

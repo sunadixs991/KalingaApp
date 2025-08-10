@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "bold",
     marginBottom: 8,
-    color: "#2196f3", // blue
+    color: "#e75e33", // blue
     textAlign: "center",
   },
   info: {
@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 18,
-    backgroundColor: "#e3f2fd", // light blue
+    backgroundColor: "#f8ecd3ff", // light blue
     borderRadius: 12,
     padding: 14,
     elevation: 2,
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#2196f3", // blue
+    color: "#fdaf06ff", // blue
     marginBottom: 4,
   },
   cardText: {
