@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
-import { 
-  Modal, 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  StyleSheet, 
+import {
+  Modal,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
   ScrollView,
-  Alert 
+  Alert,
+  Image
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 
 const CATEGORIES = [
@@ -23,8 +26,11 @@ const CATEGORIES = [
   "Temporary Shelter",
   "Rescue Equipment",
   "Sanitation Facility",
-  "Portable Toilets"
+  "Portable Toilets",
+  "Others"
 ];
+
+const MAX_MEDIA_COUNT = 3;
 
 const MapPinModal = ({ 
   visible, 
@@ -33,26 +39,18 @@ const MapPinModal = ({
   onCancel, 
   onSave,
   selectedCategory,
-  onCategoryChange 
+  onCategoryChange,
+  media,
+  setMedia
 }) => {
   const [showCategories, setShowCategories] = useState(false);
 
-  // Debug logging
-  // console.log("MapPinModal Props:", {
-  //   visible,
-  //   description,
-  //   selectedCategory,
-  //   onCategoryChange: typeof onCategoryChange
-  // });
-
   const handleCategorySelect = (category) => {
-    // console.log("Category selected:", category);
     onCategoryChange(category);
     setShowCategories(false);
   };
 
   const handleSave = () => {
-    // console.log("Save pressed. Category:", selectedCategory, "Description:", description);
     if (!selectedCategory) {
       Alert.alert("Category Required", "Please select a category for this pin.");
       return;
@@ -67,6 +65,125 @@ const MapPinModal = ({
   const handleCancel = () => {
     setShowCategories(false);
     onCancel();
+  };
+
+  const pickMedia = async () => {
+    if (media && media.length >= MAX_MEDIA_COUNT) {
+      Alert.alert('Limit Reached', 'You can only add up to 3 media files.');
+      return;
+    }
+
+    Alert.alert(
+      'Select Media',
+      'Choose how you want to add media',
+      [
+        {
+          text: 'Camera',
+          onPress: () => pickFromCamera(),
+        },
+        {
+          text: 'Gallery',
+          onPress: () => pickFromGallery(),
+        },
+        {
+          text: 'Files',
+          onPress: () => pickFromFiles(),
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const pickFromCamera = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow camera access.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const newMedia = {
+          uri: asset.uri,
+          type: asset.type === 'video' ? 'video/mp4' : 'image/jpeg',
+          fileName: `camera-${Date.now()}.${asset.type === 'video' ? 'mp4' : 'jpg'}`
+        };
+        
+        setMedia(media ? [...media, newMedia] : [newMedia]);
+      }
+    } catch (error) {
+      console.log('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo. Please try again.');
+    }
+  };
+
+  const pickFromGallery = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow access to your photo library.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        allowsEditing: false,
+        quality: 0.8,
+        allowsMultipleSelection: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const newMedia = {
+          uri: asset.uri,
+          type: asset.type === 'video' ? 'video/mp4' : 'image/jpeg',
+          fileName: asset.fileName || `gallery-${Date.now()}.${asset.type === 'video' ? 'mp4' : 'jpg'}`
+        };
+        
+        setMedia(media ? [...media, newMedia] : [newMedia]);
+      }
+    } catch (error) {
+      console.log('Error picking from gallery:', error);
+      Alert.alert('Error', 'Failed to open gallery. Please try again.');
+    }
+  };
+
+  const pickFromFiles = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['image/*', 'video/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const newMedia = {
+          uri: asset.uri,
+          type: asset.mimeType || 'image/jpeg',
+          fileName: asset.name || `file-${Date.now()}.jpg`
+        };
+        
+        setMedia(media ? [...media, newMedia] : [newMedia]);
+      }
+    } catch (error) {
+      console.log('Error picking file:', error);
+      Alert.alert('Error', 'Failed to pick file. Please try again.');
+    }
+  };
+
+  const removeMedia = (index) => {
+    const newMedia = media.filter((_, i) => i !== index);
+    setMedia(newMedia.length > 0 ? newMedia : null);
   };
 
   return (
@@ -86,7 +203,6 @@ const MapPinModal = ({
             <TouchableOpacity 
               style={styles.categorySelector}
               onPress={() => {
-                // console.log("Category selector pressed, current showCategories:", showCategories);
                 setShowCategories(!showCategories);
               }}
             >
@@ -139,6 +255,45 @@ const MapPinModal = ({
               numberOfLines={3}
               textAlignVertical="top"
             />
+          </View>
+
+          {/* Media Picker */}
+          <View style={styles.mediaSection}>
+            <Text style={styles.sectionLabel}>
+              Media (Image/Video) - {media ? media.length : 0}/{MAX_MEDIA_COUNT}
+            </Text>
+            
+            {(!media || media.length < MAX_MEDIA_COUNT) && (
+              <TouchableOpacity 
+                onPress={pickMedia} 
+                style={styles.mediaPickerButton}
+              >
+                <Text style={styles.mediaPickerText}>
+                  {media ? "Add More Media" : "Pick Image or Video"}
+                </Text>
+              </TouchableOpacity>
+            )}
+            
+            {/* Media Preview Grid */}
+            {media && (
+              <View style={styles.mediaPreviewGrid}>
+                {media.map((item, index) => (
+                  <View key={index} style={styles.mediaPreviewItem}>
+                    <Image 
+                      source={{ uri: item.uri }} 
+                      style={styles.mediaPreviewImage} 
+                      resizeMode="cover"
+                    />
+                    <TouchableOpacity 
+                      style={styles.removeMediaButton}
+                      onPress={() => removeMedia(index)}
+                    >
+                      <Text style={styles.removeMediaText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
 
           {/* Action Buttons */}
@@ -194,6 +349,9 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   descriptionSection: {
+    marginBottom: hp('2.5%'),
+  },
+  mediaSection: {
     marginBottom: hp('2.5%'),
   },
   sectionLabel: {
@@ -272,6 +430,52 @@ const styles = StyleSheet.create({
     fontSize: wp('3.8%'),
     color: '#333',
     minHeight: hp('8%'),
+  },
+  mediaPickerButton: {
+    padding: 12,
+    backgroundColor: "#eee",
+    borderRadius: 8,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  mediaPickerText: {
+    color: "#333",
+    fontSize: wp('3.6%'),
+    fontWeight: '500',
+  },
+  mediaPreviewGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  mediaPreviewItem: {
+    width: '31%',
+    aspectRatio: 1,
+    marginBottom: 10,
+    position: 'relative',
+  },
+  mediaPreviewImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
+    backgroundColor: '#eee',
+  },
+  removeMediaButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#ff4444',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeMediaText: {
+    color: '#fff',
+    fontSize: wp('3%'),
+    fontWeight: 'bold',
   },
   buttonRow: {
     flexDirection: 'row',

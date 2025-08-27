@@ -18,23 +18,27 @@ const PinCard = ({ pin, onPress }) => {
   const voteColor = voteScore > 0 ? '#4CAF50' : voteScore < 0 ? '#F44336' : '#666';
   
   // Category colors for visual distinction
- const getCategoryColor = (category) => {
-  const colors = {
-    'Clean Drinking Water': '#2196F3',
-    'Medical Aid': '#F44336',
-    'First Aid Kit': '#FF9800',
-    'Charging Station': '#9C27B0',
-    'Free Wi-Fi Access': '#00BCD4',
-    'Clothing Supply': '#795548',
-    'Blankets Supply': '#607D8B',
-    'Animal Shelter': '#8BC34A',
-    'Temporary Shelter': '#FF5722',
-    'Rescue Equipment': '#E91E63',
-    'Sanitation Facility': '#009688',
-    'Portable Toilets': '#3F51B5',
-    'Others': '#3ada1e', // Fixed: removed 'ff'
-  };
-  return colors[category] || '#666';
+const categoryIcons = {
+  "Clean Drinking Water": "tint",
+  "Medical Aid": "hospital",
+  "First Aid Kit": "briefcase-medical",
+  "Charging Station": "charging-station",
+  "Free Wi-Fi Access": "wifi",
+  "Clothing Supply": "tshirt",
+  "Blankets Supply": "bed",
+  "Animal Shelter": "paw",
+  "Temporary Shelter": "home",
+  "Rescue Equipment": "life-ring",
+  "Sanitation Facility": "shower",
+  "Portable Toilets": "toilet",
+  "Others": "map-marker-alt",
+};
+
+const getCategoryIcon = (category = "") => {
+  const key = category.trim();
+  return categoryIcons[key] || categoryIcons["Others"];
+};
+
 };
 
   return (

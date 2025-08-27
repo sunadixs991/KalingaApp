@@ -8,13 +8,15 @@ import {
   Modal,
   Text,
   TouchableOpacity,
+  ScrollView,
 } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, Polyline } from "react-native-maps"; // <-- Add Polyline
 import * as Location from "expo-location";
 import Icon from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import { db } from "../firebase";
+import { supabase } from "../services/supabaseClient";
 import {
   collection,
   addDoc,
@@ -35,6 +37,13 @@ import {
   getUserVoteStatus,
   getUpdatedPinData,
 } from "../services/VotesHandler";
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { FontAwesome5 } from "@expo/vector-icons"; // Expo
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Video } from "expo-av";
+
+import { Image } from "react-native";
+import { notifyUsers } from '../services/notification';
 
 // Debug: Log the imports immediately
 // console.log("=== IMPORT DEBUG ===");
@@ -69,6 +78,9 @@ export default function MapScreen({ route }) {
     voteType: null,
   });
   const [isVoting, setIsVoting] = useState(false);
+  const [routeCoords, setRouteCoords] = useState([]); // <-- Add this state
+  const [media, setMedia] = useState(null); // Add this with your other state declarations
+  const [showMedia, setShowMedia] = useState(false); // Add this state near your other useState declarations
 
   useEffect(() => {
     (async () => {
@@ -97,9 +109,10 @@ export default function MapScreen({ route }) {
               latitude: data.latitude,
               longitude: data.longitude,
               userId: data.userId,
-              userFirstName: data.userFirstName,
+              userFirstName: data.userFirstName || "anonymous",
               description: data.description,
               category: data.category || "Unknown",
+              media: data.media || [],
               createdAt: data.createdAt,
               upvotes: data.upvotes || 0,
               downvotes: data.downvotes || 0,
@@ -357,10 +370,10 @@ export default function MapScreen({ route }) {
             prevPins.map((pin) =>
               pin.id === selectedPin.id
                 ? {
-                    ...pin,
-                    upvotes: updatedPin.upvotes,
-                    downvotes: updatedPin.downvotes,
-                  }
+                  ...pin,
+                  upvotes: updatedPin.upvotes,
+                  downvotes: updatedPin.downvotes,
+                }
                 : pin
             )
           );
@@ -384,9 +397,10 @@ export default function MapScreen({ route }) {
               latitude: data.latitude,
               longitude: data.longitude,
               userId: data.userId,
-              userFirstName: data.userFirstName,
+              userFirstName: data.userFirstName || "anonymous",
               description: data.description,
               category: data.category || "Unknown",
+              media: data.media || [],
               createdAt: data.createdAt,
               upvotes: data.upvotes || 0,
               downvotes: data.downvotes || 0,
@@ -405,6 +419,7 @@ export default function MapScreen({ route }) {
     }
   };
 
+  // Updated handleSavePin function - Hybrid approach
   const handleSavePin = async () => {
     if (!selectedCategory.trim()) {
       Alert.alert("Category required", "Please select a category.");
@@ -414,28 +429,147 @@ export default function MapScreen({ route }) {
       Alert.alert("Description required", "Please enter a description.");
       return;
     }
+
     try {
-      await addDoc(collection(db, "pins"), {
+      let mediaUrls = [];
+
+      // 1. Upload media files to SUPABASE STORAGE
+      if (media && media.length > 0) {
+        Alert.alert("Uploading", "Uploading media files...");
+
+        for (let i = 0; i < media.length; i++) {
+          const mediaItem = media[i];
+          const fileName = `pins/${Date.now()}_${i}_${mediaItem.fileName || 'media'}`;
+
+          try {
+            console.log(`Starting upload ${i + 1}/${media.length}:`, mediaItem.uri);
+
+            // Method 1: Try with FormData (recommended for React Native)
+            const formData = new FormData();
+            formData.append('file', {
+              uri: mediaItem.uri,
+              type: mediaItem.type,
+              name: mediaItem.fileName || `media_${i}.jpg`
+            });
+
+            // Upload to Supabase Storage using FormData
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from('pin-media')
+              .upload(fileName, formData, {
+                contentType: mediaItem.type,
+                cacheControl: '3600',
+                upsert: true // Allow overwriting if file exists
+              });
+
+            if (uploadError) {
+              console.error('FormData upload failed, trying blob method:', uploadError);
+
+              // Method 2: Fallback to blob method
+              try {
+                const response = await fetch(mediaItem.uri);
+                if (!response.ok) {
+                  throw new Error(`Failed to fetch media: ${response.status}`);
+                }
+
+                const blob = await response.blob();
+                console.log('Blob created, size:', blob.size);
+
+                const { data: blobUploadData, error: blobUploadError } = await supabase.storage
+                  .from('pin-media')
+                  .upload(fileName, blob, {
+                    contentType: mediaItem.type,
+                    cacheControl: '3600',
+                    upsert: true
+                  });
+
+                if (blobUploadError) throw blobUploadError;
+                uploadData = blobUploadData;
+
+              } catch (blobError) {
+                console.error('Blob upload also failed:', blobError);
+                throw new Error(`Both upload methods failed: ${uploadError.message} | ${blobError.message}`);
+              }
+            }
+
+            // Get public URL from Supabase
+            const { data: urlData } = supabase.storage
+              .from('pin-media')
+              .getPublicUrl(uploadData.path);
+
+            mediaUrls.push({
+              url: urlData.publicUrl,
+              type: mediaItem.type,
+              fileName: mediaItem.fileName,
+              path: uploadData.path
+            });
+
+            console.log(`Successfully uploaded: ${i + 1}/${media.length}`);
+
+          } catch (uploadError) {
+            console.error(`Error uploading media ${i + 1}:`, uploadError);
+
+            // Continue with other uploads instead of failing completely
+            Alert.alert(
+              "Upload Warning",
+              `Failed to upload media file ${i + 1}: ${uploadError.message}. Continuing with other files...`
+            );
+          }
+        }
+      }
+
+      // 2. Save pin data (including Supabase URLs) to FIRESTORE
+      const pinRef = await addDoc(collection(db, "pins"), {
         latitude: pendingPin.latitude,
         longitude: pendingPin.longitude,
         userId: userInfo || "anonymous",
         userFirstName: userFirstName || "anonymous",
         description: description.trim(),
         category: selectedCategory.trim(),
+        media: mediaUrls, // URLs from Supabase Storage
         createdAt: serverTimestamp(),
         upvotes: 0,
         downvotes: 0,
       });
+
+      // Send notifications after successful pin creation
+      try {
+        // Prepare notification content
+        const title = `New ${selectedCategory} Location`;
+        const message = `${userFirstName || 'Someone'} marked: ${description.trim()}`;
+
+        // Send both in-app and SMS notifications
+        const notificationResult = await notifyUsers(
+          title,
+          message,
+          [] // Empty array means send to all users
+        );
+
+        if (!notificationResult.inAppSuccess) {
+          console.warn('Failed to send in-app notifications');
+        }
+        if (!notificationResult.smsSuccess) {
+          console.warn('Failed to send SMS notifications');
+        }
+      } catch (notificationError) {
+        console.error('Error sending notifications:', notificationError);
+        // Don't throw error here - we still want to complete the pin creation
+      }
+
+      // Reset states
       setDescModalVisible(false);
       setDescription("");
       setSelectedCategory("");
+      setMedia(null);
       setPinMode(false);
       setPendingPin(null);
-      Alert.alert(
-        "Location pinned!",
-        "Your location has been pinned successfully."
-      );
 
+      const successMessage = mediaUrls.length > 0
+        ? `Your location has been pinned successfully with ${mediaUrls.length} media file(s).`
+        : "Your location has been pinned successfully.";
+
+      Alert.alert("Location pinned!", successMessage);
+
+      // 3. Refresh pins from FIRESTORE
       const querySnapshot = await getDocs(collection(db, "pins"));
       const pins = [];
       querySnapshot.forEach((doc) => {
@@ -449,6 +583,7 @@ export default function MapScreen({ route }) {
             userFirstName: data.userFirstName || "anonymous",
             description: data.description,
             category: data.category || "Unknown",
+            media: data.media || [],
             createdAt: data.createdAt,
             upvotes: data.upvotes || 0,
             downvotes: data.downvotes || 0,
@@ -456,13 +591,76 @@ export default function MapScreen({ route }) {
         }
       });
       setAllPins(pins);
+
     } catch (error) {
+      console.error('Error saving pin:', error);
       Alert.alert(
         "Error",
-        "There was an error pinning your location. Please try again."
+        `There was an error pinning your location: ${error.message}. Please try again.`
       );
     }
   };
+
+  // --- Add this function inside your component ---
+  const fetchRoute = async (startLoc, destLoc) => {
+    const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImZhZDQ4YmVlNmQ3ODRiMjM5NWQxMDQ4ZTUxMTQ3MTE2IiwiaCI6Im11cm11cjY0In0=";
+    const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}&start=${startLoc.longitude},${startLoc.latitude}&end=${destLoc.longitude},${destLoc.latitude}`;
+
+    try {
+      const response = await fetch(url);
+      const json = await response.json();
+      if (
+        json &&
+        json.features &&
+        json.features.length > 0 &&
+        json.features[0].geometry &&
+        json.features[0].geometry.coordinates
+      ) {
+        // Convert [lng, lat] to {latitude, longitude}
+        const coords = json.features[0].geometry.coordinates.map(([lng, lat]) => ({
+          latitude: lat,
+          longitude: lng,
+        }));
+        setRouteCoords(coords);
+      } else {
+        Alert.alert("No route found");
+      }
+    } catch (e) {
+      Alert.alert("Error", "Failed to fetch route");
+    }
+  };
+
+  // --- Polyline decoder ---
+  function decodePolyline(encoded) {
+    let points = [];
+    let index = 0, len = encoded.length;
+    let lat = 0, lng = 0;
+
+    while (index < len) {
+      let b, shift = 0, result = 0;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      let dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      points.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
+    }
+    return points;
+  }
+  // --- End polyline decoder ---
 
   if (!location) {
     return (
@@ -490,6 +688,26 @@ export default function MapScreen({ route }) {
     };
   };
 
+
+  const clearRoute = () => {
+    setRouteCoords([]);
+  };
+
+  const categoryStyles = {
+    "Clean Drinking Water": { color: "#2196F3", icon: "tint" },
+    "Medical Aid": { color: "#F44336", icon: "hospital" },
+    "First Aid Kit": { color: "#FF9800", icon: "briefcase-medical" },
+    "Charging Station": { color: "#9C27B0", icon: "charging-station" },
+    "Free Wi-Fi Access": { color: "#00BCD4", icon: "wifi" },
+    "Clothing Supply": { color: "#795548", icon: "tshirt" },
+    "Blankets Supply": { color: "#607D8B", icon: "bed" },
+    "Animal Shelter": { color: "#8BC34A", icon: "paw" },
+    "Temporary Shelter": { color: "#FF5722", icon: "home" },
+    "Rescue Equipment": { color: "#E91E63", icon: "life-ring" },
+    "Sanitation Facility": { color: "#009688", icon: "shower" },
+    "Portable Toilets": { color: "#3F51B5", icon: "toilet" },
+    "Others": { color: "#2c352aff", icon: "list" },
+  };
   return (
     <View style={styles.container}>
       <MapView
@@ -497,18 +715,39 @@ export default function MapScreen({ route }) {
         style={{ flex: 1 }}
         initialRegion={getInitialRegion()}
         onLongPress={handleLongPress}
+        mapPadding={{ top: 0, right: 0, bottom: 0, left: 0 }}
+        mapType="standard"
+        zoomControlEnabled={false}     // Hides zoom controls
+        mapToolbarEnabled={false}      // Hides toolbar (Android)
+        showsCompass={false}           // Hides compass
+        showsMyLocationButton={false}  // Hides the default location button
+        showsScale={false}             // Hides scale indicator
+        showsBuildings={false}         // Hides 3D buildings
+        showsTraffic={false}           // Hides traffic indicators
+        showsIndoors={false}           // Hides indoor maps
+        toolbarEnabled={false}         // Hides toolbar completely
       >
         {/* RENDER ALL PIN MARKERS */}
-        {allPins.map((pin) => (
-          <Marker
-            key={pin.id}
-            coordinate={{ latitude: pin.latitude, longitude: pin.longitude }}
-            onPress={() => handlePinMarkerPress(pin)}
-            pinColor={
-              focusPin && pin.id === focusPin.id ? "#FF6B35" : "#EC6135"
-            }
-          />
-        ))}
+
+        {allPins.map((pin) => {
+          const categoryKey = (pin.category || "").trim();
+          const category = categoryStyles[categoryKey] || categoryStyles["Others"];
+          const isFocused = focusPin && pin.id === focusPin.id;
+
+          return (
+            <Marker
+              key={pin.id}
+              coordinate={{ latitude: pin.latitude, longitude: pin.longitude }}
+              onPress={() => handlePinMarkerPress(pin)}
+            >
+              <FontAwesome5
+                name={category.icon}
+                size={27}
+                color={isFocused ? "#FF6B35" : category.color}
+              />
+            </Marker>
+          );
+        })}
 
         {/* CURRENT LOCATION MARKER */}
         <Marker
@@ -517,11 +756,26 @@ export default function MapScreen({ route }) {
             longitude: location.longitude,
           }}
         >
-          <Icon name="location" size={36} color="#EC6135" />
+          <MaterialIcons name="location-history" size={37} color="#EC6135" />
+
         </Marker>
+
+        {/* --- Draw the route polyline if available --- */}
+        {routeCoords.length > 0 && (
+          <Polyline
+            coordinates={routeCoords}
+            strokeWidth={7} // Thicker line
+            strokeColor="#EC6135" // Orange color
+          />
+        )}
       </MapView>
 
-      <FloatingButtons onPin={handlePinButton} onLocate={goToMyLocation} />
+      <FloatingButtons
+        onClear={clearRoute}
+        onPin={handlePinButton}
+        onLocate={goToMyLocation}
+        hasRoute={routeCoords.length > 0}
+      />
 
       {/* PIN CREATION MODAL WITH CATEGORY */}
       <MapPinModal
@@ -535,8 +789,11 @@ export default function MapScreen({ route }) {
           setDescription("");
           setSelectedCategory("");
           setPendingPin(null);
+          setMedia(null); // Clear media when canceling
         }}
         onSave={handleSavePin}
+        media={media}     // Add this
+        setMedia={setMedia} // Add this
       />
 
       {/* PIN INFO MODAL WITH VOTING */}
@@ -548,6 +805,14 @@ export default function MapScreen({ route }) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
+            {/* Fixed Close Button - Always at top right */}
+            <TouchableOpacity
+              onPress={closePinInfoModal}
+              style={styles.closeButton}
+            >
+              <Icon name="close" size={24} color="#666" />
+            </TouchableOpacity>
+
             {selectedPin && (
               <>
                 {/* Title */}
@@ -568,36 +833,21 @@ export default function MapScreen({ route }) {
                   {getHoursAgo(selectedPin.createdAt)}
                 </Text>
 
-                {
-                  focusPin && selectedPin.id === focusPin.id
-                  // <View style={styles.focusedPinBadge}>
-                  //   {/* <Text style={styles.focusedPinText}>📍 From Home Screen</Text> */}
-                  // </View>
-                }
-
-                {/* Show if this pin was focused from HomeScreen */}
-                {/* {focusPin && selectedPin.id === focusPin.id && (
-                  <View style={styles.focusedPinBadge}>
-                    <Text style={styles.focusedPinText}>📍 From Home Screen</Text>
-                  </View>
-                )} */}
-
                 {/* Vote Counts */}
-                {/* Reddit-Style Voting System - Horizontal Layout */}
                 <View
                   style={[
                     styles.votingContainer,
                     userVoteStatus.voteType === "upvote" &&
-                      styles.containerUpvoted,
+                    styles.containerUpvoted,
                     userVoteStatus.voteType === "downvote" &&
-                      styles.containerDownvoted,
+                    styles.containerDownvoted,
                   ]}
                 >
+                  {/* Upvote Button */}
                   <TouchableOpacity
                     style={[
                       styles.voteButton,
-                      userVoteStatus.voteType === "upvote" &&
-                        styles.activeUpvote,
+                      userVoteStatus.voteType === "upvote" && styles.activeUpvote,
                     ]}
                     onPress={() => handleVote("upvote")}
                     disabled={isVoting}
@@ -606,7 +856,7 @@ export default function MapScreen({ route }) {
                       style={[
                         styles.arrowText,
                         userVoteStatus.voteType === "upvote" &&
-                          styles.activeUpvoteText,
+                        styles.activeUpvoteText,
                       ]}
                     >
                       ⇧
@@ -617,10 +867,8 @@ export default function MapScreen({ route }) {
                   <Text
                     style={[
                       styles.scoreText,
-                      userVoteStatus.voteType === "upvote" &&
-                        styles.upvotedScore,
-                      userVoteStatus.voteType === "downvote" &&
-                        styles.downvotedScore,
+                      userVoteStatus.voteType === "upvote" && styles.upvotedScore,
+                      userVoteStatus.voteType === "downvote" && styles.downvotedScore,
                     ]}
                   >
                     {(selectedPin.upvotes || 0) - (selectedPin.downvotes || 0)}
@@ -630,8 +878,7 @@ export default function MapScreen({ route }) {
                   <TouchableOpacity
                     style={[
                       styles.voteButton,
-                      userVoteStatus.voteType === "downvote" &&
-                        styles.activeDownvote,
+                      userVoteStatus.voteType === "downvote" && styles.activeDownvote,
                     ]}
                     onPress={() => handleVote("downvote")}
                     disabled={isVoting}
@@ -639,8 +886,7 @@ export default function MapScreen({ route }) {
                     <Text
                       style={[
                         styles.arrowText,
-                        userVoteStatus.voteType === "downvote" &&
-                          styles.activeDownvoteText,
+                        userVoteStatus.voteType === "downvote" && styles.activeDownvoteText,
                       ]}
                     >
                       ⇩
@@ -648,26 +894,110 @@ export default function MapScreen({ route }) {
                   </TouchableOpacity>
                 </View>
 
-                {/* Loading indicator */}
-                {/* {isVoting && (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color="#EC6135" />
-                    <Text style={styles.loadingText}>Recording vote...</Text>
-                  </View>
-                )} */}
-
-                {/* Close button */}
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={closePinInfoModal}
-                >
+                {/* New "Go To" button */}
+                <View style={{ alignItems: "center", marginTop: 10 }}>
                   <TouchableOpacity
-                    onPress={() => setPinInfoModalVisible(false)}
-                    style={styles.closeIcon}
+                    onPress={() => {
+                      fetchRoute(
+                        location,
+                        {
+                          latitude: selectedPin.latitude,
+                          longitude: selectedPin.longitude,
+                        }
+                      );
+                      setPinInfoModalVisible(false);
+                    }}
                   >
-                    <Icon name="close" size={30} color="#666" />
+                    <MaterialCommunityIcons name="navigation" size={28} color="#1976D2" />
+                    <Text style={{ fontSize: 12, color: "#1976D2" }}>Go To</Text>
                   </TouchableOpacity>
-                </TouchableOpacity>
+                </View>
+
+                {/* Media Preview - New Section */}
+                {selectedPin && (
+                  <View style={styles.mediaSection}>
+                    <TouchableOpacity
+                      style={[
+                        styles.mediaToggle,
+                        (!selectedPin.media || selectedPin.media.length === 0) && styles.mediaToggleDisabled
+                      ]}
+                      onPress={() => setShowMedia(!showMedia)}
+                      disabled={!selectedPin.media || selectedPin.media.length === 0}
+                    >
+                      <Text style={styles.mediaToggleText}>
+                        {!selectedPin.media || selectedPin.media.length === 0
+                          ? 'No Media Attached'
+                          : showMedia
+                            ? 'Hide Media'
+                            : `Show Media (${selectedPin.media.length})`
+                        }
+                      </Text>
+                    </TouchableOpacity>
+
+                    {showMedia && selectedPin.media && selectedPin.media.length > 0 && (
+                      <View style={styles.mediaContainer}>
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.mediaScrollContent}
+                          style={styles.mediaScroller}
+                        >
+                          {selectedPin.media.map((mediaItem, index) => {
+                            console.log(`Media ${index}:`, mediaItem.type, mediaItem.url); // Debug log
+
+                            return (
+                              <View key={index} style={styles.mediaWrapper}>
+                                {mediaItem.type && mediaItem.type.startsWith('image') ? (
+                                  // Render Image
+                                  <Image
+                                    source={{ uri: mediaItem.url }}
+                                    style={styles.mediaPreview}
+                                    resizeMode="cover"
+                                    onError={(e) => {
+                                      console.log(`Image ${index} failed to load:`, e.nativeEvent.error);
+                                    }}
+                                    onLoad={() => {
+                                      console.log(`Image ${index} loaded successfully`);
+                                    }}
+                                  />
+                                ) : mediaItem.type && mediaItem.type.startsWith('video') ? (
+                                  // Render Video
+                                  <Video
+                                    source={{ uri: mediaItem.url }}
+                                    style={styles.mediaPreview}
+                                    useNativeControls={true}
+                                    resizeMode="contain"
+                                    shouldPlay={false}
+                                    isMuted={false}
+                                    onError={(error) => {
+                                      console.log(`Video ${index} error:`, error);
+                                    }}
+                                    onPlaybackStatusUpdate={(status) => {
+                                      if (status.error) {
+                                        console.log(`Video ${index} playback error:`, status.error);
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  // Fallback for unknown media types
+                                  <View style={[styles.mediaPreview, styles.mediaError]}>
+                                    <FontAwesome5 name="exclamation-triangle" size={20} color="#666" />
+                                    <Text style={styles.mediaErrorText}>
+                                      Unsupported media type: {mediaItem.type || 'unknown'}
+                                    </Text>
+                                  </View>
+                                )}
+                              </View>
+                            );
+                          })}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+
+
               </>
             )}
           </View>
@@ -724,12 +1054,21 @@ const styles = StyleSheet.create({
     elevation: 8,
     position: "relative",
   },
-  closeIcon: {
+  closeButton: {
     position: "absolute",
-    bottom: 140,
-    left: 120,
-    padding: 5,
+    top: 15,
+    right: 15,
+    zIndex: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 20,
+    padding: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
+
   modalTitle: {
     fontSize: 18,
     fontWeight: "bold",
@@ -782,7 +1121,7 @@ const styles = StyleSheet.create({
   votesContainer: {
     marginBottom: 20,
   },
-  
+
   votingButtons: {
     flexDirection: "row",
     justifyContent: "space-around",
@@ -826,7 +1165,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
   },
-  
+
   votingContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -884,5 +1223,91 @@ const styles = StyleSheet.create({
   },
   downvotedScore: {
     color: "#9494FF", // Blue when downvoted
+  },
+  mediaContainer: {
+    width: "100%",
+    maxHeight: 200,
+    marginTop: 10,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#f9f9f9",
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  mediaScroller: {
+    paddingVertical: 10,
+  },
+  mediaWrapper: {
+    width: 120,
+    height: 120,
+    borderRadius: 10,
+    overflow: "hidden",
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    backgroundColor: "#fff",
+  },
+ mediaError: {
+  color: '#666',
+  textAlign: 'center',
+  padding: 10,
+},
+mediaPreview: {
+  width: '100%',
+  height: '100%',
+  backgroundColor: '#f0f0f0',
+},
+  // Add to your existing styles
+  mediaSection: {
+    width: '100%',
+    alignItems: 'center',
+    marginVertical: 15,
+  },
+  mediaToggle: {
+    backgroundColor: '#f0f0f0',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginBottom: 10,
+  },
+  mediaToggleText: {
+    color: '#666',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  mediaContainer: {
+    width: '100%',
+  },
+  mediaScroller: {
+    width: '100%',
+  },
+  mediaScrollContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  mediaWrapper: {
+    marginHorizontal: 5,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#f0f0f0',
+    width: 250,  // Made larger
+    height: 250, // Made larger
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  mediaPreview: {
+    width: '100%',
+    height: '100%',
+  },
+  mediaToggleDisabled: {
+    backgroundColor: '#e0e0e0',
+    opacity: 0.7,
   },
 });

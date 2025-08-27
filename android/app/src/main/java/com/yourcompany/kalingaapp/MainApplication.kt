@@ -1,4 +1,4 @@
-package com.anonymous.Kalinga_App
+package com.yourcompany.kalingaapp
 
 import android.app.Application
 import android.content.res.Configuration

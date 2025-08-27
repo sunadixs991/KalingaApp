@@ -1,4 +1,4 @@
-package com.anonymous.Kalinga_App
+package com.yourcompany.kalingaapp
 
 import android.os.Build
 import android.os.Bundle
