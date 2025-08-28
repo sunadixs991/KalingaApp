@@ -13,7 +13,7 @@ import {
   ScrollView,
 } from "react-native";
 import { db } from "../firebase";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Picker } from "@react-native-picker/picker";
 import Animated, { FadeIn } from "react-native-reanimated";
@@ -91,11 +91,34 @@ export default function SignUp({ navigation }) {
     return true;
   };
 
+  const generateUniqueId = () => {
+    const timestamp = new Date().getTime();
+    const random = Math.floor(Math.random() * 10000);
+    return `USER${timestamp}${random}`;
+  };
+
   const handleSignUp = async () => {
     if (!validateStepTwo()) return;
 
     try {
+      // Check if username already exists
+      const usernameQuery = query(
+        collection(db, "users"),
+        where("username", "==", username)
+      );
+      const usernameSnapshot = await getDocs(usernameQuery);
+
+      if (!usernameSnapshot.empty) {
+        Alert.alert("Error", "Username already exists");
+        return;
+      }
+
+      // Generate unique user ID
+      const userId = generateUniqueId();
+
+      // Add user to Firestore with unique ID
       await addDoc(collection(db, "users"), {
+        userId,
         firstName,
         lastName,
         username,
@@ -109,11 +132,22 @@ export default function SignUp({ navigation }) {
         barangay,
         password,
         is_verified: 0,
+        createdAt: new Date(),
       });
-      Alert.alert("Success", "Account created!");
-      navigation.replace("LoginScreen");
+
+      Alert.alert(
+        "Success",
+        `Account created! Your User ID is: ${userId}`,
+        [
+          {
+            text: "OK",
+            onPress: () => navigation.replace("LoginScreen"),
+          },
+        ]
+      );
     } catch (error) {
-      Alert.alert("Error", error.message);
+      console.error("Signup error:", error);
+      Alert.alert("Error", "Failed to create account. Please try again.");
     }
   };
 

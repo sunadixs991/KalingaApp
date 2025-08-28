@@ -43,7 +43,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Video } from "expo-av";
 
 import { Image } from "react-native";
-import { notifyUsers } from '../services/notification';
+
 
 // Debug: Log the imports immediately
 // console.log("=== IMPORT DEBUG ===");
@@ -518,7 +518,7 @@ export default function MapScreen({ route }) {
       }
 
       // 2. Save pin data (including Supabase URLs) to FIRESTORE
-      const pinRef = await addDoc(collection(db, "pins"), {
+      await addDoc(collection(db, "pins"), {
         latitude: pendingPin.latitude,
         longitude: pendingPin.longitude,
         userId: userInfo || "anonymous",
@@ -531,30 +531,6 @@ export default function MapScreen({ route }) {
         downvotes: 0,
       });
 
-      // Send notifications after successful pin creation
-      try {
-        // Prepare notification content
-        const title = `New ${selectedCategory} Location`;
-        const message = `${userFirstName || 'Someone'} marked: ${description.trim()}`;
-
-        // Send both in-app and SMS notifications
-        const notificationResult = await notifyUsers(
-          title,
-          message,
-          [] // Empty array means send to all users
-        );
-
-        if (!notificationResult.inAppSuccess) {
-          console.warn('Failed to send in-app notifications');
-        }
-        if (!notificationResult.smsSuccess) {
-          console.warn('Failed to send SMS notifications');
-        }
-      } catch (notificationError) {
-        console.error('Error sending notifications:', notificationError);
-        // Don't throw error here - we still want to complete the pin creation
-      }
-
       // Reset states
       setDescModalVisible(false);
       setDescription("");
@@ -565,7 +541,7 @@ export default function MapScreen({ route }) {
 
       const successMessage = mediaUrls.length > 0
         ? `Your location has been pinned successfully with ${mediaUrls.length} media file(s).`
-        : "Your location has been pinned successfully.";
+        : "Your location has been pinned successfully (some media uploads may have failed).";
 
       Alert.alert("Location pinned!", successMessage);
 
@@ -715,17 +691,6 @@ export default function MapScreen({ route }) {
         style={{ flex: 1 }}
         initialRegion={getInitialRegion()}
         onLongPress={handleLongPress}
-        mapPadding={{ top: 0, right: 0, bottom: 0, left: 0 }}
-        mapType="standard"
-        zoomControlEnabled={false}     // Hides zoom controls
-        mapToolbarEnabled={false}      // Hides toolbar (Android)
-        showsCompass={false}           // Hides compass
-        showsMyLocationButton={false}  // Hides the default location button
-        showsScale={false}             // Hides scale indicator
-        showsBuildings={false}         // Hides 3D buildings
-        showsTraffic={false}           // Hides traffic indicators
-        showsIndoors={false}           // Hides indoor maps
-        toolbarEnabled={false}         // Hides toolbar completely
       >
         {/* RENDER ALL PIN MARKERS */}
 
