@@ -15,6 +15,7 @@ import { useNavigation } from "@react-navigation/native";
 import { loginWithUsernameAndPassword } from "../services/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import { checkAdminStatus } from '../utils/adminUtils';
 
 
 export default function LoginScreen({ navigation, onLogin }) {
@@ -23,6 +24,7 @@ export default function LoginScreen({ navigation, onLogin }) {
   const [rememberMe, setRememberMe] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     Animated.parallel([
@@ -46,12 +48,23 @@ export default function LoginScreen({ navigation, onLogin }) {
     }
 
     try {
-      const success = await loginWithUsernameAndPassword(username, password);
-      if (success) {
+      const { success, userData, error } = await loginWithUsernameAndPassword(username, password);
+      
+      if (success && userData) {
+        await AsyncStorage.setItem("userInfo", JSON.stringify(userData));
         await AsyncStorage.setItem("user", username.trim());
-        if (onLogin) onLogin(); // Properly call the function if passed
-        Alert.alert("Success", "Logged in!");
-        navigation.replace("MainTabs", { username });
+        
+        if (onLogin) onLogin();
+        
+        Alert.alert(
+          "Success", 
+          userData.isAdmin ? "Logged in as Administrator!" : "Logged in successfully!"
+        );
+        
+        navigation.replace("MainTabs", { 
+          username,
+          isAdmin: userData.isAdmin 
+        });
       } else {
         Alert.alert("Error", "Invalid username or password");
       }

@@ -25,6 +25,9 @@ import {
 
 // Import functions individually to test
 import { fetchNearbyPins } from "../services/PinService";
+import boyProfile from '../assets/boy.png';
+import womanProfile from '../assets/woman.png';
+import userProfile from '../assets/user.png';
 
 // Simple PinCard component defined inline to avoid import issues
 const SimplePinCard = ({ pin, onPress }) => (
@@ -248,7 +251,18 @@ export default function HomeScreen({ route, navigation }) {
         >
           {/* Welcome Section */}
           <View style={styles.welcomeContainer}>
-            <View style={styles.profilePlaceholder} />
+            <Image
+              source={
+                userInfo 
+                  ? userInfo.gender === 'Female'
+                    ? womanProfile
+                    : userInfo.gender === 'Male'
+                      ? boyProfile
+                      : userProfile
+                  : userProfile
+              }
+              style={styles.profileImage}
+            />
             <View>
               <Text style={styles.welcomeText}>Welcome back,</Text>
               <Text style={styles.userName}>
@@ -440,10 +454,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 25,
   },
-  profilePlaceholder: {
+  profileImage: {
     width: 50,
     height: 50,
-    backgroundColor: "#ccc",
     borderRadius: 10,
     marginRight: 12,
   },
