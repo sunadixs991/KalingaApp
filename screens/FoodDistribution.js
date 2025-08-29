@@ -20,6 +20,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import * as DocumentPicker from 'expo-document-picker';
 import { WebView } from 'react-native-webview';
 import * as XLSX from 'xlsx';
+import { notifyUsers } from '../services/notification';
 
 export default function FoodDistribution({ navigation }) {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -511,6 +512,21 @@ export default function FoodDistribution({ navigation }) {
         };
 
         setSchedulesList([...schedulesList, newItem]);
+
+        // Notify all users via IPROG (or current notifyUsers implementation)
+        try {
+          const notificationMessage =
+            `[Kalinga App]\nNew Food Distribution Schedule\n` +
+            `Barangay: ${newItem.title}\n` +
+            `Date: ${newItem.date}\n` +
+            `Time: ${newItem.time}\n` +
+            `Location: ${newItem.location}`;
+
+          const notifyResult = await notifyUsers(notificationMessage);
+          console.log('Notification result:', notifyResult);
+        } catch (notifyErr) {
+          console.error('Notification error:', notifyErr);
+        }
       }
 
       setModalVisible(false);
