@@ -41,6 +41,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { FontAwesome5 } from "@expo/vector-icons"; // Expo
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Video } from "expo-av";
+import { WebView } from "react-native-webview";
 
 import { Image } from "react-native";
 
@@ -67,6 +68,196 @@ export default function MapScreen({ route }) {
   const [description, setDescription] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const mapRef = useRef(null);
+  const webviewRef = useRef(null);
+  // keep a ref to pinMode to avoid stale closures in WebView onMessage handler
+  const pinModeRef = useRef(pinMode);
+  useEffect(() => {
+    pinModeRef.current = pinMode;
+    // inform WebView when pinMode changes (keeps hint & behavior in sync)
+    if (webviewRef.current) {
+      try {
+        webviewRef.current.postMessage(JSON.stringify({ type: "setPinMode", enabled: !!pinMode }));
+      } catch (e) {
+        console.log("Failed to post setPinMode to WebView", e);
+      }
+    }
+  }, [pinMode]);
+
+  const getMapHtml = (pins = [], loc = { latitude: 0, longitude: 0 }, route = []) => {
+    const pinsJson = JSON.stringify(pins);
+    const routeJson = JSON.stringify(route);
+    const centerLat = loc.latitude || 0;
+    const centerLng = loc.longitude || 0;
+    return `<!doctype html>
+      <html><head>
+        <meta name="viewport" content="initial-scale=1.0, width=device-width" />
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"/>
+        <style>
+          html,body,#map{height:100%;margin:0;padding:0;}
+         /* hide Leaflet zoom (+ / -) controls */
+         .leaflet-control-zoom { display: none !important; }
+         /* keep attribution visible but small (if needed) */
+         .leaflet-control-attribution { font-size: 11px !important; opacity: 0.8; }
+          .custom-pin { background: transparent; }
+          .pin {
+            display:flex; align-items:center; justify-content:center;
+            width:36px; height:36px; border-radius:18px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+            color: #fff;
+            border: 2px solid rgba(255,255,255,0.3);
+          }
+          .pin i { font-size:18px; line-height:18px; }
+          /* pin mode visual hint (optional) */
+          .pin-mode-hint {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.6);
+            color: #fff;
+            padding: 6px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            z-index: 9999;
+            display: none;
+          }
+          .pin-mode-hint.show { display: block; }
+        </style>
+      </head><body>
+        <div id="map" style="touch-action: none;"></div>
+        <div id="pinHint" class="pin-mode-hint">Pin mode: long-press or tap to place</div>
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script>
+          const pins = ${pinsJson};
+          const route = ${routeJson};
+          // Disable default zoom control (we hide + / -). Attribution control kept or disabled as required.
+          const map = L.map('map', { attributionControl: false, zoomControl: false }).setView([${centerLat}, ${centerLng}], 13);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+            attribution: '&copy; OpenStreetMap contributors'
+          }).addTo(map);
+
+          let _pinMode = false; // controlled by RN via setPinMode messages
+          const pinHintEl = document.getElementById('pinHint');
+
+          const markers = {};
+          function addPins(list){
+            Object.values(markers).forEach(m=>map.removeLayer(m));
+            for(const p of list){
+              const iconHtml = '<div class="pin" style="background:' + (p.color||'#2c352a') + ';">' +
+                               '<i class="' + (p.iconClass || 'fas fa-map-marker-alt') + '" aria-hidden="true"></i>' +
+                               '</div>';
+              const myIcon = L.divIcon({ html: iconHtml, className: 'custom-pin', iconSize: [36,36], iconAnchor: [18,36] });
+              const m = L.marker([p.latitude, p.longitude], { icon: myIcon }).addTo(map);
+              m.on('click', ()=> window.ReactNativeWebView.postMessage(JSON.stringify({type:'markerClick', id: p.id})));
+              markers[p.id] = m;
+            }
+          }
+
+          function drawRoute(r){
+            if(window._route) map.removeLayer(window._route);
+            if(r && r.length){
+              const latlngs = r.map(c=>[c.latitude, c.longitude]);
+              window._route = L.polyline(latlngs, {color:'#EC6135', weight:6}).addTo(map);
+              map.fitBounds(window._route.getBounds(), {padding:[40,40]});
+            }
+          }
+
+          addPins(pins);
+          drawRoute(route);
+
+          // Long-press detection (works for touch and mouse)
+          (function() {
+            let timer = null;
+            let startPoint = null;
+            const threshold = 600; // ms required to consider long-press
+            let longPressed = false;
+
+            function getLatLngFromEvent(e){
+              try {
+                if (!e) return null;
+                // If Leaflet event with latlng
+                if(e.latlng) return e.latlng;
+                // Use Leaflet helper for raw DOM events (pointer/mouse/touch)
+                const raw = e && e.originalEvent ? e.originalEvent : e;
+                if(raw) return map.mouseEventToLatLng(raw);
+              } catch(err){}
+              return null;
+            }
+
+            function onDown(e){
+              longPressed = false;
+              startPoint = getLatLngFromEvent(e) || null;
+              if(timer){ clearTimeout(timer); timer = null; }
+              timer = setTimeout(() => {
+                if(startPoint && _pinMode){
+                  longPressed = true;
+                  window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'mapLongPress',
+                    latitude: startPoint.lat,
+                    longitude: startPoint.lng
+                  }));
+                }
+              }, threshold);
+            }
+
+            function onUp(e){
+              if(timer){
+                clearTimeout(timer);
+                timer = null;
+              }
+              if(!_pinMode){
+                longPressed = false;
+                return;
+              }
+              if(longPressed){
+                longPressed = false;
+                return;
+              }
+              const pt = getLatLngFromEvent(e) || null;
+              if(pt){
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                  type: 'mapPin',
+                  latitude: pt.lat,
+                  longitude: pt.lng
+                }));
+              }
+            }
+
+            // Attach to the map container using pointer/touch/mouse events (more reliable in WebView)
+            const container = map.getContainer();
+            container.addEventListener('pointerdown', onDown);
+            container.addEventListener('pointerup', onUp);
+            container.addEventListener('touchstart', onDown);
+            container.addEventListener('touchend', onUp);
+            container.addEventListener('touchcancel', onUp);
+            container.addEventListener('mousedown', onDown);
+            container.addEventListener('mouseup', onUp);
+
+            // Keep click for informational use
+            map.on('click', function(e){
+              window.ReactNativeWebView.postMessage(JSON.stringify({type:'mapClick', latitude: e.latlng.lat, longitude: e.latlng.lng}));
+            });
+          })();
+
+          function handleMessage(m){
+            try{
+              const msg = typeof m.data === 'string' ? JSON.parse(m.data) : m.data;
+              if(msg?.type === 'updatePins') addPins(msg.pins||[]);
+              if(msg?.type === 'updateRoute') drawRoute(msg.route||[]);
+              if(msg?.type === 'flyTo') map.setView([msg.latitude, msg.longitude], msg.zoom||15);
+              if(msg?.type === 'setPinMode'){
+                _pinMode = !!msg.enabled;
+                if(_pinMode) pinHintEl.classList.add('show'); else pinHintEl.classList.remove('show');
+              }
+            }catch(e){}
+          }
+          document.addEventListener('message', handleMessage);
+          window.addEventListener('message', handleMessage);
+        </script>
+      </body></html>`;
+  };
+
   const navigation = useNavigation();
   const [pinModalVisible, setPinModalVisible] = useState(false);
 
@@ -128,49 +319,38 @@ export default function MapScreen({ route }) {
 
   // Handle focusPin when map is ready and pins are loaded
   useEffect(() => {
-    if (focusPin && mapRef.current && allPins.length > 0) {
-      // Focus on the specific pin
+    if (focusPin && webviewRef.current && allPins.length > 0) {
       setTimeout(() => {
-        console.log("Focusing on pin:", focusPin);
-        mapRef.current.animateToRegion(
-          {
-            latitude: focusPin.latitude,
-            longitude: focusPin.longitude,
-            latitudeDelta: 0.005,
-            longitudeDelta: 0.005,
-          },
-          1000
-        );
-
-        // Find and show the pin info modal for the focused pin
-        const targetPin = allPins.find((pin) => pin.id === focusPin.id);
-        if (targetPin) {
-          console.log("Found target pin, opening modal:", targetPin);
-          setTimeout(() => {
-            handlePinMarkerPress(targetPin);
-          }, 1500); // Delay to let the map animation complete
-        }
-      }, 500); // Small delay to ensure map is ready
+        webviewRef.current.postMessage(JSON.stringify({
+          type: 'flyTo',
+          latitude: focusPin.latitude,
+          longitude: focusPin.longitude,
+          zoom: 16
+        }));
+        const targetPin = allPins.find((p) => p.id === focusPin.id);
+        if (targetPin) setTimeout(()=> handlePinMarkerPress(targetPin), 1200);
+      }, 500);
     }
   }, [focusPin, allPins]);
 
   const goToMyLocation = () => {
-    if (!location || !mapRef.current) return;
-    mapRef.current.animateToRegion(
-      {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      },
-      1000
-    );
+    if (!location || !webviewRef.current) return;
+    webviewRef.current.postMessage(JSON.stringify({
+      type: 'flyTo',
+      latitude: location.latitude,
+      longitude: location.longitude,
+      zoom: 16
+    }));
   };
 
   const handlePinButton = () => {
     if (userInfo) {
       setPinMode(true);
-      Alert.alert("Pin Mode", "Long press on the map to pin a location.");
+      // inform WebView to enable pin mode
+      if (webviewRef.current) {
+        webviewRef.current.postMessage(JSON.stringify({ type: "setPinMode", enabled: true }));
+      }
+      Alert.alert("Pin Mode", "Tap or long-press on the map to pin a location. Tap Cancel to exit pin mode.");
     } else {
       Alert.alert(
         "Sign in required",
@@ -684,56 +864,75 @@ export default function MapScreen({ route }) {
     "Portable Toilets": { color: "#3F51B5", icon: "toilet" },
     "Others": { color: "#2c352aff", icon: "list" },
   };
+  // before return(...)
+  const pinsWithIcons = allPins.map(p => {
+    const category = categoryStyles[(p.category || "").trim()] || categoryStyles["Others"];
+    return {
+      ...p,
+      iconClass: `fas fa-${category.icon}`, // e.g. 'fas fa-tint'
+      color: category.color || "#2c352a",
+    };
+  });
+
+  // Add current location as a special pin so the WebView map shows it
+  if (location) {
+    pinsWithIcons.unshift({
+      id: "__current_location",
+      latitude: location.latitude,
+      longitude: location.longitude,
+      iconClass: "fas fa-map-marker-alt",
+      color: "#EC6135",
+    });
+  }
+
   return (
     <View style={styles.container}>
-      <MapView
-        ref={mapRef}
-        style={{ flex: 1 }}
-        initialRegion={getInitialRegion()}
-        onLongPress={handleLongPress}
-      >
-        {/* RENDER ALL PIN MARKERS */}
+      <WebView
+        ref={webviewRef}
+        originWhitelist={['*']}
+        source={{ html: getMapHtml(pinsWithIcons, location || { latitude:0, longitude:0 }, routeCoords) }}
+        style={{ flex: 1, backgroundColor: 'transparent' }}
+        onMessage={(event) => {
+          try {
+            const msg = JSON.parse(event.nativeEvent.data);
+            console.log("WebView -> RN message:", msg);
 
-        {allPins.map((pin) => {
-          const categoryKey = (pin.category || "").trim();
-          const category = categoryStyles[categoryKey] || categoryStyles["Others"];
-          const isFocused = focusPin && pin.id === focusPin.id;
+            // Only create pin on long-press or mapPin and when pinMode active
+            if (msg.type === 'mapLongPress' || msg.type === 'mapPin') {
+              // use ref to avoid stale closure
+              if (!pinModeRef.current) {
+                console.log("Pin mode not active — ignoring pin event");
+                return;
+              }
+               if (!userInfo) {
+                 Alert.alert(
+                   "Sign in required",
+                   "You need to sign in to pin a location.",
+                   [
+                     { text: "Cancel", style: "cancel" },
+                     { text: "Sign in", onPress: () => navigation.navigate("LoginScreen") },
+                   ]
+                 );
+                 return;
+               }
+               setPendingPin({ latitude: msg.latitude, longitude: msg.longitude });
+               setDescModalVisible(true);
+               return;
+             }
 
-          return (
-            <Marker
-              key={pin.id}
-              coordinate={{ latitude: pin.latitude, longitude: pin.longitude }}
-              onPress={() => handlePinMarkerPress(pin)}
-            >
-              <FontAwesome5
-                name={category.icon}
-                size={27}
-                color={isFocused ? "#FF6B35" : category.color}
-              />
-            </Marker>
-          );
-        })}
+            // Keep marker clicks as before
+            if (msg.type === 'markerClick') {
+              if (msg.id === "__current_location") return;
+              const pin = allPins.find(p => p.id === msg.id);
+              if (pin) handlePinMarkerPress(pin);
+            }
 
-        {/* CURRENT LOCATION MARKER */}
-        <Marker
-          coordinate={{
-            latitude: location.latitude,
-            longitude: location.longitude,
-          }}
-        >
-          <MaterialIcons name="location-history" size={37} color="#EC6135" />
-
-        </Marker>
-
-        {/* --- Draw the route polyline if available --- */}
-        {routeCoords.length > 0 && (
-          <Polyline
-            coordinates={routeCoords}
-            strokeWidth={7} // Thicker line
-            strokeColor="#EC6135" // Orange color
-          />
-        )}
-      </MapView>
+            // Optional: ignore plain mapClick for pin creation
+          } catch (e) {
+            console.log('WebView message parse error', e);
+          }
+        }}
+      />
 
       <FloatingButtons
         onClear={clearRoute}
@@ -755,8 +954,19 @@ export default function MapScreen({ route }) {
           setSelectedCategory("");
           setPendingPin(null);
           setMedia(null); // Clear media when canceling
+          setPinMode(false);
+          if (webviewRef.current) {
+            webviewRef.current.postMessage(JSON.stringify({ type: "setPinMode", enabled: false }));
+          }
         }}
-        onSave={handleSavePin}
+        onSave={async () => {
+          await handleSavePin();
+          // after save, also disable pin mode
+          setPinMode(false);
+          if (webviewRef.current) {
+            webviewRef.current.postMessage(JSON.stringify({ type: "setPinMode", enabled: false }));
+          }
+        }}
         media={media}     // Add this
         setMedia={setMedia} // Add this
       />
