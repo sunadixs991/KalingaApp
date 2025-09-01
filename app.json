@@ -14,7 +14,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.kalingaapp"
+      "bundleIdentifier": "com.yourcompany.kalingaapp",
+      "config": {
+        "googleMapsApiKey": "AIzaSyCbgVGP70LgGU3S6DsE6wHeSLJNpEK9ay8"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -28,7 +31,12 @@
         "ACCESS_FINE_LOCATION",
         "NOTIFICATIONS",
         "SMS"
-      ]
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCbgVGP70LgGU3S6DsE6wHeSLJNpEK9ay8"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
