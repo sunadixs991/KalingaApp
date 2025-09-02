@@ -5,17 +5,20 @@ import {
   TextInput,
   FlatList,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   TouchableOpacity,
   Platform,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
 import { getGeminiResponse } from "../services/geminiChatService";
-import { getUserInfo } from "../services/getinfo"; // ✅ corrected path
+import { getUserInfo } from "../services/getinfo";
 import * as Location from "expo-location";
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import {
+  widthPercentageToDP as wp,
+  heightPercentageToDP as hp,
+} from "react-native-responsive-screen";
 
 const FAQS = [
   "What services are available in my area?",
@@ -85,13 +88,11 @@ export default function ChatScreen({ route }) {
     return () => clearTimeout(timeoutId);
   }, [username]);
 
-  // Add this function to handle FAQ quick send
   function handleFAQPress(faq) {
     setInput(faq);
     sendMessageWithText(faq);
   }
 
-  // Helper to send a message with a specific text (for FAQ)
   async function sendMessageWithText(text) {
     if (!text.trim()) return;
 
@@ -109,15 +110,13 @@ You should remember this information and use it to personalize your responses.
 `;
     } else if (loadTimeout) {
       USER_INFO = `
-This is not a signed-in account. If the user asks for personal information, politely tell them to sign in first(except for location).
+This is not a signed-in account. If the user asks for personal information, politely tell them to sign in first (except for location).
 My location is ${locationText}
 `;
     } else {
-      // Still loading, do not send
       return;
     }
 
-    // Add the user's message to the chat first
     const userMessage = {
       id: Date.now().toString(),
       sender: "user",
@@ -140,56 +139,14 @@ My location is ${locationText}
   async function sendMessage() {
     if (!input.trim()) return;
 
-    let USER_INFO;
-    let locationText = placeName ? `My current location is: ${placeName}.` : "";
-
-    if (userInfo) {
-      USER_INFO = `
-My name is ${userInfo.firstName.trim()} ${userInfo.lastName.trim()}.
-I am from ${userInfo.barangay}, ${userInfo.city}, ${userInfo.province}.
-I was born on ${userInfo.dob} and I identify as ${userInfo.gender}.
-My civil status is ${userInfo.status}.
-My location is ${locationText}.
-You should remember this information and use it to personalize your responses.
-`;
-    } else if (loadTimeout) {
-      USER_INFO = `
-This is not a signed-in account. If the user asks for personal information, politely tell them to sign in first(except for location).
-My location is ${locationText}
-`;
-    } else {
-      // Still loading, do not send
-      return;
-    }
-
-    // Add the user's message to the chat first
-    const userMessage = {
-      id: Date.now().toString(),
-      sender: "user",
-      text: input,
-    };
-    setMessages((prev) => [...prev, userMessage]);
-    setLoading(true);
-
-    const prompt = USER_INFO + "\nUser: " + input;
-    const botText = await getGeminiResponse(prompt);
-
-    setMessages((prev) => [
-      ...prev,
-      { id: Date.now().toString() + "_bot", sender: "bot", text: botText },
-    ]);
-    setInput("");
-    setLoading(false);
+    sendMessageWithText(input);
   }
 
   if (infoLoading) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View
-          style={[
-            styles.container,
-            { justifyContent: "center", alignItems: "center" },
-          ]}
+          style={[styles.container, { justifyContent: "center", alignItems: "center" }]}
         >
           <ActivityIndicator size="large" color="#e75e33" />
           <Text>Loading user info...</Text>
@@ -199,8 +156,8 @@ My location is ${locationText}
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#e75e33" />
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <StatusBar style="light" backgroundColor="#e75e33" translucent={false} />
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -209,7 +166,7 @@ My location is ${locationText}
             <Text style={styles.headerTitle}>Gemini Chat</Text>
           </View>
           <TouchableOpacity>
-            <Icon name="person-circle-outline" size={30} color="#fff" />
+            <Icon name="person-circle-outline" size={28} color="#fff" />
           </TouchableOpacity>
         </View>
 
@@ -225,23 +182,16 @@ My location is ${locationText}
               ]}
             >
               <Text style={styles.messageText}>{item.text}</Text>
-              {/* Show FAQ buttons right after the bot's greeting */}
               {index === 0 && item.sender === "bot" && (
-                <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 10 }}>
+                <View style={styles.faqContainer}>
                   {FAQS.map((faq, idx) => (
                     <TouchableOpacity
                       key={idx}
-                      style={{
-                        backgroundColor: "#e75e33",
-                        borderRadius: 20,
-                        paddingHorizontal: 14,
-                        paddingVertical: 8,
-                        margin: 4,
-                      }}
+                      style={styles.faqButton}
                       onPress={() => handleFAQPress(faq)}
                       disabled={loading}
                     >
-                      <Text style={{ color: "#fff", fontSize: 13 }}>{faq}</Text>
+                      <Text style={styles.faqText}>{faq}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -277,7 +227,8 @@ My location is ${locationText}
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#e75e33",
+    // paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   container: {
     flex: 1,
@@ -288,8 +239,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: wp('4%'),
-    // paddingTop: Platform.OS === 'android' ? 32 : 16,
+    paddingVertical: hp("1.7%"),
+    paddingHorizontal: wp("4%"),
   },
   headerRow: {
     flexDirection: "row",
@@ -298,18 +249,18 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: "#fff",
     fontWeight: "bold",
-    fontSize: wp('4.5%'),
-    marginLeft: wp('2%'),
+    fontSize: wp("4.5%"),
+    marginLeft: wp("2%"),
   },
   chatContainer: {
     flexGrow: 1,
-    padding: wp('3.5%'),
+    padding: wp("3.5%"),
     justifyContent: "flex-end",
   },
   message: {
-    marginVertical: hp('0.8%'),
-    padding: wp('3%'),
-    borderRadius: wp('3%'),
+    marginVertical: hp("0.8%"),
+    padding: wp("3%"),
+    borderRadius: wp("3%"),
     maxWidth: "80%",
   },
   user: {
@@ -321,34 +272,49 @@ const styles = StyleSheet.create({
     backgroundColor: "#EEE",
   },
   messageText: {
-    fontSize: wp('4%'),
+    fontSize: wp("4%"),
     color: "#222",
+  },
+  faqContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 10,
+  },
+  faqButton: {
+    backgroundColor: "#e75e33",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    margin: 4,
+  },
+  faqText: {
+    color: "#fff",
+    fontSize: 13,
   },
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#f1f1f1",
-    borderRadius: wp('3%'),
-    marginHorizontal: wp('4%'),
-    marginBottom: hp('4.5%'),
-    paddingHorizontal: wp('3%'),
-    paddingVertical: hp('0.5%'),
+    borderRadius: wp("3%"),
+    marginHorizontal: wp("4%"),
+    marginBottom: hp("3.5%"),
+    paddingHorizontal: wp("3%"),
+    paddingVertical: hp("0.5%"),
     elevation: 2,
   },
   input: {
     flex: 1,
-    height: hp('5.5%'),
-    paddingHorizontal: wp('2%'),
+    height: hp("5.5%"),
+    paddingHorizontal: wp("2%"),
     color: "#000",
-    fontSize: wp('3.8%'),
+    fontSize: wp("3.8%"),
   },
   sendButton: {
     backgroundColor: "#225B64",
-    borderRadius: wp('3%'),
-    padding: wp('2%'),
-    marginLeft: wp('2%'),
+    borderRadius: wp("3%"),
+    padding: wp("2%"),
+    marginLeft: wp("2%"),
     justifyContent: "center",
     alignItems: "center",
   },
 });
-

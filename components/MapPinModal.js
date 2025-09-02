@@ -21,12 +21,8 @@ const CATEGORIES = [
   "Charging Station",
   "Free Wi-Fi Access",
   "Clothing Supply",
-  "Blankets Supply",
   "Animal Shelter",
   "Temporary Shelter",
-  "Rescue Equipment",
-  "Sanitation Facility",
-  "Portable Toilets",
   "Others"
 ];
 

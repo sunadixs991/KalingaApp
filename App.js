@@ -7,9 +7,10 @@ import TabNavigator from "./navigation/TabNavigator";
 import LoginScreen from "./screens/LoginScreen";
 import SignUp from "./screens/SignUp";
 import AnalyticsScreen from "./screens/AnalyticsScreen";
-import FoodDistribution from './screens/FoodDistribution';
-import EvacuationCenters from './screens/EvacuationCenters';
-import MedicalSupport from './screens/MedicalSupport';
+import FoodDistribution from "./screens/FoodDistribution";
+import EvacuationCenters from "./screens/EvacuationCenters";
+import MedicalSupport from "./screens/MedicalSupport";
+import AddScheduleScreen from "./screens/AddScheduleScreen";
 
 const Stack = createStackNavigator();
 
@@ -25,8 +26,12 @@ export default function App() {
         <Stack.Screen name="FoodDistribution" component={FoodDistribution} />
         <Stack.Screen name="EvacuationCenters" component={EvacuationCenters} />
         <Stack.Screen name="MedicalSupport" component={MedicalSupport} />
+        <Stack.Screen
+          name="AddSchedule"
+          component={AddScheduleScreen}
+          options={{ headerShown: false }}
+        />
 
-        
         {/* Removed MapScreen from here since it's in TabNavigator */}
       </Stack.Navigator>
     </NavigationContainer>

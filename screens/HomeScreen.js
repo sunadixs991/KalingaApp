@@ -8,13 +8,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   ActivityIndicator,
   Alert,
   RefreshControl,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { db } from "../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import * as Location from "expo-location";
@@ -222,7 +222,7 @@ export default function HomeScreen({ route, navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <StatusBar barStyle="light-content" backgroundColor="#e75e33" />
       <View style={styles.container}>
         {/* Header */}
@@ -417,17 +417,16 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#e75e33",
-    paddingTop: hp("2%"),
+    // paddingTop: hp("2%"),
   },
   header: {
     backgroundColor: "#e75e33",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: hp("3%"),
+    paddingVertical: hp("1.8%"),
     paddingBottom: hp("2%"),
     paddingHorizontal: wp("4%"),
-    position: "fixed"
   },
   locationRow: {
     flexDirection: "row",

@@ -1,6 +1,16 @@
 import React from "react";
-import { View, Text, StyleSheet, FlatList, Image } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  Image,
+  TouchableOpacity,
+  StatusBar,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
+import { useNavigation } from "@react-navigation/native";
 
 const centers = [
   {
@@ -30,57 +40,103 @@ const centers = [
 ];
 
 export default function EvacuationCenters() {
+  const navigation = useNavigation();
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Evacuation Centers</Text>
-      <FlatList
-        data={centers}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingVertical: 16 }}
-        renderItem={({ item }) => (
-          <View style={styles.cardRow}>
-            <View style={styles.cardInfo}>
-              <Text style={styles.cardTitle}>{item.name}</Text>
-              <Text style={styles.cardText}>📍 {item.address}</Text>
-              <Text style={styles.cardText}>👥 {item.capacity}</Text>
-              <Text style={[styles.cardText, { color: item.status === "Full" ? "#e75e33" : "#49A5A2" }]}>
-                {item.status}
-              </Text>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+      {/* StatusBar for better contrast */}
+      {/* <StatusBar barStyle="dark-content" backgroundColor="#fff" /> */}
+
+      {/* Top Bar */}
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <Icon name="chevron-back" size={26} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.topBarTitle}>Evacuation Centers</Text>
+        <View style={{ width: 32 }} /> 
+      </View>
+
+      {/* Main Content */}
+      <View style={styles.container}>
+        <FlatList
+          data={centers}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingVertical: 16 }}
+          renderItem={({ item }) => (
+            <View style={styles.cardRow}>
+              <View style={styles.cardInfo}>
+                <Text style={styles.cardTitle}>{item.name}</Text>
+                <Text style={styles.cardText}>📍 {item.address}</Text>
+                <Text style={styles.cardText}>👥 {item.capacity}</Text>
+                <Text
+                  style={[
+                    styles.cardText,
+                    { color: item.status === "Full" ? "#e75e33" : "#49A5A2" },
+                  ]}
+                >
+                  {item.status}
+                </Text>
+              </View>
+              {item.image && (
+                <Image source={item.image} style={styles.cardImage} />
+              )}
             </View>
-            {item.image && (
-              <Image source={item.image} style={styles.cardImage} />
-            )}
-          </View>
-        )}
-      />
-      <Text style={styles.info}>
-        {/* List of available evacuation centers, their capacity, and status. */}
-      </Text>
-    </View>
+          )}
+        />
+
+        <Text style={styles.info}>
+          Stay updated on evacuation center availability and capacity.
+        </Text>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 2,
+  },
+  backButton: {
+    padding: 4,
+    marginRight: 6,
+  },
+  topBarTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#000",
+  },
   container: {
     flex: 1,
     backgroundColor: "#fff",
-    alignItems: "stretch",
-    padding: 24,
-    paddingTop: 40,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 8,
-    color: "#e75e33",
-    textAlign: "center",
+    paddingHorizontal: 20,
+    paddingTop: 10,
   },
   info: {
-    fontSize: 16,
-    color: "#333",
+    fontSize: 14,
+    color: "#555",
     textAlign: "center",
     marginTop: 16,
+    marginBottom: 10,
   },
   cardRow: {
     flexDirection: "row",
@@ -91,6 +147,10 @@ const styles = StyleSheet.create({
     padding: 14,
     elevation: 2,
     justifyContent: "space-between",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 2,
   },
   cardInfo: {
     flex: 1,
