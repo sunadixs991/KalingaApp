@@ -186,6 +186,11 @@ const MapPinModal = ({
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
+          <ScrollView
+        showsVerticalScrollIndicator={true}
+        contentContainerStyle={{ paddingBottom: 20 }}
+        keyboardShouldPersistTaps="handled"
+      >
           <Text style={styles.modalTitle}>Add Pin Details</Text>
           
           {/* DEBUG INFO */}
@@ -195,7 +200,7 @@ const MapPinModal = ({
           
           {/* Category Selection */}
           <View style={styles.categorySection}>
-            <Text style={styles.sectionLabel}>Category *</Text>
+            <Text style={styles.sectionLabel}>Category</Text>
             <TouchableOpacity 
               style={styles.categorySelector}
               onPress={() => {
@@ -241,7 +246,7 @@ const MapPinModal = ({
 
           {/* Description Input */}
           <View style={styles.descriptionSection}>
-            <Text style={styles.sectionLabel}>Description *</Text>
+            <Text style={styles.sectionLabel}>Description</Text>
             <TextInput
               style={styles.input}
               placeholder="Describe this location..."
@@ -307,6 +312,7 @@ const MapPinModal = ({
               <Text style={styles.buttonText}>Save Pin</Text>
             </TouchableOpacity>
           </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -328,7 +334,7 @@ const styles = StyleSheet.create({
     padding: wp('5%'),
     borderRadius: wp('5%'),
     width: '90%',
-    maxHeight: '80%',
+    maxHeight: '90%',
     elevation: 5,
   },
   modalTitle: {
@@ -442,11 +448,11 @@ const styles = StyleSheet.create({
   mediaPreviewGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
     marginTop: 10,
   },
   mediaPreviewItem: {
-    width: '31%',
+    width: '27%',
     aspectRatio: 1,
     marginBottom: 10,
     position: 'relative',
@@ -459,18 +465,18 @@ const styles = StyleSheet.create({
   },
   removeMediaButton: {
     position: 'absolute',
-    top: -8,
-    right: -8,
+    top: -4,
+    right: -5,
     backgroundColor: '#ff4444',
-    width: 20,
-    height: 20,
+    width: 16,
+    height: 16,
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   removeMediaText: {
     color: '#fff',
-    fontSize: wp('3%'),
+    fontSize: wp('2.5%'),
     fontWeight: 'bold',
   },
   buttonRow: {
@@ -484,6 +490,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: wp('1.5%'),
     elevation: 2,
+    marginBottom: 0,
   },
   cancelButton: {
     backgroundColor: '#EC6135',

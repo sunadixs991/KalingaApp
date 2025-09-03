@@ -13,6 +13,7 @@ import {
   Alert,
   RefreshControl,
 } from "react-native";
+import { useTheme } from "../context/ThemeContext";
 import Icon from "react-native-vector-icons/Ionicons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { db } from "../firebase";
@@ -25,9 +26,9 @@ import {
 
 // Import functions individually to test
 import { fetchNearbyPins } from "../services/PinService";
-import boyProfile from '../assets/boy.png';
-import womanProfile from '../assets/woman.png';
-import userProfile from '../assets/user.png';
+import boyProfile from "../assets/boy.png";
+import womanProfile from "../assets/woman.png";
+import userProfile from "../assets/user.png";
 
 // Simple PinCard component defined inline to avoid import issues
 const SimplePinCard = ({ pin, onPress }) => (
@@ -41,11 +42,22 @@ const SimplePinCard = ({ pin, onPress }) => (
     }}
     onPress={() => onPress && onPress(pin)}
   >
-    <Text style={{ fontWeight: "bold", marginBottom: 8, fontSize: 15, color: '#e75e33'}}>{pin.category}</Text>
+    <Text
+      style={{
+        fontWeight: "bold",
+        marginBottom: 8,
+        fontSize: 15,
+        color: "#e75e33",
+      }}
+    >
+      {pin.category}
+    </Text>
     <Text style={{ marginBottom: 8 }}>{pin.description}</Text>
     <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-      <Text style={{ fontWeight: "bold", marginBottom: 8}}>Pinned by: {pin.userFirstName}</Text>
-      <Text style={{color: '#49A5A2'}}>{pin.formattedDistance}</Text>
+      <Text style={{ fontWeight: "bold", marginBottom: 8 }}>
+        Pinned by: {pin.userFirstName}
+      </Text>
+      <Text style={{ color: "#49A5A2" }}>{pin.formattedDistance}</Text>
     </View>
     <Text style={{ fontWeight: "bold" }}>
       👍{pin.upvotes || 0} 👎{pin.downvotes || 0}
@@ -63,6 +75,17 @@ export default function HomeScreen({ route, navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPin, setSelectedPin] = useState(null);
   const [pinModalVisible, setPinModalVisible] = useState(false);
+  const { isDarkMode } = useTheme();
+
+  const colors = {
+    background: isDarkMode ? "#121212" : "#fff",
+    cardBg: isDarkMode ? "#1e1e1e" : "#fff",
+    textPrimary: isDarkMode ? "#fff" : "#000",
+    textSecondary: isDarkMode ? "#ccc" : "#666",
+    placeholder: isDarkMode ? "#888" : "#999",
+    accent: "#e75e33",
+    highlight: "#49A5A2",
+  };
 
   // Test the import
   // useEffect(() => {
@@ -253,10 +276,10 @@ export default function HomeScreen({ route, navigation }) {
           <View style={styles.welcomeContainer}>
             <Image
               source={
-                userInfo 
-                  ? userInfo.gender === 'Female'
+                userInfo
+                  ? userInfo.gender === "Female"
                     ? womanProfile
-                    : userInfo.gender === 'Male'
+                    : userInfo.gender === "Male"
                       ? boyProfile
                       : userProfile
                   : userProfile
@@ -294,7 +317,7 @@ export default function HomeScreen({ route, navigation }) {
                 onPress={() => navigation.navigate("FoodDistribution")}
               >
                 <Image
-                  source={require("../assets/Kalinga_logo.png")}
+                  source={require("../assets/distribution.jpg")}
                   style={styles.cardImage}
                 />
                 <Text style={styles.cardText}>Food Distribution Schedules</Text>
@@ -302,10 +325,10 @@ export default function HomeScreen({ route, navigation }) {
 
               <TouchableOpacity
                 style={styles.card}
-                onPress={() =>navigation.navigate("MedicalSupport")}
+                onPress={() => navigation.navigate("MedicalSupport")}
               >
                 <Image
-                  source={require("../assets/Kalinga_logo.png")}
+                  source={require("../assets/medical.jpg")}
                   style={styles.cardImage}
                 />
                 <Text style={styles.cardText}>Medical Support Location</Text>
@@ -315,7 +338,10 @@ export default function HomeScreen({ route, navigation }) {
                 style={styles.card}
                 onPress={() => navigation.navigate("EvacuationCenters")}
               >
-                <View style={[styles.cardImage, styles.placeholder]} />
+                <Image
+                  source={require("../assets/evacuation.jpg")}
+                  style={styles.cardImage}
+                />
                 <Text style={styles.cardText}>Evacuation Centers</Text>
               </TouchableOpacity>
             </View>
@@ -364,7 +390,7 @@ export default function HomeScreen({ route, navigation }) {
                       {selectedPin.description}
                     </Text>
                     <Text style={styles.modalCategory}>
-                       {selectedPin.category}
+                      {selectedPin.category}
                     </Text>
                     <Text style={styles.modalDistance}>
                       Distance: {selectedPin.formattedDistance}
@@ -519,8 +545,10 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    marginTop: 15,
-    marginBottom: 7,
+    marginTop: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#e1e1e1",
   },
   cardText: {
     fontSize: 13,
@@ -620,10 +648,10 @@ const styles = StyleSheet.create({
   modalCategory: {
     fontSize: 14,
     marginBottom: 8,
-    textAlign: 'center',
-    color: '#EC6135',
-    fontWeight: '600',
-    backgroundColor: '#FFF3F0',
+    textAlign: "center",
+    color: "#EC6135",
+    fontWeight: "600",
+    backgroundColor: "#FFF3F0",
     paddingVertical: 7,
     borderRadius: 12,
   },

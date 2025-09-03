@@ -37,14 +37,13 @@ import {
   getUserVoteStatus,
   getUpdatedPinData,
 } from "../services/VotesHandler";
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { FontAwesome5 } from "@expo/vector-icons"; // Expo
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Video } from "expo-av";
 import { WebView } from "react-native-webview";
 
 import { Image } from "react-native";
-
 
 // Debug: Log the imports immediately
 // console.log("=== IMPORT DEBUG ===");
@@ -76,14 +75,20 @@ export default function MapScreen({ route }) {
     // inform WebView when pinMode changes (keeps hint & behavior in sync)
     if (webviewRef.current) {
       try {
-        webviewRef.current.postMessage(JSON.stringify({ type: "setPinMode", enabled: !!pinMode }));
+        webviewRef.current.postMessage(
+          JSON.stringify({ type: "setPinMode", enabled: !!pinMode })
+        );
       } catch (e) {
         console.log("Failed to post setPinMode to WebView", e);
       }
     }
   }, [pinMode]);
 
-  const getMapHtml = (pins = [], loc = { latitude: 0, longitude: 0 }, route = []) => {
+  const getMapHtml = (
+    pins = [],
+    loc = { latitude: 0, longitude: 0 },
+    route = []
+  ) => {
     const pinsJson = JSON.stringify(pins);
     const routeJson = JSON.stringify(route);
     const centerLat = loc.latitude || 0;
@@ -321,26 +326,30 @@ export default function MapScreen({ route }) {
   useEffect(() => {
     if (focusPin && webviewRef.current && allPins.length > 0) {
       setTimeout(() => {
-        webviewRef.current.postMessage(JSON.stringify({
-          type: 'flyTo',
-          latitude: focusPin.latitude,
-          longitude: focusPin.longitude,
-          zoom: 16
-        }));
+        webviewRef.current.postMessage(
+          JSON.stringify({
+            type: "flyTo",
+            latitude: focusPin.latitude,
+            longitude: focusPin.longitude,
+            zoom: 16,
+          })
+        );
         const targetPin = allPins.find((p) => p.id === focusPin.id);
-        if (targetPin) setTimeout(()=> handlePinMarkerPress(targetPin), 1200);
+        if (targetPin) setTimeout(() => handlePinMarkerPress(targetPin), 1200);
       }, 500);
     }
   }, [focusPin, allPins]);
 
   const goToMyLocation = () => {
     if (!location || !webviewRef.current) return;
-    webviewRef.current.postMessage(JSON.stringify({
-      type: 'flyTo',
-      latitude: location.latitude,
-      longitude: location.longitude,
-      zoom: 16
-    }));
+    webviewRef.current.postMessage(
+      JSON.stringify({
+        type: "flyTo",
+        latitude: location.latitude,
+        longitude: location.longitude,
+        zoom: 16,
+      })
+    );
   };
 
   const handlePinButton = () => {
@@ -348,9 +357,14 @@ export default function MapScreen({ route }) {
       setPinMode(true);
       // inform WebView to enable pin mode
       if (webviewRef.current) {
-        webviewRef.current.postMessage(JSON.stringify({ type: "setPinMode", enabled: true }));
+        webviewRef.current.postMessage(
+          JSON.stringify({ type: "setPinMode", enabled: true })
+        );
       }
-      Alert.alert("Pin Mode", "Tap or long-press on the map to pin a location. Tap Cancel to exit pin mode.");
+      Alert.alert(
+        "Pin Mode",
+        "Tap or long-press on the map to pin a location. Tap Cancel to exit pin mode."
+      );
     } else {
       Alert.alert(
         "Sign in required",
@@ -550,10 +564,10 @@ export default function MapScreen({ route }) {
             prevPins.map((pin) =>
               pin.id === selectedPin.id
                 ? {
-                  ...pin,
-                  upvotes: updatedPin.upvotes,
-                  downvotes: updatedPin.downvotes,
-                }
+                    ...pin,
+                    upvotes: updatedPin.upvotes,
+                    downvotes: updatedPin.downvotes,
+                  }
                 : pin
             )
           );
@@ -619,30 +633,37 @@ export default function MapScreen({ route }) {
 
         for (let i = 0; i < media.length; i++) {
           const mediaItem = media[i];
-          const fileName = `pins/${Date.now()}_${i}_${mediaItem.fileName || 'media'}`;
+          const fileName = `pins/${Date.now()}_${i}_${mediaItem.fileName || "media"}`;
 
           try {
-            console.log(`Starting upload ${i + 1}/${media.length}:`, mediaItem.uri);
+            console.log(
+              `Starting upload ${i + 1}/${media.length}:`,
+              mediaItem.uri
+            );
 
             // Method 1: Try with FormData (recommended for React Native)
             const formData = new FormData();
-            formData.append('file', {
+            formData.append("file", {
               uri: mediaItem.uri,
               type: mediaItem.type,
-              name: mediaItem.fileName || `media_${i}.jpg`
+              name: mediaItem.fileName || `media_${i}.jpg`,
             });
 
             // Upload to Supabase Storage using FormData
-            const { data: uploadData, error: uploadError } = await supabase.storage
-              .from('pin-media')
-              .upload(fileName, formData, {
-                contentType: mediaItem.type,
-                cacheControl: '3600',
-                upsert: true // Allow overwriting if file exists
-              });
+            const { data: uploadData, error: uploadError } =
+              await supabase.storage
+                .from("pin-media")
+                .upload(fileName, formData, {
+                  contentType: mediaItem.type,
+                  cacheControl: "3600",
+                  upsert: true, // Allow overwriting if file exists
+                });
 
             if (uploadError) {
-              console.error('FormData upload failed, trying blob method:', uploadError);
+              console.error(
+                "FormData upload failed, trying blob method:",
+                uploadError
+              );
 
               // Method 2: Fallback to blob method
               try {
@@ -652,39 +673,40 @@ export default function MapScreen({ route }) {
                 }
 
                 const blob = await response.blob();
-                console.log('Blob created, size:', blob.size);
+                console.log("Blob created, size:", blob.size);
 
-                const { data: blobUploadData, error: blobUploadError } = await supabase.storage
-                  .from('pin-media')
-                  .upload(fileName, blob, {
-                    contentType: mediaItem.type,
-                    cacheControl: '3600',
-                    upsert: true
-                  });
+                const { data: blobUploadData, error: blobUploadError } =
+                  await supabase.storage
+                    .from("pin-media")
+                    .upload(fileName, blob, {
+                      contentType: mediaItem.type,
+                      cacheControl: "3600",
+                      upsert: true,
+                    });
 
                 if (blobUploadError) throw blobUploadError;
                 uploadData = blobUploadData;
-
               } catch (blobError) {
-                console.error('Blob upload also failed:', blobError);
-                throw new Error(`Both upload methods failed: ${uploadError.message} | ${blobError.message}`);
+                console.error("Blob upload also failed:", blobError);
+                throw new Error(
+                  `Both upload methods failed: ${uploadError.message} | ${blobError.message}`
+                );
               }
             }
 
             // Get public URL from Supabase
             const { data: urlData } = supabase.storage
-              .from('pin-media')
+              .from("pin-media")
               .getPublicUrl(uploadData.path);
 
             mediaUrls.push({
               url: urlData.publicUrl,
               type: mediaItem.type,
               fileName: mediaItem.fileName,
-              path: uploadData.path
+              path: uploadData.path,
             });
 
             console.log(`Successfully uploaded: ${i + 1}/${media.length}`);
-
           } catch (uploadError) {
             console.error(`Error uploading media ${i + 1}:`, uploadError);
 
@@ -719,9 +741,10 @@ export default function MapScreen({ route }) {
       setPinMode(false);
       setPendingPin(null);
 
-      const successMessage = mediaUrls.length > 0
-        ? `Your location has been pinned successfully with ${mediaUrls.length} media file(s).`
-        : "Your location has been pinned successfully (some media uploads may have failed).";
+      const successMessage =
+        mediaUrls.length > 0
+          ? `Your location has been pinned successfully with ${mediaUrls.length} media file(s).`
+          : "Your location has been pinned successfully (some media uploads may have failed).";
 
       Alert.alert("Location pinned!", successMessage);
 
@@ -747,9 +770,8 @@ export default function MapScreen({ route }) {
         }
       });
       setAllPins(pins);
-
     } catch (error) {
-      console.error('Error saving pin:', error);
+      console.error("Error saving pin:", error);
       Alert.alert(
         "Error",
         `There was an error pinning your location: ${error.message}. Please try again.`
@@ -759,7 +781,8 @@ export default function MapScreen({ route }) {
 
   // --- Add this function inside your component ---
   const fetchRoute = async (startLoc, destLoc) => {
-    const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImZhZDQ4YmVlNmQ3ODRiMjM5NWQxMDQ4ZTUxMTQ3MTE2IiwiaCI6Im11cm11cjY0In0=";
+    const apiKey =
+      "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImZhZDQ4YmVlNmQ3ODRiMjM5NWQxMDQ4ZTUxMTQ3MTE2IiwiaCI6Im11cm11cjY0In0=";
     const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}&start=${startLoc.longitude},${startLoc.latitude}&end=${destLoc.longitude},${destLoc.latitude}`;
 
     try {
@@ -773,10 +796,12 @@ export default function MapScreen({ route }) {
         json.features[0].geometry.coordinates
       ) {
         // Convert [lng, lat] to {latitude, longitude}
-        const coords = json.features[0].geometry.coordinates.map(([lng, lat]) => ({
-          latitude: lat,
-          longitude: lng,
-        }));
+        const coords = json.features[0].geometry.coordinates.map(
+          ([lng, lat]) => ({
+            latitude: lat,
+            longitude: lng,
+          })
+        );
         setRouteCoords(coords);
       } else {
         Alert.alert("No route found");
@@ -789,17 +814,21 @@ export default function MapScreen({ route }) {
   // --- Polyline decoder ---
   function decodePolyline(encoded) {
     let points = [];
-    let index = 0, len = encoded.length;
-    let lat = 0, lng = 0;
+    let index = 0,
+      len = encoded.length;
+    let lat = 0,
+      lng = 0;
 
     while (index < len) {
-      let b, shift = 0, result = 0;
+      let b,
+        shift = 0,
+        result = 0;
       do {
         b = encoded.charCodeAt(index++) - 63;
         result |= (b & 0x1f) << shift;
         shift += 5;
       } while (b >= 0x20);
-      let dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      let dlat = result & 1 ? ~(result >> 1) : result >> 1;
       lat += dlat;
 
       shift = 0;
@@ -809,7 +838,7 @@ export default function MapScreen({ route }) {
         result |= (b & 0x1f) << shift;
         shift += 5;
       } while (b >= 0x20);
-      let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      let dlng = result & 1 ? ~(result >> 1) : result >> 1;
       lng += dlng;
 
       points.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
@@ -844,7 +873,6 @@ export default function MapScreen({ route }) {
     };
   };
 
-
   const clearRoute = () => {
     setRouteCoords([]);
   };
@@ -862,11 +890,12 @@ export default function MapScreen({ route }) {
     "Rescue Equipment": { color: "#E91E63", icon: "life-ring" },
     "Sanitation Facility": { color: "#009688", icon: "shower" },
     "Portable Toilets": { color: "#3F51B5", icon: "toilet" },
-    "Others": { color: "#2c352aff", icon: "list" },
+    Others: { color: "#2c352aff", icon: "list" },
   };
   // before return(...)
-  const pinsWithIcons = allPins.map(p => {
-    const category = categoryStyles[(p.category || "").trim()] || categoryStyles["Others"];
+  const pinsWithIcons = allPins.map((p) => {
+    const category =
+      categoryStyles[(p.category || "").trim()] || categoryStyles["Others"];
     return {
       ...p,
       iconClass: `fas fa-${category.icon}`, // e.g. 'fas fa-tint'
@@ -889,47 +918,59 @@ export default function MapScreen({ route }) {
     <View style={styles.container}>
       <WebView
         ref={webviewRef}
-        originWhitelist={['*']}
-        source={{ html: getMapHtml(pinsWithIcons, location || { latitude:0, longitude:0 }, routeCoords) }}
-        style={{ flex: 1, backgroundColor: 'transparent' }}
+        originWhitelist={["*"]}
+        source={{
+          html: getMapHtml(
+            pinsWithIcons,
+            location || { latitude: 0, longitude: 0 },
+            routeCoords
+          ),
+        }}
+        style={{ flex: 1, backgroundColor: "transparent" }}
         onMessage={(event) => {
           try {
             const msg = JSON.parse(event.nativeEvent.data);
             console.log("WebView -> RN message:", msg);
 
             // Only create pin on long-press or mapPin and when pinMode active
-            if (msg.type === 'mapLongPress' || msg.type === 'mapPin') {
+            if (msg.type === "mapLongPress" || msg.type === "mapPin") {
               // use ref to avoid stale closure
               if (!pinModeRef.current) {
                 console.log("Pin mode not active — ignoring pin event");
                 return;
               }
-               if (!userInfo) {
-                 Alert.alert(
-                   "Sign in required",
-                   "You need to sign in to pin a location.",
-                   [
-                     { text: "Cancel", style: "cancel" },
-                     { text: "Sign in", onPress: () => navigation.navigate("LoginScreen") },
-                   ]
-                 );
-                 return;
-               }
-               setPendingPin({ latitude: msg.latitude, longitude: msg.longitude });
-               setDescModalVisible(true);
-               return;
-             }
+              if (!userInfo) {
+                Alert.alert(
+                  "Sign in required",
+                  "You need to sign in to pin a location.",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Sign in",
+                      onPress: () => navigation.navigate("LoginScreen"),
+                    },
+                  ]
+                );
+                return;
+              }
+              setPendingPin({
+                latitude: msg.latitude,
+                longitude: msg.longitude,
+              });
+              setDescModalVisible(true);
+              return;
+            }
 
             // Keep marker clicks as before
-            if (msg.type === 'markerClick') {
+            if (msg.type === "markerClick") {
               if (msg.id === "__current_location") return;
-              const pin = allPins.find(p => p.id === msg.id);
+              const pin = allPins.find((p) => p.id === msg.id);
               if (pin) handlePinMarkerPress(pin);
             }
 
             // Optional: ignore plain mapClick for pin creation
           } catch (e) {
-            console.log('WebView message parse error', e);
+            console.log("WebView message parse error", e);
           }
         }}
       />
@@ -956,7 +997,9 @@ export default function MapScreen({ route }) {
           setMedia(null); // Clear media when canceling
           setPinMode(false);
           if (webviewRef.current) {
-            webviewRef.current.postMessage(JSON.stringify({ type: "setPinMode", enabled: false }));
+            webviewRef.current.postMessage(
+              JSON.stringify({ type: "setPinMode", enabled: false })
+            );
           }
         }}
         onSave={async () => {
@@ -964,10 +1007,12 @@ export default function MapScreen({ route }) {
           // after save, also disable pin mode
           setPinMode(false);
           if (webviewRef.current) {
-            webviewRef.current.postMessage(JSON.stringify({ type: "setPinMode", enabled: false }));
+            webviewRef.current.postMessage(
+              JSON.stringify({ type: "setPinMode", enabled: false })
+            );
           }
         }}
-        media={media}     // Add this
+        media={media} // Add this
         setMedia={setMedia} // Add this
       />
 
@@ -987,11 +1032,14 @@ export default function MapScreen({ route }) {
             >
               <Icon name="close" size={24} color="#666" />
             </TouchableOpacity>
-
+            
             {selectedPin && (
               <>
                 {/* Title */}
-                <Text style={styles.modalTitle} numberOfLines={0}>
+                <Text style={styles.modalUser} numberOfLines={0}>
+                  {selectedPin.userFirstName}
+                </Text>
+                <Text style={styles.modalDesc} numberOfLines={0}>
                   {selectedPin.description || "User"}
                 </Text>
 
@@ -1001,9 +1049,6 @@ export default function MapScreen({ route }) {
                 </Text>
 
                 {/* User */}
-                <Text style={styles.modalUser} numberOfLines={0}>
-                  {selectedPin.userFirstName}
-                </Text>
                 <Text style={styles.modalTime}>
                   {getHoursAgo(selectedPin.createdAt)}
                 </Text>
@@ -1013,16 +1058,17 @@ export default function MapScreen({ route }) {
                   style={[
                     styles.votingContainer,
                     userVoteStatus.voteType === "upvote" &&
-                    styles.containerUpvoted,
+                      styles.containerUpvoted,
                     userVoteStatus.voteType === "downvote" &&
-                    styles.containerDownvoted,
+                      styles.containerDownvoted,
                   ]}
                 >
                   {/* Upvote Button */}
                   <TouchableOpacity
                     style={[
                       styles.voteButton,
-                      userVoteStatus.voteType === "upvote" && styles.activeUpvote,
+                      userVoteStatus.voteType === "upvote" &&
+                        styles.activeUpvote,
                     ]}
                     onPress={() => handleVote("upvote")}
                     disabled={isVoting}
@@ -1031,7 +1077,7 @@ export default function MapScreen({ route }) {
                       style={[
                         styles.arrowText,
                         userVoteStatus.voteType === "upvote" &&
-                        styles.activeUpvoteText,
+                          styles.activeUpvoteText,
                       ]}
                     >
                       ⇧
@@ -1042,8 +1088,10 @@ export default function MapScreen({ route }) {
                   <Text
                     style={[
                       styles.scoreText,
-                      userVoteStatus.voteType === "upvote" && styles.upvotedScore,
-                      userVoteStatus.voteType === "downvote" && styles.downvotedScore,
+                      userVoteStatus.voteType === "upvote" &&
+                        styles.upvotedScore,
+                      userVoteStatus.voteType === "downvote" &&
+                        styles.downvotedScore,
                     ]}
                   >
                     {(selectedPin.upvotes || 0) - (selectedPin.downvotes || 0)}
@@ -1053,7 +1101,8 @@ export default function MapScreen({ route }) {
                   <TouchableOpacity
                     style={[
                       styles.voteButton,
-                      userVoteStatus.voteType === "downvote" && styles.activeDownvote,
+                      userVoteStatus.voteType === "downvote" &&
+                        styles.activeDownvote,
                     ]}
                     onPress={() => handleVote("downvote")}
                     disabled={isVoting}
@@ -1061,7 +1110,8 @@ export default function MapScreen({ route }) {
                     <Text
                       style={[
                         styles.arrowText,
-                        userVoteStatus.voteType === "downvote" && styles.activeDownvoteText,
+                        userVoteStatus.voteType === "downvote" &&
+                          styles.activeDownvoteText,
                       ]}
                     >
                       ⇩
@@ -1073,18 +1123,21 @@ export default function MapScreen({ route }) {
                 <View style={{ alignItems: "center", marginTop: 10 }}>
                   <TouchableOpacity
                     onPress={() => {
-                      fetchRoute(
-                        location,
-                        {
-                          latitude: selectedPin.latitude,
-                          longitude: selectedPin.longitude,
-                        }
-                      );
+                      fetchRoute(location, {
+                        latitude: selectedPin.latitude,
+                        longitude: selectedPin.longitude,
+                      });
                       setPinInfoModalVisible(false);
                     }}
                   >
-                    <MaterialCommunityIcons name="navigation" size={28} color="#1976D2" />
-                    <Text style={{ fontSize: 12, color: "#1976D2" }}>Go To</Text>
+                    <MaterialCommunityIcons
+                      name="navigation"
+                      size={28}
+                      color="#1976D2"
+                    />
+                    <Text style={{ fontSize: 12, color: "#1976D2" }}>
+                      Go To
+                    </Text>
                   </TouchableOpacity>
                 </View>
 
@@ -1094,85 +1147,114 @@ export default function MapScreen({ route }) {
                     <TouchableOpacity
                       style={[
                         styles.mediaToggle,
-                        (!selectedPin.media || selectedPin.media.length === 0) && styles.mediaToggleDisabled
+                        (!selectedPin.media ||
+                          selectedPin.media.length === 0) &&
+                          styles.mediaToggleDisabled,
                       ]}
                       onPress={() => setShowMedia(!showMedia)}
-                      disabled={!selectedPin.media || selectedPin.media.length === 0}
+                      disabled={
+                        !selectedPin.media || selectedPin.media.length === 0
+                      }
                     >
                       <Text style={styles.mediaToggleText}>
                         {!selectedPin.media || selectedPin.media.length === 0
-                          ? 'No Media Attached'
+                          ? "No Media Attached"
                           : showMedia
-                            ? 'Hide Media'
-                            : `Show Media (${selectedPin.media.length})`
-                        }
+                            ? "Hide Media"
+                            : `Show Media (${selectedPin.media.length})`}
                       </Text>
                     </TouchableOpacity>
 
-                    {showMedia && selectedPin.media && selectedPin.media.length > 0 && (
-                      <View style={styles.mediaContainer}>
-                        <ScrollView
-                          horizontal
-                          showsHorizontalScrollIndicator={false}
-                          contentContainerStyle={styles.mediaScrollContent}
-                          style={styles.mediaScroller}
-                        >
-                          {selectedPin.media.map((mediaItem, index) => {
-                            console.log(`Media ${index}:`, mediaItem.type, mediaItem.url); // Debug log
+                    {showMedia &&
+                      selectedPin.media &&
+                      selectedPin.media.length > 0 && (
+                        <View style={styles.mediaContainer}>
+                          <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.mediaScrollContent}
+                            style={styles.mediaScroller}
+                          >
+                            {selectedPin.media.map((mediaItem, index) => {
+                              console.log(
+                                `Media ${index}:`,
+                                mediaItem.type,
+                                mediaItem.url
+                              ); // Debug log
 
-                            return (
-                              <View key={index} style={styles.mediaWrapper}>
-                                {mediaItem.type && mediaItem.type.startsWith('image') ? (
-                                  // Render Image
-                                  <Image
-                                    source={{ uri: mediaItem.url }}
-                                    style={styles.mediaPreview}
-                                    resizeMode="cover"
-                                    onError={(e) => {
-                                      console.log(`Image ${index} failed to load:`, e.nativeEvent.error);
-                                    }}
-                                    onLoad={() => {
-                                      console.log(`Image ${index} loaded successfully`);
-                                    }}
-                                  />
-                                ) : mediaItem.type && mediaItem.type.startsWith('video') ? (
-                                  // Render Video
-                                  <Video
-                                    source={{ uri: mediaItem.url }}
-                                    style={styles.mediaPreview}
-                                    useNativeControls={true}
-                                    resizeMode="contain"
-                                    shouldPlay={false}
-                                    isMuted={false}
-                                    onError={(error) => {
-                                      console.log(`Video ${index} error:`, error);
-                                    }}
-                                    onPlaybackStatusUpdate={(status) => {
-                                      if (status.error) {
-                                        console.log(`Video ${index} playback error:`, status.error);
-                                      }
-                                    }}
-                                  />
-                                ) : (
-                                  // Fallback for unknown media types
-                                  <View style={[styles.mediaPreview, styles.mediaError]}>
-                                    <FontAwesome5 name="exclamation-triangle" size={20} color="#666" />
-                                    <Text style={styles.mediaErrorText}>
-                                      Unsupported media type: {mediaItem.type || 'unknown'}
-                                    </Text>
-                                  </View>
-                                )}
-                              </View>
-                            );
-                          })}
-                        </ScrollView>
-                      </View>
-                    )}
+                              return (
+                                <View key={index} style={styles.mediaWrapper}>
+                                  {mediaItem.type &&
+                                  mediaItem.type.startsWith("image") ? (
+                                    // Render Image
+                                    <Image
+                                      source={{ uri: mediaItem.url }}
+                                      style={styles.mediaPreview}
+                                      resizeMode="cover"
+                                      onError={(e) => {
+                                        console.log(
+                                          `Image ${index} failed to load:`,
+                                          e.nativeEvent.error
+                                        );
+                                      }}
+                                      onLoad={() => {
+                                        console.log(
+                                          `Image ${index} loaded successfully`
+                                        );
+                                      }}
+                                    />
+                                  ) : mediaItem.type &&
+                                    mediaItem.type.startsWith("video") ? (
+                                    // Render Video
+                                    <Video
+                                      source={{ uri: mediaItem.url }}
+                                      style={styles.mediaPreview}
+                                      useNativeControls={true}
+                                      resizeMode="contain"
+                                      shouldPlay={false}
+                                      isMuted={false}
+                                      onError={(error) => {
+                                        console.log(
+                                          `Video ${index} error:`,
+                                          error
+                                        );
+                                      }}
+                                      onPlaybackStatusUpdate={(status) => {
+                                        if (status.error) {
+                                          console.log(
+                                            `Video ${index} playback error:`,
+                                            status.error
+                                          );
+                                        }
+                                      }}
+                                    />
+                                  ) : (
+                                    // Fallback for unknown media types
+                                    <View
+                                      style={[
+                                        styles.mediaPreview,
+                                        styles.mediaError,
+                                      ]}
+                                    >
+                                      <FontAwesome5
+                                        name="exclamation-triangle"
+                                        size={20}
+                                        color="#666"
+                                      />
+                                      <Text style={styles.mediaErrorText}>
+                                        Unsupported media type:{" "}
+                                        {mediaItem.type || "unknown"}
+                                      </Text>
+                                    </View>
+                                  )}
+                                </View>
+                              );
+                            })}
+                          </ScrollView>
+                        </View>
+                      )}
                   </View>
                 )}
-
-
-
               </>
             )}
           </View>
@@ -1234,20 +1316,25 @@ const styles = StyleSheet.create({
     top: 15,
     right: 15,
     zIndex: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 20,
-    padding: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderRadius: 8,
+    padding: 3,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 3,
   },
-
-  modalTitle: {
+  modalUser: {
     fontSize: 18,
-    fontWeight: "bold",
     marginBottom: 8,
+    textAlign: "center",
+    color: "#333",
+    fontWeight: "bold",
+  },
+  modalDesc: {
+    fontSize: 16,
+    marginBottom: 10,
     textAlign: "center",
     color: "#333",
   },
@@ -1261,12 +1348,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
-  },
-  modalUser: {
-    fontSize: 16,
-    marginBottom: 4,
-    textAlign: "center",
-    color: "#666",
   },
   modalTime: {
     fontSize: 13,
@@ -1422,53 +1503,53 @@ const styles = StyleSheet.create({
     borderColor: "#ccc",
     backgroundColor: "#fff",
   },
- mediaError: {
-  color: '#666',
-  textAlign: 'center',
-  padding: 10,
-},
-mediaPreview: {
-  width: '100%',
-  height: '100%',
-  backgroundColor: '#f0f0f0',
-},
+  mediaError: {
+    color: "#666",
+    textAlign: "center",
+    padding: 10,
+  },
+  mediaPreview: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#f0f0f0",
+  },
   // Add to your existing styles
   mediaSection: {
-    width: '100%',
-    alignItems: 'center',
+    width: "100%",
+    alignItems: "center",
     marginVertical: 15,
   },
   mediaToggle: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: "#f0f0f0",
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
     marginBottom: 10,
   },
   mediaToggleText: {
-    color: '#666',
+    color: "#666",
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   mediaContainer: {
-    width: '100%',
+    width: "100%",
   },
   mediaScroller: {
-    width: '100%',
+    width: "100%",
   },
   mediaScrollContent: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 10,
   },
   mediaWrapper: {
     marginHorizontal: 5,
     borderRadius: 8,
-    overflow: 'hidden',
-    backgroundColor: '#f0f0f0',
-    width: 250,  // Made larger
+    overflow: "hidden",
+    backgroundColor: "#f0f0f0",
+    width: 250, // Made larger
     height: 250, // Made larger
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -1478,11 +1559,11 @@ mediaPreview: {
     elevation: 5,
   },
   mediaPreview: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   mediaToggleDisabled: {
-    backgroundColor: '#e0e0e0',
+    backgroundColor: "#e0e0e0",
     opacity: 0.7,
   },
 });

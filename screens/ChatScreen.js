@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Platform,
   ActivityIndicator,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
@@ -144,9 +145,12 @@ My location is ${locationText}
 
   if (infoLoading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View
-          style={[styles.container, { justifyContent: "center", alignItems: "center" }]}
+          style={[
+            styles.container,
+            { justifyContent: "center", alignItems: "center" },
+          ]}
         >
           <ActivityIndicator size="large" color="#e75e33" />
           <Text>Loading user info...</Text>
@@ -157,69 +161,81 @@ My location is ${locationText}
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <StatusBar style="light" backgroundColor="#e75e33" translucent={false} />
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerRow}>
-            <Icon name="chatbubble-ellipses-outline" size={20} color="#fff" />
-            <Text style={styles.headerTitle}>Gemini Chat</Text>
-          </View>
-          <TouchableOpacity>
-            <Icon name="person-circle-outline" size={28} color="#fff" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Chat Area */}
-        <FlatList
-          data={messages}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item, index }) => (
-            <View
-              style={[
-                styles.message,
-                item.sender === "user" ? styles.user : styles.bot,
-              ]}
-            >
-              <Text style={styles.messageText}>{item.text}</Text>
-              {index === 0 && item.sender === "bot" && (
-                <View style={styles.faqContainer}>
-                  {FAQS.map((faq, idx) => (
-                    <TouchableOpacity
-                      key={idx}
-                      style={styles.faqButton}
-                      onPress={() => handleFAQPress(faq)}
-                      disabled={loading}
-                    >
-                      <Text style={styles.faqText}>{faq}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-          )}
-          contentContainerStyle={styles.chatContainer}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={
+          Platform.OS === "ios" ? 0 : StatusBar.currentHeight || 0
+        }
+      >
+        <StatusBar
+          style="light"
+          backgroundColor="#e75e33"
+          translucent={false}
         />
+        <View style={styles.container}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerRow}>
+              <Icon name="chatbubble-ellipses-outline" size={20} color="#fff" />
+              <Text style={styles.headerTitle}>Chat with Gemini</Text>
+            </View>
+            {/* <TouchableOpacity>
+            <Icon name="menu-circle-outline" size={28} color="#fff" />
+          </TouchableOpacity> */}
+          </View>
 
-        {/* Input Row */}
-        <View style={styles.inputRow}>
-          <TextInput
-            style={styles.input}
-            value={input}
-            onChangeText={setInput}
-            placeholder="Type your message..."
-            placeholderTextColor="#999"
-            editable={!loading}
+          {/* Chat Area */}
+          <FlatList
+            data={messages}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item, index }) => (
+              <View
+                style={[
+                  styles.message,
+                  item.sender === "user" ? styles.user : styles.bot,
+                ]}
+              >
+                <Text style={styles.messageText}>{item.text}</Text>
+                {index === 0 && item.sender === "bot" && (
+                  <View style={styles.faqContainer}>
+                    {FAQS.map((faq, idx) => (
+                      <TouchableOpacity
+                        key={idx}
+                        style={styles.faqButton}
+                        onPress={() => handleFAQPress(faq)}
+                        disabled={loading}
+                      >
+                        <Text style={styles.faqText}>{faq}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+            contentContainerStyle={styles.chatContainer}
           />
-          <TouchableOpacity
-            style={styles.sendButton}
-            onPress={sendMessage}
-            disabled={loading}
-          >
-            <Icon name="send" size={20} color="#fff" />
-          </TouchableOpacity>
+
+          {/* Input Row */}
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.input}
+              value={input}
+              onChangeText={setInput}
+              placeholder="Type your message..."
+              placeholderTextColor="#999"
+              editable={!loading}
+            />
+            <TouchableOpacity
+              style={styles.sendButton}
+              onPress={sendMessage}
+              disabled={loading}
+            >
+              <Icon name="send" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -239,7 +255,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: hp("1.7%"),
+    paddingVertical: hp("1.8%"),
     paddingHorizontal: wp("4%"),
   },
   headerRow: {

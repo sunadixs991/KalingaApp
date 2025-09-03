@@ -65,7 +65,7 @@ export default function AddScheduleScreen({ navigation, route }) {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Icon name="arrow-back" size={28} color="#333" />
+            <Icon name="chevron-back" size={28} color="#333" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Add New Schedule</Text>
         </View>
@@ -163,12 +163,12 @@ export default function AddScheduleScreen({ navigation, route }) {
           </View>
 
           <View style={styles.buttonContainer}>
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={[styles.button, styles.cancelButton]}
               onPress={() => navigation.goBack()}
             >
               <Text style={styles.buttonText}>Cancel</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
             <TouchableOpacity
               style={[styles.button, styles.saveButton]}
               onPress={handleSave}

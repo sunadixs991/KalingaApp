@@ -5,11 +5,11 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Image,
   Animated,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import { loginWithUsernameAndPassword } from "../services/auth";
@@ -74,7 +74,7 @@ export default function LoginScreen({ navigation, onLogin }) {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top", "left", "right"]}>
       
       <Text style={styles.title}>SIGN IN</Text>
 
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
   },
   logo: {
     position: 'absolute',
-    top: hp('12%'),
+    top: hp('15%'),
     width: wp('30%'),
     height: wp('30%'),
     alignSelf: 'center',
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    top: hp('28%'),
+    top: hp('30%'),
     marginBottom: hp('2%'),
     textAlign: 'center',
     fontSize: wp('7%'),
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    top: hp('40%'),
+    top: hp('45%'),
     backgroundColor: '#49A5A2',
     borderTopLeftRadius: wp('12%'),
     padding: wp('5%'),

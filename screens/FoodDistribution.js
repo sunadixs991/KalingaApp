@@ -594,7 +594,7 @@ export default function FoodDistribution({ navigation }) {
                     onPress={() => handleEditSchedule(item)}
                     style={styles.actionButton}
                   >
-                    <Icon name="create-outline" size={20} color="#e75e33" />
+                    <Icon name="create-outline" size={20} color="#49A5A2" />
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => handleDeleteSchedule(item.id)}
@@ -611,7 +611,7 @@ export default function FoodDistribution({ navigation }) {
         {isLoggedIn && isAdmin ? (
           <TouchableOpacity
             style={styles.adminButton}
-            onPress={() => setModalVisible(true)}
+            onPress={() => navigation.navigate("AddSchedule")}
           >
             <Icon name="add-circle" size={24} color="#fff" />
             <Text style={styles.adminButtonText}>Add New Schedule</Text>
@@ -857,7 +857,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 15,
-    color: "black",
+    color: "#333",
     textAlign: "center",
   },
   info: {
@@ -899,9 +899,9 @@ const styles = StyleSheet.create({
   },
   adminButton: {
     position: "absolute",
-    bottom: 80, // Changed from 20 to 40 to elevate it higher
-    right: 5,
-    backgroundColor: "#e75e33",
+    bottom: 60, // Changed from 20 to 40 to elevate it higher
+    right: 10,
+    backgroundColor: "#49A5A2",
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 25,

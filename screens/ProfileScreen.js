@@ -8,17 +8,62 @@ import {
   Alert,
   ScrollView,
   StatusBar,
-  SafeAreaView,
   Platform,
+  Modal,
+  TextInput,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getUserInfo } from "../services/getinfo";
 import { useNavigation } from "@react-navigation/native";
+import womanProfile from "../assets/woman.png";
+import boyProfile from "../assets/boy.png";
+import userProfile from "../assets/user.png";
+import { useTheme } from "../context/ThemeContext";
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
+  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
+  const { isDarkMode, toggleDarkMode } = useTheme();
+  const [imageModalVisible, setImageModalVisible] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editInfo, setEditInfo] = useState({
+    firstName: userInfo?.firstName || "",
+    lastName: userInfo?.lastName || "",
+    username: userInfo?.username || "",
+    email: userInfo?.email || "",
+    phone: userInfo?.phone || "",
+    dob: userInfo?.dob || "",
+    gender: userInfo?.gender || "",
+    status: userInfo?.status || "",
+    province: userInfo?.province || "",
+    city: userInfo?.city || "",
+    barangay: userInfo?.barangay || "",
+  });
+
+  // Temporary (UI only)
+  const [hasProfilePicture, setHasProfilePicture] = useState(false);
+
+  useEffect(() => {
+    if (userInfo) {
+      setEditInfo({
+        firstName: userInfo.firstName || "",
+        lastName: userInfo.lastName || "",
+        username: userInfo.username || "",
+        email: userInfo.email || "",
+        phone: userInfo.phone || "",
+        dob: userInfo.dob || "",
+        gender: userInfo.gender || "",
+        status: userInfo.status || "",
+        province: userInfo.province || "",
+        city: userInfo.city || "",
+        barangay: userInfo.barangay || "",
+      });
+    }
+  }, [userInfo]);
 
   useEffect(() => {
     async function fetchProfile() {
@@ -48,23 +93,80 @@ export default function ProfileScreen() {
     ]);
   };
 
+  const handleEditToggle = () => {
+    if (isEditing) {
+      // Cancel: reset fields and disable editing
+      setEditInfo({
+        firstName: userInfo?.firstName || "",
+        lastName: userInfo?.lastName || "",
+        username: userInfo?.username || "",
+        email: userInfo?.email || "",
+        phone: userInfo?.phone || "",
+        dob: userInfo?.dob || "",
+        gender: userInfo?.gender || "",
+        status: userInfo?.status || "",
+        province: userInfo?.province || "",
+        city: userInfo?.city || "",
+        barangay: userInfo?.barangay || "",
+      });
+      setIsEditing(false);
+    } else {
+      setIsEditing(true);
+    }
+  };
+
+  const handleModalClose = () => {
+    setEditModalVisible(false);
+    setIsEditing(false);
+    setEditInfo({
+      firstName: userInfo?.firstName || "",
+      lastName: userInfo?.lastName || "",
+      username: userInfo?.username || "",
+      email: userInfo?.email || "",
+      phone: userInfo?.phone || "",
+      dob: userInfo?.dob || "",
+      gender: userInfo?.gender || "",
+      status: userInfo?.status || "",
+      province: userInfo?.province || "",
+      city: userInfo?.city || "",
+      barangay: userInfo?.barangay || "",
+    });
+  };
+
+  const handleSaveEdit = () => {
+    // TODO: Save updated info to your backend or AsyncStorage
+    // For now, just close modal
+    setEditModalVisible(false);
+    // Optionally, update userInfo state here
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <StatusBar barStyle="dark-content" backgroundColor="#e75e33" />
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.container}>
           {/* Profile Picture */}
           <View style={styles.profileSection}>
-            <Image
-              source={require("../assets/Kalinga_logo.png")}
-              style={styles.avatar}
-            />
+            <TouchableOpacity onPress={() => setImageModalVisible(true)}>
+              <Image
+                source={
+                  userInfo
+                    ? userInfo.gender === "Female"
+                      ? womanProfile
+                      : userInfo.gender === "Male"
+                        ? boyProfile
+                        : userProfile
+                    : userProfile
+                }
+                style={styles.profileImage}
+              />
+            </TouchableOpacity>
             <Text style={styles.name}>
               {userInfo
-                ? `${userInfo.firstName?.trim() || "Citizen"} ${userInfo.lastName?.trim() || ""}`
+                ? `${String(userInfo.firstName || "Citizen")} ${String(userInfo.lastName || "")}`
                 : "Citizen"}
             </Text>
-            <Text style={styles.email}>{userInfo?.email || "No Email"}</Text>
+            <Text style={styles.email}>{userInfo?.email || ""}</Text>
             {!userInfo && (
               <TouchableOpacity
                 style={styles.signInButton}
@@ -78,26 +180,35 @@ export default function ProfileScreen() {
 
           {/* Settings Options */}
           <View style={styles.settingsList}>
-            <TouchableOpacity style={styles.settingItem}>
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={() => setEditModalVisible(true)}
+            >
               <Icon name="person-outline" size={22} color="#555" />
               <Text style={styles.settingText}>Account Information</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.settingItem}>
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={() => navigation.navigate("PrivacyScreen")}
+            >
               <Icon name="lock-closed-outline" size={22} color="#555" />
               <Text style={styles.settingText}>Privacy</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.settingItem}>
+            {/* <TouchableOpacity style={styles.settingItem}>
               <Icon name="notifications-outline" size={22} color="#555" />
               <Text style={styles.settingText}>Notifications</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.settingItem}>
+            </TouchableOpacity> */}
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={() => navigation.navigate("SettingsScreen")}
+            >
               <Icon name="settings-outline" size={22} color="#555" />
               <Text style={styles.settingText}>Settings</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.settingItem}>
+            {/* <TouchableOpacity style={styles.settingItem}>
               <Icon name="construct-outline" size={22} color="#555" />
               <Text style={styles.settingText}>Report</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
             <TouchableOpacity
               style={styles.settingItem}
               onPress={() => navigation.navigate("AnalyticsScreen")}
@@ -122,7 +233,218 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           )}
         </View>
+        {/* Modal */}
+        <Modal
+          visible={imageModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setImageModalVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPressOut={() => setImageModalVisible(false)}
+          >
+            <View style={styles.actionSheet}>
+              {hasProfilePicture ? (
+                <>
+                  <TouchableOpacity style={styles.actionButton}>
+                    <Text style={styles.actionText}>
+                      Update Profile Picture
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.actionButton}>
+                    <Text style={[styles.actionText, { color: "red" }]}>
+                      Remove Profile Picture
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity style={styles.actionButton}>
+                  <Text style={styles.actionText}>Set Profile Picture</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </TouchableOpacity>
+        </Modal>
       </ScrollView>
+
+      {/* Edit Account Modal */}
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={handleModalClose}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.3)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: 16,
+              padding: 24,
+              width: "85%",
+              maxHeight: "70%",
+              elevation: 5,
+            }}
+          >
+            <ScrollView showsVerticalScrollIndicator={true}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 16,
+                }}
+              >
+                <Text style={{ fontSize: 18, fontWeight: "bold" }}>
+                  {isEditing
+                    ? "Edit Account Information"
+                    : "Account Information"}
+                </Text>
+                <TouchableOpacity onPress={handleModalClose}>
+                  <Icon
+                    name="close"
+                    size={24}
+                    color="#333"
+                    style={{
+                      backgroundColor: "#fff",
+                      borderRadius: 6,
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 3,
+                      elevation: 3,
+                      marginRight: 5,
+                    }}
+                  />
+                </TouchableOpacity>
+              </View>
+              <TextInput
+                style={styles.input}
+                placeholder="First Name"
+                value={editInfo.firstName}
+                onChangeText={(text) =>
+                  setEditInfo({ ...editInfo, firstName: text })
+                }
+                editable={isEditing}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Last Name"
+                value={editInfo.lastName}
+                onChangeText={(text) =>
+                  setEditInfo({ ...editInfo, lastName: text })
+                }
+                editable={isEditing}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                value={editInfo.email}
+                onChangeText={(text) =>
+                  setEditInfo({ ...editInfo, email: text })
+                }
+                keyboardType="email-address"
+                editable={isEditing}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Phone"
+                value={editInfo.phone}
+                onChangeText={(text) =>
+                  setEditInfo({ ...editInfo, phone: text })
+                }
+                keyboardType="phone-pad"
+                editable={isEditing}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Gender"
+                value={editInfo.gender}
+                onChangeText={(text) =>
+                  setEditInfo({ ...editInfo, gender: text })
+                }
+                editable={isEditing}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Birthdate (YYYY-MM-DD)"
+                value={editInfo.dob}
+                onChangeText={(text) => setEditInfo({ ...editInfo, dob: text })}
+                editable={isEditing}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Status"
+                value={editInfo.status}
+                onChangeText={(text) =>
+                  setEditInfo({ ...editInfo, status: text })
+                }
+                editable={isEditing}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Province"
+                value={editInfo.province}
+                onChangeText={(text) =>
+                  setEditInfo({ ...editInfo, province: text })
+                }
+                editable={isEditing}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="City"
+                value={editInfo.city}
+                onChangeText={(text) =>
+                  setEditInfo({ ...editInfo, city: text })
+                }
+                editable={isEditing}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Barangay"
+                value={editInfo.barangay}
+                onChangeText={(text) =>
+                  setEditInfo({ ...editInfo, barangay: text })
+                }
+                editable={isEditing}
+              />
+
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "flex-end",
+                  marginTop: 18,
+                }}
+              >
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={handleEditToggle}
+                >
+                  <Text style={styles.cancelButtonText}>
+                    {isEditing ? "Cancel" : "Edit"}
+                  </Text>
+                </TouchableOpacity>
+                {isEditing && (
+                  <TouchableOpacity
+                    style={styles.saveButton}
+                    onPress={handleSaveEdit}
+                  >
+                    <Text style={styles.saveButtonText}>Save</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -135,6 +457,13 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     paddingBottom: 25,
+  },
+  profileImage: {
+    width: 90,
+    height: 90,
+    borderRadius: 60,
+    borderWidth: 1,
+    marginBottom: 10,
   },
   container: {
     padding: 20,
@@ -167,7 +496,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
-    marginTop: 3,
   },
   signInText: {
     marginLeft: 8,
@@ -189,6 +517,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333",
   },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    backgroundColor: "#fff",
+    fontSize: 16,
+  },
   logoutButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -203,5 +540,57 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 16,
     fontWeight: "bold",
+  },
+  saveButton: {
+    backgroundColor: "#e75e33",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    flexDirection: "row",
+  },
+  saveButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 15,
+  },
+  cancelButton: {
+    marginRight: 10,
+    backgroundColor: "#ccc",
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    flexDirection: "row",
+  },
+  cancelButtonText: {
+    color: "#333",
+    fontWeight: "bold",
+    fontSize: 15,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "flex-end",
+  },
+  actionSheet: {
+    backgroundColor: "#dfdfdf",
+    padding: 20,
+    borderTopLeftRadius: 15,
+    borderTopRightRadius: 15,
+    elevation: 5,
+  },
+  actionButton: {
+    padding: 15,
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 15,
+    marginBottom: 10,
+    elevation: 2,
+  },
+  actionText: {
+    fontSize: 16,
+    color: "#333",
+    fontWeight: "600",
   },
 });

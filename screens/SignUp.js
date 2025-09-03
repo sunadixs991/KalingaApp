@@ -8,10 +8,10 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
-  SafeAreaView,
   KeyboardAvoidingView,
   ScrollView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { db } from "../firebase";
 import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -152,13 +152,13 @@ export default function SignUp({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top", "left", "right"]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-          <Text style={styles.title}>Sign up</Text>
+          <Text style={styles.title}>SIGN UP</Text>
 
           <Image
             source={require("../assets/Kalinga_logo.png")}
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: wp("8%"),
-    paddingVertical: hp("1.8%"),
+    paddingVertical: hp("1.5%"),
     paddingHorizontal: wp("5%"),
     marginBottom: hp("2%"),
     fontSize: wp("4%"),

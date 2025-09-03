@@ -1,7 +1,7 @@
 // navigation/TabNavigator.js
 import React, { useState, useEffect } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { View, Keyboard } from "react-native";
+import { View, Keyboard, SafeAreaView, StyleSheet } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 
 import HomeScreen from "../screens/HomeScreen";
@@ -9,12 +9,14 @@ import ContactScreen from "../screens/ContactScreen";
 import ChatScreen from "../screens/ChatScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import MapScreen from "../screens/MapScreen";
+import { useTheme } from "../context/ThemeContext";
 
 const Tab = createBottomTabNavigator();
 
 export default function TabNavigator({ route }) {
   const username = route?.params?.username;
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const { isDarkMode } = useTheme();
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener("keyboardDidShow", () =>
@@ -30,16 +32,35 @@ export default function TabNavigator({ route }) {
     };
   }, []);
 
+  // Dynamic colors
+  const colors = {
+    tabBarBg: isDarkMode ? "#121212" : "#fff",
+    tabBarActive: "#49A5A2",
+    tabBarInactive: isDarkMode ? "#888" : "gray",
+    mapButtonBg: "#EC6135",
+    screenBg: isDarkMode ? "#121212" : "#fff",
+  };
+
+  // Wrap screen components in SafeAreaView to prevent overflow
+  const withSafeArea = (Component) => (props) => (
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: colors.screenBg }]}
+    >
+      <Component {...props} />
+    </SafeAreaView>
+  );
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
           display: isKeyboardVisible ? "none" : "flex",
+          backgroundColor: colors.tabBarBg,
+          borderTopColor: isDarkMode ? "#333" : "#eee",
         },
-        tabBarIcon: ({ focused, color, size }) => {
+        tabBarIcon: ({ focused, size }) => {
           let iconName;
-          let iconColor = focused ? "#49A5A2" : "gray";
 
           switch (route.name) {
             case "Home":
@@ -58,7 +79,7 @@ export default function TabNavigator({ route }) {
                   style={{
                     width: 50,
                     height: 50,
-                    backgroundColor: "#EC6135",
+                    backgroundColor: colors.mapButtonBg,
                     borderRadius: 30,
                     justifyContent: "center",
                     alignItems: "center",
@@ -78,29 +99,41 @@ export default function TabNavigator({ route }) {
               break;
           }
 
-          return <Ionicons name={iconName} size={size} color={iconColor} />;
+          return (
+            <Ionicons
+              name={iconName}
+              size={size}
+              color={focused ? colors.tabBarActive : colors.tabBarInactive}
+            />
+          );
         },
-        tabBarActiveTintColor: "#49A5A2",
-        tabBarInactiveTintColor: "gray",
+        tabBarActiveTintColor: colors.tabBarActive,
+        tabBarInactiveTintColor: colors.tabBarInactive,
       })}
     >
       <Tab.Screen
         name="Home"
-        component={HomeScreen}
+        component={withSafeArea(HomeScreen)}
         initialParams={{ username }}
       />
-      <Tab.Screen name="Contacts" component={ContactScreen} />
-      <Tab.Screen name="Map" component={MapScreen} />
+      <Tab.Screen name="Contacts" component={withSafeArea(ContactScreen)} />
+      <Tab.Screen name="Map" component={withSafeArea(MapScreen)} />
       <Tab.Screen
         name="Chat"
-        component={ChatScreen}
+        component={withSafeArea(ChatScreen)}
         initialParams={{ username }}
       />
       <Tab.Screen
         name="Profile"
-        component={ProfileScreen}
+        component={withSafeArea(ProfileScreen)}
         initialParams={{ username }}
       />
     </Tab.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
+});
