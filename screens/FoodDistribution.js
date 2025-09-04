@@ -50,10 +50,12 @@ export default function FoodDistribution({ navigation }) {
   // Add this after your existing useEffect
   useEffect(() => {
     checkAdminStatus(); // Initial check
+    fetchSchedules();   // initial load
 
-    // Listen for storage changes
-    const unsubscribe = navigation.addListener("focus", () => {
-      checkAdminStatus(); // Check when screen comes into focus
+    // Refresh when returning to this screen (e.g. after adding schedule)
+    const unsubscribe = navigation.addListener('focus', () => {
+      checkAdminStatus(); // keep admin state in sync
+      fetchSchedules();   // refetch schedules on focus
     });
 
     return unsubscribe;

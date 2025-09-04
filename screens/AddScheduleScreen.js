@@ -8,11 +8,15 @@ import {
   ScrollView,
   StyleSheet,
   StatusBar,
+  Alert,
+  Platform,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { supabase } from '../services/supabaseClient'; // adjust path if your supabase client is exported elsewhere
+import { notifyUsers } from '../services/notification';
 
 export default function AddScheduleScreen({ navigation, route }) {
   const { onSave } = route.params || {};
@@ -28,34 +32,211 @@ export default function AddScheduleScreen({ navigation, route }) {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
 
-  const handleFilePick = async () => {
+  // Pick file (allow Excel .xlsx / .xls and CSV). Handles different DocumentPicker return shapes.
+  const pickDocument = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      console.log("open DocumentPicker...");
+      const res = await DocumentPicker.getDocumentAsync({
+        type: [
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "application/vnd.ms-excel",
+          "text/csv",
+          "*/*",
+        ],
+        copyToCacheDirectory: true,
       });
 
-      if (result.type === "success") {
-        setSelectedFile(result);
+      console.log("DocumentPicker result:", res);
+
+      // Newer API (Expo) returns { assets: [...], canceled: boolean }
+      if (res?.assets && Array.isArray(res.assets) && res.assets.length > 0) {
+        const asset = res.assets[0];
+        const uri = asset.uri;
+        const name = asset.name || asset.fileName || uri.split("/").pop();
+        const mimeType = asset.mimeType || asset.type || "application/octet-stream";
+        const fileObj = { uri, name, type: mimeType };
+        console.log("Picked file (assets):", fileObj);
+        setSelectedFile(fileObj);
+        return;
       }
-    } catch (error) {
-      console.error("File selection error:", error);
+
+      // Older shape: { type: 'success', uri, name, mimeType }
+      if (res && res.type === "success") {
+        const uri = res.uri;
+        const name = res.name || res.fileName || uri.split("/").pop();
+        const mimeType = res.mimeType || res.type || "application/octet-stream";
+        const fileObj = { uri, name, type: mimeType };
+        console.log("Picked file (legacy):", fileObj);
+        setSelectedFile(fileObj);
+        return;
+      }
+
+      // User cancelled (various shapes)
+      if (res?.canceled === true || res?.type === "cancel" || res?.type === "cancelled") {
+        console.log("DocumentPicker cancelled by user");
+        Alert.alert("No file selected", "You cancelled file selection.");
+        return;
+      }
+
+      console.log("Unknown DocumentPicker response:", res);
+      Alert.alert("File picker", "No file selected.");
+    } catch (err) {
+      console.error("DocumentPicker error:", err);
+      if (Platform.OS === "android") {
+        Alert.alert(
+          "File picker error",
+          "Unable to open file picker. If you're using an Android emulator, try a real device (or install a file manager). Make sure expo-document-picker is installed (expo install expo-document-picker).\n\nError: " +
+            (err?.message || String(err))
+        );
+      } else {
+        Alert.alert("Error", "Unable to pick file. " + (err?.message || ""));
+      }
     }
   };
 
   const handleSave = () => {
     if (!newSchedule.title || !newSchedule.location) {
-      alert("Please fill out all required fields!");
+      Alert.alert("Error", "Please fill out all required fields!");
+      return;
+    }
+  };
+
+  // New: upload file (if any) and insert schedule into Supabase
+  const handleAddSchedule = async () => {
+    if (!newSchedule.title || !newSchedule.location) {
+      Alert.alert("Error", "Please fill in all fields");
       return;
     }
 
-    if (onSave) {
-      onSave({
-        ...newSchedule,
-        file: selectedFile,
-      });
-    }
+    try {
+      let fileUrl = null;
+      let fileName = null;
 
-    navigation.goBack();
+      if (selectedFile) {
+        try {
+          const fileExt = selectedFile.name.split(".").pop();
+          const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+          const filePath = `schedules/${uniqueFileName}`;
+
+          // On Android content:// URIs and iOS file:// URIs both work with fetch -> blob
+          // const response = await fetch(selectedFile.uri);
+          // const blob = await response.blob();
+          //
+          // const { data: uploadData, error: uploadError } = await supabase.storage
+          //   .from("schedule-files")
+          //   .upload(filePath, blob);
+          //
+          // if (uploadError) throw uploadError;
+          //
+          // const { data: urlData } = supabase.storage
+          //   .from("schedule-files")
+          //   .getPublicUrl(filePath);
+          //
+          // fileUrl = urlData?.publicUrl || null;
+          // fileName = selectedFile.name;
+          // } catch (fileError) {
+          //   console.error("File upload error:", fileError);
+          //   throw fileError;
+          // }
+
+          // Fetch file, convert to ArrayBuffer -> Uint8Array (works reliably with supabase-js in RN)
+          const response = await fetch(selectedFile.uri);
+          const arrayBuffer = await response.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+
+          // Use a simple filename (you may keep folders if you prefer)
+          const uploadName = uniqueFileName; // e.g. "166xxx_abcd.xlsx"
+
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from("schedule-files")
+            .upload(uploadName, uint8Array, {
+              contentType: selectedFile.type || "application/octet-stream",
+              cacheControl: "3600",
+              upsert: false,
+            });
+
+          if (uploadError) {
+            console.error("Supabase upload error detail:", uploadError);
+            throw uploadError;
+          }
+
+          const { data: urlData } = await supabase.storage
+            .from("schedule-files")
+            .getPublicUrl(uploadName);
+
+          fileUrl = urlData?.publicUrl || null;
+          fileName = selectedFile.name;
+        } catch (fileError) {
+          console.error("File upload error:", fileError);
+          throw fileError;
+        }
+      }
+
+      const formattedTime = newSchedule.time.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      const { data, error } = await supabase
+        .from("food_schedules")
+        .insert([
+          {
+            title: newSchedule.title,
+            date: newSchedule.date.toISOString().split("T")[0],
+            time: formattedTime,
+            location: newSchedule.location,
+            file_url: fileUrl,
+            file_name: fileName,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const newItem = {
+        id: data.id,
+        title: data.title,
+        date: new Date(data.date).toLocaleDateString(),
+        time: data.time,
+        location: data.location,
+        fileUrl: data.file_url,
+        fileName: data.file_name,
+      };
+
+      // If parent provided onSave callback, call it
+      if (onSave) onSave(newItem);
+
+      // reset and navigate back
+      setNewSchedule({
+        title: "",
+        date: new Date(),
+        time: new Date(),
+        location: "",
+      });
+      setSelectedFile(null);
+
+      // Send notification to users (best-effort)
+      try {
+        const notificationMessage =
+          `[Kalinga App]\nNew Food Distribution Schedule\n` +
+          `Barangay: ${newItem.title}\n` +
+          `Date: ${newItem.date}\n` +
+          `Time: ${newItem.time}\n` +
+          `Location: ${newItem.location}`;
+
+        const notifyResult = await notifyUsers(notificationMessage);
+        console.log("notifyUsers result:", notifyResult);
+      } catch (notifyErr) {
+        console.error("Notification error:", notifyErr);
+      }
+
+      Alert.alert("Success", "New schedule added successfully!");
+      navigation.goBack();
+    } catch (error) {
+      console.error("Error adding schedule:", error);
+      Alert.alert("Error", error?.message || "Failed to add schedule");
+    }
   };
 
   return (
@@ -140,7 +321,7 @@ export default function AddScheduleScreen({ navigation, route }) {
                 styles.fileButton,
                 selectedFile && styles.fileButtonSelected,
               ]}
-              onPress={handleFilePick}
+              onPress={pickDocument}
             >
               <Icon name="document-attach" size={24} color="#666" />
               <Text style={styles.fileButtonText} numberOfLines={1}>
@@ -171,7 +352,7 @@ export default function AddScheduleScreen({ navigation, route }) {
             </TouchableOpacity> */}
             <TouchableOpacity
               style={[styles.button, styles.saveButton]}
-              onPress={handleSave}
+              onPress={handleAddSchedule}
             >
               <Text style={styles.buttonText}>Save</Text>
             </TouchableOpacity>
