@@ -47,6 +47,32 @@ export default function ProfileScreen() {
   // Temporary (UI only)
   const [hasProfilePicture, setHasProfilePicture] = useState(false);
 
+  // Admin check logic (same as FoodDistribution.js)
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    checkAdminStatus();
+  }, []);
+
+  const checkAdminStatus = async () => {
+    try {
+      const userInfoStr = await AsyncStorage.getItem("userInfo");
+      const userStr = await AsyncStorage.getItem("user");
+      if (userInfoStr && userStr) {
+        const parsedInfo = JSON.parse(userInfoStr);
+        setIsLoggedIn(true);
+        setIsAdmin(parsedInfo.isAdmin === true);
+      } else {
+        setIsLoggedIn(false);
+        setIsAdmin(false);
+      }
+    } catch (error) {
+      setIsLoggedIn(false);
+      setIsAdmin(false);
+    }
+  };
+
   useEffect(() => {
     if (userInfo) {
       setEditInfo({
@@ -209,17 +235,29 @@ export default function ProfileScreen() {
               <Icon name="construct-outline" size={22} color="#555" />
               <Text style={styles.settingText}>Report</Text>
             </TouchableOpacity> */}
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={styles.settingItem}
               onPress={() => navigation.navigate("AnalyticsScreen")}
             >
               <Icon name="analytics-outline" size={22} color="#555" />
               <Text style={styles.settingText}>Analytics</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
             <TouchableOpacity style={styles.settingItem}>
               <Icon name="information-circle-outline" size={22} color="#555" />
               <Text style={styles.settingText}>About us</Text>
             </TouchableOpacity>
+            {/* Admin Utilities - only visible for admin */}
+            {isLoggedIn && isAdmin && (
+              <TouchableOpacity
+                style={styles.settingItem}
+                onPress={() => navigation.navigate("AdminUtils")}
+              >
+                <Icon name="shield-checkmark-outline" size={22} color="#e75e33" />
+                <Text style={[styles.settingText, { color: "#e75e33", fontWeight: "bold" }]}>
+                  Admin Utilities
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Log Out */}
@@ -532,7 +570,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     backgroundColor: "#fff5f0",
     paddingHorizontal: 15,
-    paddingVertical: 12,
+    paddingVertical: 8,
     borderRadius: 10,
   },
   logoutText: {

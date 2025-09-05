@@ -16,6 +16,8 @@ import { loginWithUsernameAndPassword } from "../services/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { checkAdminStatus } from '../utils/adminUtils';
+import { db } from "../firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 
 export default function LoginScreen({ navigation, onLogin }) {
@@ -41,6 +43,17 @@ export default function LoginScreen({ navigation, onLogin }) {
     ]).start();
   }, []);
 
+  const logLoginActivity = async (username) => {
+    try {
+      await addDoc(collection(db, "login_activity"), {
+        username: username.trim(),
+        timestamp: serverTimestamp(),
+      });
+    } catch (error) {
+      console.log("Failed to log login activity:", error);
+    }
+  };
+
   const handleLogin = async () => {
     if (!username || !password) {
       Alert.alert("Error", "Please enter both username and password");
@@ -53,7 +66,10 @@ export default function LoginScreen({ navigation, onLogin }) {
       if (success && userData) {
         await AsyncStorage.setItem("userInfo", JSON.stringify(userData));
         await AsyncStorage.setItem("user", username.trim());
-        
+
+        // Log login activity to Firestore
+        await logLoginActivity(username);
+
         if (onLogin) onLogin();
         
         Alert.alert(

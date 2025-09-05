@@ -14,6 +14,10 @@ import AddScheduleScreen from "./screens/AddScheduleScreen";
 import PrivacyScreen from "./screens/PrivacyScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 import { ThemeProvider } from "./context/ThemeContext";
+import AdminUtils from "./screens/AdminUtils";
+import ContactScreen from "./screens/ManageContact";
+import BarangayScreen from "./screens/ManageBarangay";
+import ManageSchedule from "./screens/ManageSchedule";
 
 const Stack = createStackNavigator();
 
@@ -40,8 +44,10 @@ export default function App() {
           />
           <Stack.Screen name="PrivacyScreen" component={PrivacyScreen} />
           <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
-
-          {/* Removed MapScreen from here since it's in TabNavigator */}
+          <Stack.Screen name="AdminUtils" component={AdminUtils} />
+          <Stack.Screen name="ManageContact" component={ContactScreen} />
+          <Stack.Screen name="ManageBarangay" component={BarangayScreen} />
+          <Stack.Screen name="ManageSchedule" component={ManageSchedule} />
         </Stack.Navigator>
       </NavigationContainer>
     </ThemeProvider>
