@@ -81,10 +81,7 @@ const MapPinModal = ({
           text: 'Gallery',
           onPress: () => pickFromGallery(),
         },
-        {
-          text: 'Files',
-          onPress: () => pickFromFiles(),
-        },
+
         {
           text: 'Cancel',
           style: 'cancel',
@@ -270,7 +267,7 @@ const MapPinModal = ({
                 style={styles.mediaPickerButton}
               >
                 <Text style={styles.mediaPickerText}>
-                  {media ? "Add More Media" : "Pick Image or Video"}
+                  {media ? "Add More Media" : "Pick Image"}
                 </Text>
               </TouchableOpacity>
             )}

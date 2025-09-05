@@ -23,6 +23,7 @@ import {
   serverTimestamp,
   getDocs,
 } from "firebase/firestore";
+import { scanImageWithSightengine } from "../services/sightengine";
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -564,10 +565,10 @@ export default function MapScreen({ route }) {
             prevPins.map((pin) =>
               pin.id === selectedPin.id
                 ? {
-                    ...pin,
-                    upvotes: updatedPin.upvotes,
-                    downvotes: updatedPin.downvotes,
-                  }
+                  ...pin,
+                  upvotes: updatedPin.upvotes,
+                  downvotes: updatedPin.downvotes,
+                }
                 : pin
             )
           );
@@ -627,21 +628,63 @@ export default function MapScreen({ route }) {
     try {
       let mediaUrls = [];
 
-      // 1. Upload media files to SUPABASE STORAGE
+      // 1. Upload image files to SUPABASE STORAGE
       if (media && media.length > 0) {
-        Alert.alert("Uploading", "Uploading media files...");
+       Alert.alert("Uploading", "Uploading image files...", []);
+
+
+        // Scan all images first
+        const results = await Promise.all(
+          media.map((img) => scanImageWithSightengine(img))
+        );
+
+        // Check if all images are safe
+        const allSafe = results.every(
+          (result) =>
+            result.nudity?.safe > 0.8 &&
+            (result.weapon === undefined || result.weapon < 0.2) &&
+            (result.offensive?.prob === undefined || result.offensive.prob < 0.1)
+        );
+
+        if (!allSafe) {
+          // Find the first unsafe image and show an alert
+          const firstUnsafe = results.find(
+            (result) =>
+              !(
+                result.nudity?.safe > 0.8 &&
+                (result.weapon === undefined || result.weapon < 0.1) &&
+                (result.violence === undefined || result.violence < 0.1) &&
+                (result.offensive?.prob === undefined || result.offensive.prob < 0.1)
+              )
+          );
+          Alert.alert(
+            "Content Blocked",
+            "One or more of your images contain prohibited content and cannot be uploaded.",
+            [{ text: "OK", onPress: () => setDescModalVisible(false) }]
+          );
+          console.log("Sightengine scan results:", JSON.stringify(results, null, 2));
+          console.log("allSafe:", allSafe);
+          return; // Stop the upload process
+        }
 
         for (let i = 0; i < media.length; i++) {
           const mediaItem = media[i];
+
+          // Only allow images
+          if (!mediaItem.type || !mediaItem.type.startsWith("image")) {
+            Alert.alert(
+              "Invalid File",
+              "Only image files are allowed. Please remove any non-image files."
+            );
+            return;
+          }
+
+          // Upload image to Supabase
           const fileName = `pins/${Date.now()}_${i}_${mediaItem.fileName || "media"}`;
 
+          let uploadData;
           try {
-            console.log(
-              `Starting upload ${i + 1}/${media.length}:`,
-              mediaItem.uri
-            );
-
-            // Method 1: Try with FormData (recommended for React Native)
+            // Try FormData upload
             const formData = new FormData();
             formData.append("file", {
               uri: mediaItem.uri,
@@ -649,73 +692,53 @@ export default function MapScreen({ route }) {
               name: mediaItem.fileName || `media_${i}.jpg`,
             });
 
-            // Upload to Supabase Storage using FormData
-            const { data: uploadData, error: uploadError } =
-              await supabase.storage
+            const { data, error } = await supabase.storage
+              .from("pin-media")
+              .upload(fileName, formData, {
+                contentType: mediaItem.type,
+                cacheControl: "3600",
+                upsert: true,
+              });
+
+            if (error) {
+              // Fallback to blob method
+              const response = await fetch(mediaItem.uri);
+              if (!response.ok)
+                throw new Error(`Failed to fetch media: ${response.status}`);
+              const blob = await response.blob();
+
+              const { data: blobData, error: blobError } = await supabase.storage
                 .from("pin-media")
-                .upload(fileName, formData, {
+                .upload(fileName, blob, {
                   contentType: mediaItem.type,
                   cacheControl: "3600",
-                  upsert: true, // Allow overwriting if file exists
+                  upsert: true,
                 });
 
-            if (uploadError) {
-              console.error(
-                "FormData upload failed, trying blob method:",
-                uploadError
-              );
-
-              // Method 2: Fallback to blob method
-              try {
-                const response = await fetch(mediaItem.uri);
-                if (!response.ok) {
-                  throw new Error(`Failed to fetch media: ${response.status}`);
-                }
-
-                const blob = await response.blob();
-                console.log("Blob created, size:", blob.size);
-
-                const { data: blobUploadData, error: blobUploadError } =
-                  await supabase.storage
-                    .from("pin-media")
-                    .upload(fileName, blob, {
-                      contentType: mediaItem.type,
-                      cacheControl: "3600",
-                      upsert: true,
-                    });
-
-                if (blobUploadError) throw blobUploadError;
-                uploadData = blobUploadData;
-              } catch (blobError) {
-                console.error("Blob upload also failed:", blobError);
-                throw new Error(
-                  `Both upload methods failed: ${uploadError.message} | ${blobError.message}`
-                );
-              }
+              if (blobError) throw blobError;
+              uploadData = blobData;
+            } else {
+              uploadData = data;
             }
-
-            // Get public URL from Supabase
-            const { data: urlData } = supabase.storage
-              .from("pin-media")
-              .getPublicUrl(uploadData.path);
-
-            mediaUrls.push({
-              url: urlData.publicUrl,
-              type: mediaItem.type,
-              fileName: mediaItem.fileName,
-              path: uploadData.path,
-            });
-
-            console.log(`Successfully uploaded: ${i + 1}/${media.length}`);
           } catch (uploadError) {
-            console.error(`Error uploading media ${i + 1}:`, uploadError);
-
-            // Continue with other uploads instead of failing completely
             Alert.alert(
               "Upload Warning",
-              `Failed to upload media file ${i + 1}: ${uploadError.message}. Continuing with other files...`
+              `Failed to upload image file ${i + 1}: ${uploadError.message}. Continuing with other files...`
             );
+            continue; // Skip this file
           }
+
+          // Get public URL from Supabase
+          const { data: urlData } = supabase.storage
+            .from("pin-media")
+            .getPublicUrl(uploadData.path);
+
+          mediaUrls.push({
+            url: urlData.publicUrl,
+            type: mediaItem.type,
+            fileName: mediaItem.fileName,
+            path: uploadData.path,
+          });
         }
       }
 
@@ -743,8 +766,8 @@ export default function MapScreen({ route }) {
 
       const successMessage =
         mediaUrls.length > 0
-          ? `Your location has been pinned successfully with ${mediaUrls.length} media file(s).`
-          : "Your location has been pinned successfully (some media uploads may have failed).";
+          ? `Your location has been pinned successfully with ${mediaUrls.length} image(s).`
+          : "Your location has been pinned successfully (some image uploads may have failed).";
 
       Alert.alert("Location pinned!", successMessage);
 
@@ -1032,7 +1055,7 @@ export default function MapScreen({ route }) {
             >
               <Icon name="close" size={24} color="#666" />
             </TouchableOpacity>
-            
+
             {selectedPin && (
               <>
                 {/* Title */}
@@ -1058,9 +1081,9 @@ export default function MapScreen({ route }) {
                   style={[
                     styles.votingContainer,
                     userVoteStatus.voteType === "upvote" &&
-                      styles.containerUpvoted,
+                    styles.containerUpvoted,
                     userVoteStatus.voteType === "downvote" &&
-                      styles.containerDownvoted,
+                    styles.containerDownvoted,
                   ]}
                 >
                   {/* Upvote Button */}
@@ -1068,7 +1091,7 @@ export default function MapScreen({ route }) {
                     style={[
                       styles.voteButton,
                       userVoteStatus.voteType === "upvote" &&
-                        styles.activeUpvote,
+                      styles.activeUpvote,
                     ]}
                     onPress={() => handleVote("upvote")}
                     disabled={isVoting}
@@ -1077,7 +1100,7 @@ export default function MapScreen({ route }) {
                       style={[
                         styles.arrowText,
                         userVoteStatus.voteType === "upvote" &&
-                          styles.activeUpvoteText,
+                        styles.activeUpvoteText,
                       ]}
                     >
                       ⇧
@@ -1089,9 +1112,9 @@ export default function MapScreen({ route }) {
                     style={[
                       styles.scoreText,
                       userVoteStatus.voteType === "upvote" &&
-                        styles.upvotedScore,
+                      styles.upvotedScore,
                       userVoteStatus.voteType === "downvote" &&
-                        styles.downvotedScore,
+                      styles.downvotedScore,
                     ]}
                   >
                     {(selectedPin.upvotes || 0) - (selectedPin.downvotes || 0)}
@@ -1102,7 +1125,7 @@ export default function MapScreen({ route }) {
                     style={[
                       styles.voteButton,
                       userVoteStatus.voteType === "downvote" &&
-                        styles.activeDownvote,
+                      styles.activeDownvote,
                     ]}
                     onPress={() => handleVote("downvote")}
                     disabled={isVoting}
@@ -1111,7 +1134,7 @@ export default function MapScreen({ route }) {
                       style={[
                         styles.arrowText,
                         userVoteStatus.voteType === "downvote" &&
-                          styles.activeDownvoteText,
+                        styles.activeDownvoteText,
                       ]}
                     >
                       ⇩
@@ -1149,7 +1172,7 @@ export default function MapScreen({ route }) {
                         styles.mediaToggle,
                         (!selectedPin.media ||
                           selectedPin.media.length === 0) &&
-                          styles.mediaToggleDisabled,
+                        styles.mediaToggleDisabled,
                       ]}
                       onPress={() => setShowMedia(!showMedia)}
                       disabled={
@@ -1185,7 +1208,7 @@ export default function MapScreen({ route }) {
                               return (
                                 <View key={index} style={styles.mediaWrapper}>
                                   {mediaItem.type &&
-                                  mediaItem.type.startsWith("image") ? (
+                                    mediaItem.type.startsWith("image") ? (
                                     // Render Image
                                     <Image
                                       source={{ uri: mediaItem.url }}

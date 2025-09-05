@@ -21,6 +21,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { WebView } from "react-native-webview";
 import * as XLSX from "xlsx";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 
 export default function FoodDistribution({ navigation }) {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -544,6 +545,12 @@ export default function FoodDistribution({ navigation }) {
       Alert.alert("Error", "Failed to save schedule. Please try again.");
     }
   };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchSchedules();
+    }, [])
+  );
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
