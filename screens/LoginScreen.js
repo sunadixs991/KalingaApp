@@ -17,7 +17,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { checkAdminStatus } from '../utils/adminUtils';
 import { db } from "../firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, doc, updateDoc, getDocs, query, where } from "firebase/firestore";
 
 
 export default function LoginScreen({ navigation, onLogin }) {
@@ -69,6 +69,16 @@ export default function LoginScreen({ navigation, onLogin }) {
 
         // Log login activity to Firestore
         await logLoginActivity(username);
+
+        // Update user account status to "active" in Firestore
+        // Find user document by username field
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where("username", "==", username.trim()));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const userDocId = querySnapshot.docs[0].id;
+          await updateDoc(doc(db, "users", userDocId), { accountStatus: "active" });
+        }
 
         if (onLogin) onLogin();
         

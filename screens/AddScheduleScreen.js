@@ -1,5 +1,5 @@
 // screens/AddScheduleScreen.js
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,13 +9,16 @@ import {
   StyleSheet,
   StatusBar,
   Alert,
-  Platform,
+  Modal,
+  FlatList,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from '../services/supabaseClient'; // adjust path if your supabase client is exported elsewhere
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db } from "../firebase";
 import { notifyUsers } from '../services/notification';
 
 export default function AddScheduleScreen({ navigation, route }) {
@@ -31,6 +34,26 @@ export default function AddScheduleScreen({ navigation, route }) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [barangayList, setBarangayList] = useState([]);
+  const [barangayModalVisible, setBarangayModalVisible] = useState(false);
+
+  useEffect(() => {
+    // Fetch barangay list from Firestore
+    const fetchBarangays = async () => {
+      try {
+        const snap = await getDocs(collection(db, "barangays"));
+        const list = [];
+        snap.forEach(doc => {
+          const data = doc.data();
+          if (data.name) list.push(data.name);
+        });
+        setBarangayList(list);
+      } catch (error) {
+        console.log("Failed to fetch barangays:", error);
+      }
+    };
+    fetchBarangays();
+  }, []);
 
   // Pick file (allow Excel .xlsx / .xls and CSV). Handles different DocumentPicker return shapes.
   const pickDocument = async () => {
@@ -218,6 +241,19 @@ export default function AddScheduleScreen({ navigation, route }) {
 
       // Send notification to users (best-effort)
       try {
+        // Only notify users within the selected barangay
+        const selectedBarangay = newSchedule.title;
+        const usersQuery = query(
+          collection(db, "users"),
+          where("barangay", "==", selectedBarangay)
+        );
+        const usersSnap = await getDocs(usersQuery);
+        const phoneNumbers = [];
+        usersSnap.forEach(doc => {
+          const data = doc.data();
+          if (data.phoneNumber) phoneNumbers.push(data.phoneNumber);
+        });
+
         const notificationMessage =
           `[Kalinga App]\nNew Food Distribution Schedule\n` +
           `Barangay: ${newItem.title}\n` +
@@ -225,7 +261,8 @@ export default function AddScheduleScreen({ navigation, route }) {
           `Time: ${newItem.time}\n` +
           `Location: ${newItem.location}`;
 
-        const notifyResult = await notifyUsers(notificationMessage);
+        // Pass phoneNumbers to notifyUsers so only those users get notified
+        const notifyResult = await notifyUsers(notificationMessage, phoneNumbers);
         console.log("notifyUsers result:", notifyResult);
       } catch (notifyErr) {
         console.error("Notification error:", notifyErr);
@@ -252,14 +289,54 @@ export default function AddScheduleScreen({ navigation, route }) {
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <TextInput
-            style={styles.input}
-            placeholder="Barangay Name"
-            value={newSchedule.title}
-            onChangeText={(text) =>
-              setNewSchedule({ ...newSchedule, title: text })
-            }
-          />
+          {/* Barangay Selector */}
+          <View style={styles.input}>
+            <Text style={{ marginBottom: 5, color: "#333" }}>Select Barangay</Text>
+            <TouchableOpacity
+              style={styles.selectorButton}
+              onPress={() => setBarangayModalVisible(true)}
+            >
+              <Text style={{ color: newSchedule.title ? "#333" : "#aaa" }}>
+                {newSchedule.title || "Select Barangay"}
+              </Text>
+              <Icon name="chevron-down" size={20} color="#333" style={{ marginLeft: 8 }} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Barangay Modal */}
+          <Modal
+            visible={barangayModalVisible}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setBarangayModalVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Choose Barangay</Text>
+                <FlatList
+                  data={barangayList}
+                  keyExtractor={(item) => item}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.modalItem}
+                      onPress={() => {
+                        setNewSchedule({ ...newSchedule, title: item });
+                        setBarangayModalVisible(false);
+                      }}
+                    >
+                      <Text style={styles.modalItemText}>{item}</Text>
+                    </TouchableOpacity>
+                  )}
+                />
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => setBarangayModalVisible(false)}
+                >
+                  <Text style={styles.closeButtonText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
 
           <TouchableOpacity
             style={styles.dateButton}
@@ -433,4 +510,69 @@ const styles = StyleSheet.create({
   cancelButton: { backgroundColor: "#999" },
   saveButton: { backgroundColor: "#e75e33" },
   buttonText: { color: "#fff", fontWeight: "600" },
+  pickerWrapper: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    backgroundColor: "#fff",
+    marginBottom: 15,
+  },
+  picker: {
+    height: 48,
+    width: "100%",
+    color: "#333",
+  },
+  selectorButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    backgroundColor: "#fff",
+    padding: 12,
+    marginBottom: 5,
+    justifyContent: "space-between",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+    width: "80%",
+    maxHeight: "70%",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 12,
+    color: "#e75e33",
+    textAlign: "center",
+  },
+  modalItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  modalItemText: {
+    fontSize: 16,
+    color: "#333",
+    textAlign: "center",
+  },
+  closeButton: {
+    marginTop: 16,
+    backgroundColor: "#e75e33",
+    padding: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  closeButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
 });

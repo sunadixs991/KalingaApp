@@ -11,6 +11,7 @@ import {
   Platform,
   Modal,
   TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
@@ -21,6 +22,10 @@ import womanProfile from "../assets/woman.png";
 import boyProfile from "../assets/boy.png";
 import userProfile from "../assets/user.png";
 import { useTheme } from "../context/ThemeContext";
+import * as ImagePicker from "expo-image-picker";
+import { supabase } from "../services/supabaseClient";
+import { db } from "../firebase";
+import { query, collection, where, getDocs, updateDoc, doc } from "firebase/firestore";
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
@@ -44,10 +49,9 @@ export default function ProfileScreen() {
     barangay: userInfo?.barangay || "",
   });
 
-  // Temporary (UI only)
-  const [hasProfilePicture, setHasProfilePicture] = useState(false);
+  const [profilePicUrl, setProfilePicUrl] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
-  // Admin check logic (same as FoodDistribution.js)
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
@@ -88,6 +92,7 @@ export default function ProfileScreen() {
         city: userInfo.city || "",
         barangay: userInfo.barangay || "",
       });
+      if (userInfo.profilePicUrl) setProfilePicUrl(userInfo.profilePicUrl);
     }
   }, [userInfo]);
 
@@ -97,6 +102,7 @@ export default function ProfileScreen() {
       if (username) {
         const info = await getUserInfo(username);
         setUserInfo(info);
+        if (info?.profilePicUrl) setProfilePicUrl(info.profilePicUrl);
       }
     }
     fetchProfile();
@@ -121,7 +127,6 @@ export default function ProfileScreen() {
 
   const handleEditToggle = () => {
     if (isEditing) {
-      // Cancel: reset fields and disable editing
       setEditInfo({
         firstName: userInfo?.firstName || "",
         lastName: userInfo?.lastName || "",
@@ -161,9 +166,178 @@ export default function ProfileScreen() {
 
   const handleSaveEdit = () => {
     // TODO: Save updated info to your backend or AsyncStorage
-    // For now, just close modal
     setEditModalVisible(false);
-    // Optionally, update userInfo state here
+  };
+
+  // --- FIXED Profile Picture Logic with expo-image-picker ---
+  const handleSetProfilePicture = async () => {
+    Alert.alert(
+      "Select Photo",
+      "Choose how you want to select your profile picture",
+      [
+        {
+          text: "Camera",
+          onPress: () => pickFromCamera(),
+        },
+        {
+          text: "Gallery",
+          onPress: () => pickFromGallery(),
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ]
+    );
+  };
+
+  const pickFromCamera = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert("Permission Required", "Please allow camera access.");
+        return;
+      }
+
+      setUploading(true);
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await uploadProfilePicture(result.assets[0]);
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      Alert.alert("Error", "Failed to take photo. Please try again.");
+    }
+    setUploading(false);
+  };
+
+  const pickFromGallery = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert("Permission Required", "Please allow access to your photos.");
+        return;
+      }
+
+      setUploading(true);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'Images',
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await uploadProfilePicture(result.assets[0]);
+      }
+    } catch (error) {
+      console.error("Error picking from gallery:", error);
+      Alert.alert("Error", "Failed to open gallery. Please try again.");
+    }
+    setUploading(false);
+  };
+
+  const uploadProfilePicture = async (asset) => {
+    try {
+      // Upload to Supabase Storage
+      const fileExt = asset.uri.split('.').pop();
+      const fileName = `profile_${Date.now()}.${fileExt}`;
+      
+      // Fetch the image as blob
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+
+      const { data, error } = await supabase.storage
+        .from("profile-pictures")
+        .upload(fileName, blob, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      // Get public URL - FIXED: Use getPublicUrl correctly
+      const { data: urlData } = supabase.storage
+        .from("profile-pictures")
+        .getPublicUrl(fileName);
+
+      const publicURL = urlData.publicUrl; // Fixed property name
+
+      setProfilePicUrl(publicURL);
+
+      // Save URL to Firestore user profile
+      let userIdentifier = await AsyncStorage.getItem("user");
+      if (!userIdentifier) return;
+      
+      let cleanIdentifier = userIdentifier;
+      try {
+        const parsed = JSON.parse(userIdentifier);
+        if (typeof parsed === 'object' && parsed !== null) {
+          cleanIdentifier = parsed.username || parsed.email || parsed.id || userIdentifier;
+        }
+      } catch (e) {}
+      cleanIdentifier = cleanIdentifier.toString().trim();
+
+      // Query Firestore for user document
+      const userQuery = query(
+        collection(db, "users"),
+        where("username", "==", cleanIdentifier)
+      );
+      const userSnap = await getDocs(userQuery);
+      if (!userSnap.empty) {
+        const userDocId = userSnap.docs[0].id;
+        await updateDoc(doc(db, "users", userDocId), { profilePicUrl: publicURL });
+        setUserInfo((prev) => ({ ...prev, profilePicUrl: publicURL }));
+      }
+
+      setImageModalVisible(false);
+      Alert.alert("Success", "Profile picture updated!");
+    } catch (error) {
+      console.error("Upload error:", error);
+      Alert.alert("Error", error.message || "Failed to set profile picture.");
+    }
+  };
+
+  const removeProfilePicture = async () => {
+    try {
+      setProfilePicUrl(null);
+      
+      // Update Firestore to remove profile picture URL
+      let userIdentifier = await AsyncStorage.getItem("user");
+      if (!userIdentifier) return;
+      
+      let cleanIdentifier = userIdentifier;
+      try {
+        const parsed = JSON.parse(userIdentifier);
+        if (typeof parsed === 'object' && parsed !== null) {
+          cleanIdentifier = parsed.username || parsed.email || parsed.id || userIdentifier;
+        }
+      } catch (e) {}
+      cleanIdentifier = cleanIdentifier.toString().trim();
+
+      const userQuery = query(
+        collection(db, "users"),
+        where("username", "==", cleanIdentifier)
+      );
+      const userSnap = await getDocs(userQuery);
+      if (!userSnap.empty) {
+        const userDocId = userSnap.docs[0].id;
+        await updateDoc(doc(db, "users", userDocId), { profilePicUrl: null });
+        setUserInfo((prev) => ({ ...prev, profilePicUrl: null }));
+      }
+
+      setImageModalVisible(false);
+      Alert.alert("Success", "Profile picture removed!");
+    } catch (error) {
+      console.error("Remove error:", error);
+      Alert.alert("Error", "Failed to remove profile picture.");
+    }
   };
 
   return (
@@ -174,18 +348,25 @@ export default function ProfileScreen() {
           {/* Profile Picture */}
           <View style={styles.profileSection}>
             <TouchableOpacity onPress={() => setImageModalVisible(true)}>
-              <Image
-                source={
-                  userInfo
-                    ? userInfo.gender === "Female"
-                      ? womanProfile
-                      : userInfo.gender === "Male"
-                        ? boyProfile
-                        : userProfile
-                    : userProfile
-                }
-                style={styles.profileImage}
-              />
+              {profilePicUrl ? (
+                <Image
+                  source={{ uri: profilePicUrl }}
+                  style={styles.profileImage}
+                />
+              ) : (
+                <Image
+                  source={
+                    userInfo
+                      ? userInfo.gender === "Female"
+                        ? womanProfile
+                        : userInfo.gender === "Male"
+                          ? boyProfile
+                          : userProfile
+                      : userProfile
+                  }
+                  style={styles.profileImage}
+                />
+              )}
             </TouchableOpacity>
             <Text style={styles.name}>
               {userInfo
@@ -220,10 +401,6 @@ export default function ProfileScreen() {
               <Icon name="lock-closed-outline" size={22} color="#555" />
               <Text style={styles.settingText}>Privacy</Text>
             </TouchableOpacity>
-            {/* <TouchableOpacity style={styles.settingItem}>
-              <Icon name="notifications-outline" size={22} color="#555" />
-              <Text style={styles.settingText}>Notifications</Text>
-            </TouchableOpacity> */}
             <TouchableOpacity
               style={styles.settingItem}
               onPress={() => navigation.navigate("SettingsScreen")}
@@ -231,17 +408,6 @@ export default function ProfileScreen() {
               <Icon name="settings-outline" size={22} color="#555" />
               <Text style={styles.settingText}>Settings</Text>
             </TouchableOpacity>
-            {/* <TouchableOpacity style={styles.settingItem}>
-              <Icon name="construct-outline" size={22} color="#555" />
-              <Text style={styles.settingText}>Report</Text>
-            </TouchableOpacity> */}
-            {/* <TouchableOpacity
-              style={styles.settingItem}
-              onPress={() => navigation.navigate("AnalyticsScreen")}
-            >
-              <Icon name="analytics-outline" size={22} color="#555" />
-              <Text style={styles.settingText}>Analytics</Text>
-            </TouchableOpacity> */}
             <TouchableOpacity style={styles.settingItem}>
               <Icon name="information-circle-outline" size={22} color="#555" />
               <Text style={styles.settingText}>About us</Text>
@@ -271,7 +437,8 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           )}
         </View>
-        {/* Modal */}
+
+        {/* IMPROVED Modal for Profile Picture Actions */}
         <Modal
           visible={imageModalVisible}
           transparent
@@ -284,24 +451,38 @@ export default function ProfileScreen() {
             onPressOut={() => setImageModalVisible(false)}
           >
             <View style={styles.actionSheet}>
-              {hasProfilePicture ? (
-                <>
-                  <TouchableOpacity style={styles.actionButton}>
-                    <Text style={styles.actionText}>
-                      Update Profile Picture
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionButton}>
-                    <Text style={[styles.actionText, { color: "red" }]}>
-                      Remove Profile Picture
-                    </Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <TouchableOpacity style={styles.actionButton}>
-                  <Text style={styles.actionText}>Set Profile Picture</Text>
+              <Text style={styles.actionSheetTitle}>Profile Picture</Text>
+              
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={handleSetProfilePicture}
+                disabled={uploading}
+              >
+                <Icon name="camera-outline" size={20} color="#333" style={{ marginRight: 10 }} />
+                <Text style={styles.actionText}>
+                  {uploading ? "Uploading..." : profilePicUrl ? "Update Profile Picture" : "Set Profile Picture"}
+                </Text>
+                {uploading && <ActivityIndicator size="small" color="#e75e33" style={{ marginLeft: 10 }} />}
+              </TouchableOpacity>
+
+              {profilePicUrl && (
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={removeProfilePicture}
+                >
+                  <Icon name="trash-outline" size={20} color="red" style={{ marginRight: 10 }} />
+                  <Text style={[styles.actionText, { color: "red" }]}>
+                    Remove Profile Picture
+                  </Text>
                 </TouchableOpacity>
               )}
+              
+              <TouchableOpacity
+                style={[styles.actionButton, styles.cancelActionButton]}
+                onPress={() => setImageModalVisible(false)}
+              >
+                <Text style={[styles.actionText, { color: "#666" }]}>Cancel</Text>
+              </TouchableOpacity>
             </View>
           </TouchableOpacity>
         </Modal>
@@ -618,13 +799,25 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 15,
     elevation: 5,
   },
+  actionSheetTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    textAlign: "center",
+    marginBottom: 15,
+  },
   actionButton: {
-    padding: 15,
+    flexDirection: "row",
     alignItems: "center",
+    padding: 15,
     backgroundColor: "#fff",
     borderRadius: 15,
     marginBottom: 10,
     elevation: 2,
+  },
+  cancelActionButton: {
+    backgroundColor: "#f0f0f0",
+    justifyContent: "center",
   },
   actionText: {
     fontSize: 16,

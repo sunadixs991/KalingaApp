@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -38,12 +38,31 @@ export default function SignUp({ navigation }) {
   const [province, setProvince] = useState("");
   const [city, setCity] = useState("");
   const [barangay, setBarangay] = useState("");
+  const [barangayList, setBarangayList] = useState([]);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
   // Error states
   const [stepOneErrors, setStepOneErrors] = useState({});
   const [stepTwoErrors, setStepTwoErrors] = useState({});
+
+  // Fetch barangay list from Firestore
+  useEffect(() => {
+    const fetchBarangays = async () => {
+      try {
+        const snap = await getDocs(collection(db, "barangays"));
+        const list = [];
+        snap.forEach((doc) => {
+          const data = doc.data();
+          if (data.name) list.push(data.name);
+        });
+        setBarangayList(list);
+      } catch (error) {
+        console.log("Failed to fetch barangays:", error);
+      }
+    };
+    fetchBarangays();
+  }, []);
 
   const onChangeDate = (event, selectedDate) => {
     setShowDatePicker(false);
@@ -65,7 +84,10 @@ export default function SignUp({ navigation }) {
 
     setStepOneErrors(errors);
     if (Object.keys(errors).length > 0) {
-      Alert.alert("Incomplete Information", "Please fill out all fields before proceeding.");
+      Alert.alert(
+        "Incomplete Information",
+        "Please fill out all fields before proceeding."
+      );
       return false;
     }
     return true;
@@ -137,7 +159,7 @@ export default function SignUp({ navigation }) {
 
       Alert.alert(
         "Success",
-        `Account created! Your User ID is: ${userId}`,
+        `Account created!}`,
         [
           {
             text: "OK",
@@ -152,7 +174,10 @@ export default function SignUp({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top", "left", "right"]}>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: "#fff" }}
+      edges={["top", "left", "right"]}
+    >
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -266,6 +291,27 @@ export default function SignUp({ navigation }) {
                     <Picker.Item label="Select Status" value="" />
                     <Picker.Item label="Single" value="Single" />
                     <Picker.Item label="Married" value="Married" />
+                  </Picker>
+                </View>
+
+                <View
+                  style={[
+                    styles.pickerContainer,
+                    stepOneErrors.barangay && { borderColor: "red" },
+                  ]}
+                >
+                  <Picker
+                    selectedValue={barangay}
+                    onValueChange={(itemValue) => {
+                      setBarangay(itemValue);
+                      setStepOneErrors((prev) => ({ ...prev, barangay: false }));
+                    }}
+                    style={styles.picker}
+                  >
+                    <Picker.Item label="Select Barangay" value="" />
+                    {barangayList.map((name, idx) => (
+                      <Picker.Item key={idx} label={name} value={name} />
+                    ))}
                   </Picker>
                 </View>
 

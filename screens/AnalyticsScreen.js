@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,22 +7,31 @@ import {
   StatusBar,
   ScrollView,
   Modal,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
 import { useNavigation } from "@react-navigation/native";
+import { db } from "../firebase";
+import { collection, getDocs } from "firebase/firestore";
+import { BarChart } from "react-native-chart-kit";
+import { Dimensions } from "react-native";
+import { markInactiveUsers } from "../utils/markInactiveUsers"; // <-- Import your function
 
 const Tab = createMaterialTopTabNavigator();
 
 export default function AnalyticsScreen() {
   const navigation = useNavigation();
 
+  useEffect(() => {
+    // Run the inactive marking function every time AnalyticsScreen mounts
+    markInactiveUsers();
+  }, []);
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -33,8 +42,6 @@ export default function AnalyticsScreen() {
         <Text style={styles.headerTitle}>Analytics</Text>
         <View style={{ width: 40 }} />
       </View>
-
-      {/* Top Tabs */}
       <Tab.Navigator
         screenOptions={{
           tabBarLabelStyle: { fontSize: 14, fontWeight: "bold" },
@@ -55,110 +62,234 @@ export default function AnalyticsScreen() {
 function TodayScreen() {
   const [showPinsModal, setShowPinsModal] = useState(false);
   const [showUsersModal, setShowUsersModal] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const pinCategories = [
-    { category: "Food Distribution", count: 10 },
-    { category: "Relief Center", count: 7 },
-    { category: "Medical Assistance", count: 3 },
-    { category: "Others", count: 3 },
-  ];
+  // Dynamic data
+  const [pinCategories, setPinCategories] = useState([]);
+  const [userCategories, setUserCategories] = useState([]);
+  const [totalServices, setTotalServices] = useState(0);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [mostPinnedArea, setMostPinnedArea] = useState("");
+  const [totalPins, setTotalPins] = useState(0);
 
-  const userCategories = [
-    { category: "Active Users", count: 8 },
-    { category: "Inactive Users", count: 5 },
-    { category: "New Users", count: 4 },
-  ];
+  // For chart
+  const [chartData, setChartData] = useState({
+    labels: [],
+    datasets: [{ data: [] }],
+  });
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, []);
+
+  const fetchAnalytics = async () => {
+    setLoading(true);
+
+    // Fetch pins/services
+    const pinsSnap = await getDocs(collection(db, "pins"));
+    let pinCatCount = {};
+    let barangayCount = {};
+    let totalPinsCount = 0;
+
+    pinsSnap.forEach((doc) => {
+      const data = doc.data();
+      const cat = data.category || "Others";
+      pinCatCount[cat] = (pinCatCount[cat] || 0) + 1;
+
+      // Count by Barangay field (not location)
+      if (data.Barangay) {
+        barangayCount[data.Barangay] = (barangayCount[data.Barangay] || 0) + 1;
+      }
+      totalPinsCount++;
+    });
+
+    const pinCategoriesArr = Object.keys(pinCatCount).map((cat) => ({
+      category: cat,
+      count: pinCatCount[cat],
+    }));
+
+    setPinCategories(pinCategoriesArr);
+    setTotalServices(
+      pinCategoriesArr.reduce((sum, item) => sum + item.count, 0)
+    );
+    setTotalPins(totalPinsCount);
+
+    // Most pinned Barangay
+    let mostBarangay = "";
+    let maxBarangayCount = 0;
+    Object.entries(barangayCount).forEach(([barangay, count]) => {
+      if (count > maxBarangayCount) {
+        mostBarangay = barangay;
+        maxBarangayCount = count;
+      }
+    });
+    setMostPinnedArea(mostBarangay);
+
+    // Fetch users
+    const usersSnap = await getDocs(collection(db, "users"));
+    let active = 0,
+      inactive = 0,
+      newUsers = 0;
+    const now = new Date();
+    usersSnap.forEach((doc) => {
+      const data = doc.data();
+      if (data.status === "active") active++;
+      else if (data.status === "inactive") inactive++;
+      // New users: registered within last 7 days
+      if (data.createdAt && data.createdAt.toDate) {
+        const created = data.createdAt.toDate();
+        if ((now - created) / (1000 * 60 * 60 * 24) <= 7) newUsers++;
+      }
+    });
+    setUserCategories([
+      { category: "Active Users", count: active },
+      { category: "Inactive Users", count: inactive },
+      { category: "New Users", count: newUsers },
+    ]);
+    setTotalUsers(usersSnap.size);
+
+    // Prepare chart data for user status
+    setChartData({
+      labels: ["Active", "Inactive", "New"],
+      datasets: [
+        {
+          data: [active, inactive, newUsers],
+        },
+      ],
+    });
+
+    setLoading(false);
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      {/* 4 Cards */}
-      <View style={styles.row}>
-        <TouchableOpacity
-          style={styles.card}
-          onPress={() => setShowPinsModal(true)}
-        >
-          <Text style={styles.cardTitle}>Total Available Services</Text>
-          <Text style={styles.cardNumber}>23</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.card}
-          onPress={() => setShowUsersModal(true)}
-        >
-          <Text style={styles.cardTitle}>Total Users</Text>
-          <Text style={styles.cardNumber}>17</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.row}>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Most Pinned Area</Text>
-          <Text style={styles.cardSubtitle}>Downtown</Text>
-        </View>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Total Pins</Text>
-          <Text style={styles.cardNumber}>20</Text>
-        </View>
-      </View>
-
-      {/* Blank Card */}
-      <View style={styles.blankCard}>
-        <Text style={styles.blankCardText}>
-          Additional Analytics Placeholder
-        </Text>
-      </View>
-
-      {/* Total Pins Modal */}
-      <Modal
-        visible={showPinsModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowPinsModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Services Categories</Text>
-            {pinCategories.map((item, index) => (
-              <View key={index} style={styles.categoryRow}>
-                <Text style={styles.categoryText}>{item.category}</Text>
-                <Text style={styles.categoryCount}>{item.count}</Text>
-              </View>
-            ))}
+      {loading ? (
+        <ActivityIndicator
+          size="large"
+          color="#EC6135"
+          style={{ marginTop: 40 }}
+        />
+      ) : (
+        <>
+          {/* 4 Cards */}
+          <View style={styles.row}>
             <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowPinsModal(false)}
+              style={styles.card}
+              onPress={() => setShowPinsModal(true)}
             >
-              <Text style={styles.closeButtonText}>Close</Text>
+              <Text style={styles.cardTitle}>Total Available Services</Text>
+              <Text style={styles.cardNumber}>{totalServices}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() => setShowUsersModal(true)}
+            >
+              <Text style={styles.cardTitle}>Total Users</Text>
+              <Text style={styles.cardNumber}>{totalUsers}</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
 
-      {/* Total Users Modal */}
-      <Modal
-        visible={showUsersModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowUsersModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>User Categories</Text>
-            {userCategories.map((item, index) => (
-              <View key={index} style={styles.categoryRow}>
-                <Text style={styles.categoryText}>{item.category}</Text>
-                <Text style={styles.categoryCount}>{item.count}</Text>
-              </View>
-            ))}
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowUsersModal(false)}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
+          <View style={styles.row}>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Most Pinned Area</Text>
+              <Text style={styles.cardSubtitle}>{mostPinnedArea || "N/A"}</Text>
+            </View>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Total Pins</Text>
+              <Text style={styles.cardNumber}>{totalPins}</Text>
+            </View>
           </View>
-        </View>
-      </Modal>
+
+          {/* User Status Bar Chart */}
+          <View style={styles.chartContainer}>
+            <Text style={styles.chartTitle}>User Status Overview</Text>
+            <BarChart
+              data={chartData}
+              width={Dimensions.get("window").width - 40}
+              height={220}
+              yAxisLabel=""
+              chartConfig={{
+                backgroundColor: "#fff",
+                backgroundGradientFrom: "#fff",
+                backgroundGradientTo: "#fff",
+                decimalPlaces: 0,
+                color: (opacity = 1) => `rgba(236, 97, 53, ${opacity})`,
+                labelColor: (opacity = 1) => `rgba(51, 51, 51, ${opacity})`,
+                style: { borderRadius: 16 },
+                propsForBackgroundLines: {
+                  stroke: "#eee",
+                },
+              }}
+              style={{
+                marginVertical: 8,
+                borderRadius: 16,
+              }}
+              fromZero
+              showValuesOnTopOfBars
+            />
+          </View>
+
+          {/* Blank Card */}
+          <View style={styles.blankCard}>
+            <Text style={styles.blankCardText}>
+              Additional Analytics Placeholder
+            </Text>
+          </View>
+
+          {/* Total Pins Modal */}
+          <Modal
+            visible={showPinsModal}
+            animationType="slide"
+            transparent
+            onRequestClose={() => setShowPinsModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Services Categories</Text>
+                {pinCategories.map((item, index) => (
+                  <View key={index} style={styles.categoryRow}>
+                    <Text style={styles.categoryText}>{item.category}</Text>
+                    <Text style={styles.categoryCount}>{item.count}</Text>
+                  </View>
+                ))}
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => setShowPinsModal(false)}
+                >
+                  <Text style={styles.closeButtonText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Total Users Modal */}
+          <Modal
+            visible={showUsersModal}
+            animationType="slide"
+            transparent
+            onRequestClose={() => setShowUsersModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>User Categories</Text>
+                {userCategories.map((item, index) => (
+                  <View key={index} style={styles.categoryRow}>
+                    <Text style={styles.categoryText}>{item.category}</Text>
+                    <Text style={styles.categoryCount}>{item.count}</Text>
+                  </View>
+                ))}
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => setShowUsersModal(false)}
+                >
+                  <Text style={styles.closeButtonText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+        </>
+      )}
     </ScrollView>
   );
 }
@@ -280,5 +411,24 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 20,
     color: "#333",
+  },
+  chartContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 15,
+    padding: 16,
+    marginTop: 8,
+    marginBottom: 8,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    alignItems: "center",
+  },
+  chartTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 8,
   },
 });

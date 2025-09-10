@@ -41,7 +41,7 @@ import {
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { FontAwesome5 } from "@expo/vector-icons"; // Expo
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { Video } from "expo-av";
+// import { Video } from "expo-av";
 import { WebView } from "react-native-webview";
 
 import { Image } from "react-native";
@@ -743,6 +743,13 @@ export default function MapScreen({ route }) {
       }
 
       // 2. Save pin data (including Supabase URLs) to FIRESTORE
+      // Auto-detect Barangay using coordinates
+      let barangayName = await getBarangayFromCoords(
+        pendingPin.latitude,
+        pendingPin.longitude
+      );
+
+      // Save pin data to FIRESTORE, now with Barangay field
       await addDoc(collection(db, "pins"), {
         latitude: pendingPin.latitude,
         longitude: pendingPin.longitude,
@@ -754,6 +761,7 @@ export default function MapScreen({ route }) {
         createdAt: serverTimestamp(),
         upvotes: 0,
         downvotes: 0,
+        Barangay: barangayName, // <-- Auto-detected Barangay
       });
 
       // Reset states
@@ -1307,6 +1315,45 @@ function getHoursAgo(createdAt) {
   }
 
   return `${diffHours} Hour${diffHours !== 1 ? "s" : ""} ago`;
+}
+
+// Add this function to your MapScreen.js (outside your component)
+async function getBarangayFromCoords(latitude, longitude) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`;
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "KalingaApp/1.0 (your-email@example.com)", // Use your app name and email
+        "Accept": "application/json"
+      }
+    });
+    const text = await response.text();
+    // Try to parse JSON, fallback to "Unknown" if error
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      console.log("Reverse geocoding parse error:", e, text);
+      return "Unknown";
+    }
+    if (data && data.address) {
+      return (
+        data.address.barangay ||
+        data.address.suburb ||
+        data.address.village ||
+        data.address.neighbourhood ||
+        data.address.city_district ||
+        data.address.city ||
+        data.address.town ||
+        data.address.municipality ||
+        "Unknown"
+      );
+    }
+    return "Unknown";
+  } catch (error) {
+    console.log("Reverse geocoding error:", error);
+    return "Unknown";
+  }
 }
 
 const styles = StyleSheet.create({
