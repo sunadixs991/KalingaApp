@@ -562,7 +562,7 @@ export default function ManageSchedule({ navigation }) {
           <Icon name="chevron-back" size={26} color="#000" />
         </TouchableOpacity>
 
-        <Text style={styles.topBarTitle}>Food Distribution Schedules</Text>
+        <Text style={styles.topBarTitle}>Manage Schedules</Text>
 
         {/* Placeholder to balance layout */}
         <View style={{ width: 26 }} />
@@ -601,13 +601,13 @@ export default function ManageSchedule({ navigation }) {
                     onPress={() => handleEditSchedule(item)}
                     style={styles.actionButton}
                   >
-                    <Icon name="create-outline" size={20} color="#49A5A2" />
+                    <Icon name="create-outline" size={22} color="#666" />
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => handleDeleteSchedule(item.id)}
                     style={styles.actionButton}
                   >
-                    <Icon name="trash-outline" size={20} color="#ff4444" />
+                    <Icon name="trash-outline" size={22} color="#ff4444" />
                   </TouchableOpacity>
                 </View>
               ) : null}
@@ -620,8 +620,8 @@ export default function ManageSchedule({ navigation }) {
             style={styles.adminButton}
             onPress={() => navigation.navigate("AddSchedule")}
           >
-            <Icon name="add-circle" size={24} color="#fff" />
-            <Text style={styles.adminButtonText}>Add New Schedule</Text>
+            <Icon name="add" size={30} color="#fff" />
+            {/* <Text style={styles.adminButtonText}>Add New Schedule</Text> */}
           </TouchableOpacity>
         ) : null}
 
@@ -877,7 +877,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 18,
-    backgroundColor: "#ffe5d1",
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#eee",
     borderRadius: 12,
     padding: 14,
     elevation: 2,
@@ -906,15 +908,19 @@ const styles = StyleSheet.create({
   },
   adminButton: {
     position: "absolute",
-    bottom: 60, // Changed from 20 to 40 to elevate it higher
-    right: 10,
+    bottom: 40, // Changed from 20 to 40 to elevate it higher
+    right: 15,
     backgroundColor: "#49A5A2",
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
     paddingVertical: 12,
-    borderRadius: 25,
+    borderRadius: 15,
     flexDirection: "row",
     alignItems: "center",
     elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
   },
   adminButtonText: {
     color: "#fff",

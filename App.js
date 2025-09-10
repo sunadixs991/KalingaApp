@@ -18,6 +18,7 @@ import AdminUtils from "./screens/AdminUtils";
 import ContactScreen from "./screens/ManageContact";
 import BarangayScreen from "./screens/ManageBarangay";
 import ManageSchedule from "./screens/ManageSchedule";
+import AccountInfoScreen from "./screens/AccountInfoScreen";
 
 const Stack = createStackNavigator();
 
@@ -44,6 +45,10 @@ export default function App() {
           />
           <Stack.Screen name="PrivacyScreen" component={PrivacyScreen} />
           <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
+          <Stack.Screen
+            name="AccountInfoScreen"
+            component={AccountInfoScreen}
+          />
           <Stack.Screen name="AdminUtils" component={AdminUtils} />
           <Stack.Screen name="ManageContact" component={ContactScreen} />
           <Stack.Screen name="ManageBarangay" component={BarangayScreen} />

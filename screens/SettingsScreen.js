@@ -43,7 +43,7 @@ export default function SettingsScreen({ navigation }) {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionHeaderText}>App Preferences</Text>
         </View>
-        <View style={styles.itemRow}>
+        {/* <View style={styles.itemRow}>
           <Icon name="moon-outline" size={22} color="#555" />
           <Text style={styles.itemText}>Dark Mode</Text>
           <Switch
@@ -51,7 +51,7 @@ export default function SettingsScreen({ navigation }) {
             onValueChange={toggleDarkMode} // ✅ toggles dark mode for other screens
             thumbColor={isDarkMode ? "#49A5A2" : "#ccc"}
           />
-        </View>
+        </View> */}
 
         <View style={styles.itemRow}>
           <Icon name="location-outline" size={22} color="#555" />

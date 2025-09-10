@@ -25,7 +25,14 @@ import { useTheme } from "../context/ThemeContext";
 import * as ImagePicker from "expo-image-picker";
 import { supabase } from "../services/supabaseClient";
 import { db } from "../firebase";
-import { query, collection, where, getDocs, updateDoc, doc } from "firebase/firestore";
+import {
+  query,
+  collection,
+  where,
+  getDocs,
+  updateDoc,
+  doc,
+} from "firebase/firestore";
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
@@ -194,7 +201,7 @@ export default function ProfileScreen() {
   const pickFromCamera = async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
+      if (status !== "granted") {
         Alert.alert("Permission Required", "Please allow camera access.");
         return;
       }
@@ -219,15 +226,19 @@ export default function ProfileScreen() {
 
   const pickFromGallery = async () => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert("Permission Required", "Please allow access to your photos.");
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please allow access to your photos."
+        );
         return;
       }
 
       setUploading(true);
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'Images',
+        mediaTypes: "Images",
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.7,
@@ -246,9 +257,9 @@ export default function ProfileScreen() {
   const uploadProfilePicture = async (asset) => {
     try {
       // Upload to Supabase Storage
-      const fileExt = asset.uri.split('.').pop();
+      const fileExt = asset.uri.split(".").pop();
       const fileName = `profile_${Date.now()}.${fileExt}`;
-      
+
       // Fetch the image as blob
       const response = await fetch(asset.uri);
       const blob = await response.blob();
@@ -274,12 +285,13 @@ export default function ProfileScreen() {
       // Save URL to Firestore user profile
       let userIdentifier = await AsyncStorage.getItem("user");
       if (!userIdentifier) return;
-      
+
       let cleanIdentifier = userIdentifier;
       try {
         const parsed = JSON.parse(userIdentifier);
-        if (typeof parsed === 'object' && parsed !== null) {
-          cleanIdentifier = parsed.username || parsed.email || parsed.id || userIdentifier;
+        if (typeof parsed === "object" && parsed !== null) {
+          cleanIdentifier =
+            parsed.username || parsed.email || parsed.id || userIdentifier;
         }
       } catch (e) {}
       cleanIdentifier = cleanIdentifier.toString().trim();
@@ -292,7 +304,9 @@ export default function ProfileScreen() {
       const userSnap = await getDocs(userQuery);
       if (!userSnap.empty) {
         const userDocId = userSnap.docs[0].id;
-        await updateDoc(doc(db, "users", userDocId), { profilePicUrl: publicURL });
+        await updateDoc(doc(db, "users", userDocId), {
+          profilePicUrl: publicURL,
+        });
         setUserInfo((prev) => ({ ...prev, profilePicUrl: publicURL }));
       }
 
@@ -307,16 +321,17 @@ export default function ProfileScreen() {
   const removeProfilePicture = async () => {
     try {
       setProfilePicUrl(null);
-      
+
       // Update Firestore to remove profile picture URL
       let userIdentifier = await AsyncStorage.getItem("user");
       if (!userIdentifier) return;
-      
+
       let cleanIdentifier = userIdentifier;
       try {
         const parsed = JSON.parse(userIdentifier);
-        if (typeof parsed === 'object' && parsed !== null) {
-          cleanIdentifier = parsed.username || parsed.email || parsed.id || userIdentifier;
+        if (typeof parsed === "object" && parsed !== null) {
+          cleanIdentifier =
+            parsed.username || parsed.email || parsed.id || userIdentifier;
         }
       } catch (e) {}
       cleanIdentifier = cleanIdentifier.toString().trim();
@@ -367,6 +382,10 @@ export default function ProfileScreen() {
                   style={styles.profileImage}
                 />
               )}
+              {/* Camera Icon Overlay */}
+              <View style={styles.cameraIconWrapper}>
+                <Icon name="camera" size={18} color="#fff" />
+              </View>
             </TouchableOpacity>
             <Text style={styles.name}>
               {userInfo
@@ -418,8 +437,17 @@ export default function ProfileScreen() {
                 style={styles.settingItem}
                 onPress={() => navigation.navigate("AdminUtils")}
               >
-                <Icon name="shield-checkmark-outline" size={22} color="#e75e33" />
-                <Text style={[styles.settingText, { color: "#e75e33", fontWeight: "bold" }]}>
+                <Icon
+                  name="shield-checkmark-outline"
+                  size={22}
+                  color="#e75e33"
+                />
+                <Text
+                  style={[
+                    styles.settingText,
+                    { color: "#e75e33", fontWeight: "bold" },
+                  ]}
+                >
                   Admin Utilities
                 </Text>
               </TouchableOpacity>
@@ -452,17 +480,32 @@ export default function ProfileScreen() {
           >
             <View style={styles.actionSheet}>
               <Text style={styles.actionSheetTitle}>Profile Picture</Text>
-              
+
               <TouchableOpacity
                 style={styles.actionButton}
                 onPress={handleSetProfilePicture}
                 disabled={uploading}
               >
-                <Icon name="camera-outline" size={20} color="#333" style={{ marginRight: 10 }} />
+                <Icon
+                  name="camera-outline"
+                  size={21}
+                  color="#fff"
+                  style={{ marginRight: 6 }}
+                />
                 <Text style={styles.actionText}>
-                  {uploading ? "Uploading..." : profilePicUrl ? "Update Profile Picture" : "Set Profile Picture"}
+                  {uploading
+                    ? "Uploading..."
+                    : profilePicUrl
+                      ? "Update Profile Picture"
+                      : "Set Profile Picture"}
                 </Text>
-                {uploading && <ActivityIndicator size="small" color="#e75e33" style={{ marginLeft: 10 }} />}
+                {uploading && (
+                  <ActivityIndicator
+                    size="small"
+                    color="#e75e33"
+                    style={{ marginLeft: 10 }}
+                  />
+                )}
               </TouchableOpacity>
 
               {profilePicUrl && (
@@ -470,18 +513,25 @@ export default function ProfileScreen() {
                   style={styles.actionButton}
                   onPress={removeProfilePicture}
                 >
-                  <Icon name="trash-outline" size={20} color="red" style={{ marginRight: 10 }} />
+                  <Icon
+                    name="trash-outline"
+                    size={20}
+                    color="red"
+                    style={{ marginRight: 10 }}
+                  />
                   <Text style={[styles.actionText, { color: "red" }]}>
                     Remove Profile Picture
                   </Text>
                 </TouchableOpacity>
               )}
-              
+
               <TouchableOpacity
-                style={[styles.actionButton, styles.cancelActionButton]}
+                style={[styles.cancelActionButton]}
                 onPress={() => setImageModalVisible(false)}
               >
-                <Text style={[styles.actionText, { color: "#666" }]}>Cancel</Text>
+                <Text style={[styles.actionText, { color: "#666" }]}>
+                  Cancel
+                </Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -681,15 +731,30 @@ const styles = StyleSheet.create({
     width: 90,
     height: 90,
     borderRadius: 60,
-    borderWidth: 1,
+    borderWidth: 1.5,
+    borderColor: "#d9d9d9",
     marginBottom: 10,
+    elevation: 4,
+  },
+  cameraIconWrapper: {
+    position: "absolute",
+    bottom: 8,
+    right: 3,
+    backgroundColor: "#49A5A2",
+    borderRadius: 20,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: "#d9d9d9",
+    elevation: 3,
   },
   container: {
     padding: 20,
   },
   profileSection: {
+    position: "relative",
     alignItems: "center",
-    marginBottom: 30,
+    justifyContent: "center",
+    marginBottom: 20,
   },
   avatar: {
     width: 90,
@@ -751,7 +816,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     backgroundColor: "#fff5f0",
     paddingHorizontal: 15,
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderRadius: 10,
   },
   logoutText: {
@@ -793,7 +858,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   actionSheet: {
-    backgroundColor: "#dfdfdf",
+    backgroundColor: "#ffff",
     padding: 20,
     borderTopLeftRadius: 15,
     borderTopRightRadius: 15,
@@ -809,19 +874,26 @@ const styles = StyleSheet.create({
   actionButton: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 15,
-    backgroundColor: "#fff",
+    justifyContent: "center",
+    padding: 12,
+    backgroundColor: "#49A5A2",
     borderRadius: 15,
     marginBottom: 10,
     elevation: 2,
   },
   cancelActionButton: {
-    backgroundColor: "#f0f0f0",
+    flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: "#f0f0f0",
+    marginBottom: 10,
+    elevation: 2,
   },
   actionText: {
     fontSize: 16,
-    color: "#333",
+    color: "#fff",
     fontWeight: "600",
   },
 });

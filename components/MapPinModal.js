@@ -267,7 +267,7 @@ const MapPinModal = ({
                 style={styles.mediaPickerButton}
               >
                 <Text style={styles.mediaPickerText}>
-                  {media ? "Add More Media" : "Pick Image"}
+                  {media ? "Add More Media" : "Upload Media"}
                 </Text>
               </TouchableOpacity>
             )}
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   cancelButton: {
-    backgroundColor: '#EC6135',
+    backgroundColor: '#999',
   },
   saveButton: {
     backgroundColor: '#49A5A2',
