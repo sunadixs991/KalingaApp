@@ -1070,14 +1070,16 @@ export default function MapScreen({ route }) {
                 <Text style={styles.modalUser} numberOfLines={0}>
                   {selectedPin.userFirstName}
                 </Text>
+
+                  {/* Category */}
+                <Text style={styles.modalCategory} numberOfLines={0}>
+                  {selectedPin.category}
+                </Text>
                 <Text style={styles.modalDesc} numberOfLines={0}>
                   {selectedPin.description || "User"}
                 </Text>
 
-                {/* Category */}
-                <Text style={styles.modalCategory} numberOfLines={0}>
-                  {selectedPin.category}
-                </Text>
+              
 
                 {/* User */}
                 <Text style={styles.modalTime}>

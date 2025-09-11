@@ -16,10 +16,11 @@ import Icon from "react-native-vector-icons/Ionicons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { supabase } from "../services/supabaseClient"; // adjust path if your supabase client is exported elsewhere
+import { supabase } from '../services/supabaseClient'; // adjust path if your supabase client is exported elsewhere
+import { notifyUsers } from '../services/notification';
 import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "../firebase";
-import { notifyUsers } from "../services/notification";
+import { db } from "../firebase"; // adjust path if needed
+
 
 export default function AddScheduleScreen({ navigation, route }) {
   const { onSave } = route.params || {};
@@ -29,6 +30,7 @@ export default function AddScheduleScreen({ navigation, route }) {
     date: new Date(),
     time: new Date(),
     location: "",
+    purok: "", // Add purok field
   });
 
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -37,22 +39,20 @@ export default function AddScheduleScreen({ navigation, route }) {
   const [barangayList, setBarangayList] = useState([]);
   const [barangayModalVisible, setBarangayModalVisible] = useState(false);
 
+  // NEW: purok state
+  const [purokList, setPurokList] = useState([]);
+  const [purokModalVisible, setPurokModalVisible] = useState(false);
+
   useEffect(() => {
     // Fetch barangay list from Firestore
     const fetchBarangays = async () => {
       try {
         const snap = await getDocs(collection(db, "barangays"));
         const list = [];
-        snap.forEach((doc) => {
+        snap.forEach(doc => {
           const data = doc.data();
           if (data.name) list.push(data.name);
         });
-
-        // ✅ sort alphabetically (case-insensitive)
-        list.sort((a, b) =>
-          a.localeCompare(b, undefined, { sensitivity: "base" })
-        );
-        
         setBarangayList(list);
       } catch (error) {
         console.log("Failed to fetch barangays:", error);
@@ -60,6 +60,45 @@ export default function AddScheduleScreen({ navigation, route }) {
     };
     fetchBarangays();
   }, []);
+
+  // Fetch purok list when barangay changes
+  useEffect(() => {
+    const fetchPuroks = async () => {
+      if (!newSchedule.title) {
+        setPurokList([]);
+        setNewSchedule((prev) => ({ ...prev, purok: "" }));
+        return;
+      }
+      try {
+        // Assuming each barangay document has a subcollection "puroks"
+        const barangayQuery = query(
+          collection(db, "barangays"),
+          where("name", "==", newSchedule.title)
+        );
+        const barangaySnap = await getDocs(barangayQuery);
+        if (!barangaySnap.empty) {
+          const barangayDoc = barangaySnap.docs[0];
+          const puroksSnap = await getDocs(
+            collection(barangayDoc.ref, "puroks")
+          );
+          const list = [];
+          puroksSnap.forEach((doc) => {
+            const data = doc.data();
+            if (data.name) list.push(data.name);
+          });
+          setPurokList(list);
+        } else {
+          setPurokList([]);
+        }
+        setNewSchedule((prev) => ({ ...prev, purok: "" }));
+      } catch (error) {
+        console.log("Failed to fetch puroks:", error);
+        setPurokList([]);
+        setNewSchedule((prev) => ({ ...prev, purok: "" }));
+      }
+    };
+    fetchPuroks();
+  }, [newSchedule.title]);
 
   // Pick file (allow Excel .xlsx / .xls and CSV). Handles different DocumentPicker return shapes.
   const pickDocument = async () => {
@@ -82,8 +121,7 @@ export default function AddScheduleScreen({ navigation, route }) {
         const asset = res.assets[0];
         const uri = asset.uri;
         const name = asset.name || asset.fileName || uri.split("/").pop();
-        const mimeType =
-          asset.mimeType || asset.type || "application/octet-stream";
+        const mimeType = asset.mimeType || asset.type || "application/octet-stream";
         const fileObj = { uri, name, type: mimeType };
         console.log("Picked file (assets):", fileObj);
         setSelectedFile(fileObj);
@@ -102,11 +140,7 @@ export default function AddScheduleScreen({ navigation, route }) {
       }
 
       // User cancelled (various shapes)
-      if (
-        res?.canceled === true ||
-        res?.type === "cancel" ||
-        res?.type === "cancelled"
-      ) {
+      if (res?.canceled === true || res?.type === "cancel" || res?.type === "cancelled") {
         console.log("DocumentPicker cancelled by user");
         Alert.alert("No file selected", "You cancelled file selection.");
         return;
@@ -181,14 +215,13 @@ export default function AddScheduleScreen({ navigation, route }) {
           // Use a simple filename (you may keep folders if you prefer)
           const uploadName = uniqueFileName; // e.g. "166xxx_abcd.xlsx"
 
-          const { data: uploadData, error: uploadError } =
-            await supabase.storage
-              .from("schedule-files")
-              .upload(uploadName, uint8Array, {
-                contentType: selectedFile.type || "application/octet-stream",
-                cacheControl: "3600",
-                upsert: false,
-              });
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from("schedule-files")
+            .upload(uploadName, uint8Array, {
+              contentType: selectedFile.type || "application/octet-stream",
+              cacheControl: "3600",
+              upsert: false,
+            });
 
           if (uploadError) {
             console.error("Supabase upload error detail:", uploadError);
@@ -220,6 +253,7 @@ export default function AddScheduleScreen({ navigation, route }) {
             date: newSchedule.date.toISOString().split("T")[0],
             time: formattedTime,
             location: newSchedule.location,
+            purok: newSchedule.purok, // <-- ADD THIS LINE
             file_url: fileUrl,
             file_name: fileName,
           },
@@ -253,19 +287,6 @@ export default function AddScheduleScreen({ navigation, route }) {
 
       // Send notification to users (best-effort)
       try {
-        // Only notify users within the selected barangay
-        const selectedBarangay = newSchedule.title;
-        const usersQuery = query(
-          collection(db, "users"),
-          where("barangay", "==", selectedBarangay)
-        );
-        const usersSnap = await getDocs(usersQuery);
-        const phoneNumbers = [];
-        usersSnap.forEach((doc) => {
-          const data = doc.data();
-          if (data.phoneNumber) phoneNumbers.push(data.phoneNumber);
-        });
-
         const notificationMessage =
           `[Kalinga App]\nNew Food Distribution Schedule\n` +
           `Barangay: ${newItem.title}\n` +
@@ -273,11 +294,7 @@ export default function AddScheduleScreen({ navigation, route }) {
           `Time: ${newItem.time}\n` +
           `Location: ${newItem.location}`;
 
-        // Pass phoneNumbers to notifyUsers so only those users get notified
-        const notifyResult = await notifyUsers(
-          notificationMessage,
-          phoneNumbers
-        );
+        const notifyResult = await notifyUsers(notificationMessage);
         console.log("notifyUsers result:", notifyResult);
       } catch (notifyErr) {
         console.error("Notification error:", notifyErr);
@@ -306,9 +323,7 @@ export default function AddScheduleScreen({ navigation, route }) {
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Barangay Selector */}
           <View style={styles.input}>
-            <Text style={{ marginBottom: 5, color: "#333" }}>
-              Select Barangay
-            </Text>
+            <Text style={{ marginBottom: 5, color: "#333" }}>Select Barangay</Text>
             <TouchableOpacity
               style={styles.selectorButton}
               onPress={() => setBarangayModalVisible(true)}
@@ -316,12 +331,7 @@ export default function AddScheduleScreen({ navigation, route }) {
               <Text style={{ color: newSchedule.title ? "#333" : "#aaa" }}>
                 {newSchedule.title || "Select Barangay"}
               </Text>
-              <Icon
-                name="chevron-down"
-                size={20}
-                color="#333"
-                style={{ marginLeft: 8 }}
-              />
+              <Icon name="chevron-down" size={20} color="#333" style={{ marginLeft: 8 }} />
             </TouchableOpacity>
           </View>
 
@@ -342,7 +352,7 @@ export default function AddScheduleScreen({ navigation, route }) {
                     <TouchableOpacity
                       style={styles.modalItem}
                       onPress={() => {
-                        setNewSchedule({ ...newSchedule, title: item });
+                        setNewSchedule({ ...newSchedule, title: item, purok: "" }); // <-- Reset purok when barangay changes
                         setBarangayModalVisible(false);
                       }}
                     >
@@ -353,6 +363,56 @@ export default function AddScheduleScreen({ navigation, route }) {
                 <TouchableOpacity
                   style={styles.closeButton}
                   onPress={() => setBarangayModalVisible(false)}
+                >
+                  <Text style={styles.closeButtonText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+
+          {/* NEW: Purok Selector */}
+          <View style={styles.input}>
+            <Text style={{ marginBottom: 5, color: "#333" }}>Select Purok</Text>
+            <TouchableOpacity
+              style={styles.selectorButton}
+              onPress={() => setPurokModalVisible(true)}
+              disabled={!newSchedule.title}
+            >
+              <Text style={{ color: newSchedule.purok ? "#333" : "#aaa" }}>
+                {newSchedule.purok || (newSchedule.title ? "Select Purok" : "Select Barangay first")}
+              </Text>
+              <Icon name="chevron-down" size={20} color="#333" style={{ marginLeft: 8 }} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Purok Modal */}
+          <Modal
+            visible={purokModalVisible}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setPurokModalVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Choose Purok</Text>
+                <FlatList
+                  data={purokList}
+                  keyExtractor={(item) => item}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.modalItem}
+                      onPress={() => {
+                        setNewSchedule({ ...newSchedule, purok: item });
+                        setPurokModalVisible(false);
+                      }}
+                    >
+                      <Text style={styles.modalItemText}>{item}</Text>
+                    </TouchableOpacity>
+                  )}
+                />
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => setPurokModalVisible(false)}
                 >
                   <Text style={styles.closeButtonText}>Close</Text>
                 </TouchableOpacity>

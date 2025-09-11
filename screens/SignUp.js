@@ -39,6 +39,8 @@ export default function SignUp({ navigation }) {
   const [city, setCity] = useState("");
   const [barangay, setBarangay] = useState("");
   const [barangayList, setBarangayList] = useState([]);
+  const [purok, setPurok] = useState("");
+  const [purokList, setPurokList] = useState([]);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -63,6 +65,45 @@ export default function SignUp({ navigation }) {
     };
     fetchBarangays();
   }, []);
+
+  // Fetch purok list when barangay changes
+  useEffect(() => {
+    const fetchPuroks = async () => {
+      if (!barangay) {
+        setPurokList([]);
+        setPurok("");
+        return;
+      }
+      try {
+        // Assuming each barangay document has a subcollection "puroks"
+        const barangayQuery = query(
+          collection(db, "barangays"),
+          where("name", "==", barangay)
+        );
+        const barangaySnap = await getDocs(barangayQuery);
+        if (!barangaySnap.empty) {
+          const barangayDoc = barangaySnap.docs[0];
+          const puroksSnap = await getDocs(
+            collection(barangayDoc.ref, "puroks")
+          );
+          const list = [];
+          puroksSnap.forEach((doc) => {
+            const data = doc.data();
+            if (data.name) list.push(data.name);
+          });
+          setPurokList(list);
+        } else {
+          setPurokList([]);
+        }
+        setPurok("");
+      } catch (error) {
+        console.log("Failed to fetch puroks:", error);
+        setPurokList([]);
+        setPurok("");
+      }
+    };
+    fetchPuroks();
+  }, [barangay]);
 
   const onChangeDate = (event, selectedDate) => {
     setShowDatePicker(false);
@@ -310,6 +351,35 @@ export default function SignUp({ navigation }) {
                   >
                     <Picker.Item label="Select Barangay" value="" />
                     {barangayList.map((name, idx) => (
+                      <Picker.Item key={idx} label={name} value={name} />
+                    ))}
+                  </Picker>
+                </View>
+
+                <View
+                  style={[
+                    styles.pickerContainer,
+                    stepOneErrors.purok && { borderColor: "red" },
+                  ]}
+                >
+                  <Picker
+                    selectedValue={purok}
+                    onValueChange={(itemValue) => {
+                      setPurok(itemValue);
+                      setStepOneErrors((prev) => ({ ...prev, purok: false }));
+                    }}
+                    style={styles.picker}
+                    enabled={!!barangay}
+                  >
+                    <Picker.Item
+                      label={
+                        barangay
+                          ? "Select Purok"
+                          : "Select Barangay first"
+                      }
+                      value=""
+                    />
+                    {purokList.map((name, idx) => (
                       <Picker.Item key={idx} label={name} value={name} />
                     ))}
                   </Picker>

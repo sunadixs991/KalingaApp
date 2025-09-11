@@ -47,6 +47,7 @@ export default function FoodDistribution({ navigation }) {
         date: new Date(item.date).toLocaleDateString(),
         time: item.time,
         location: item.location,
+        purok: item.purok, // <-- Add purok field
         fileUrl: item.file_url,
         fileName: item.file_name,
       }));
@@ -107,6 +108,9 @@ export default function FoodDistribution({ navigation }) {
                 <Text style={styles.cardText}>📅 {item.date}</Text>
                 <Text style={styles.cardText}>⏰ {item.time}</Text>
                 <Text style={styles.cardText}>📍 {item.location}</Text>
+                {item.purok && (
+                  <Text style={styles.cardText}>🏘️ Purok: {item.purok}</Text>
+                )}
                 {item.fileUrl && (
                   <TouchableOpacity
                     style={styles.fileLink}
