@@ -76,16 +76,18 @@ export default function HomeScreen({ route, navigation }) {
   const [selectedPin, setSelectedPin] = useState(null);
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const { isDarkMode } = useTheme();
+  const [notificationModalVisible, setNotificationModalVisible] = useState(false);
 
-  const colors = {
-    background: isDarkMode ? "#121212" : "#fff",
-    cardBg: isDarkMode ? "#1e1e1e" : "#fff",
-    textPrimary: isDarkMode ? "#fff" : "#000",
-    textSecondary: isDarkMode ? "#ccc" : "#666",
-    placeholder: isDarkMode ? "#888" : "#999",
-    accent: "#e75e33",
-    highlight: "#49A5A2",
-  };
+
+  // const colors = {
+  //   background: isDarkMode ? "#121212" : "#fff",
+  //   cardBg: isDarkMode ? "#1e1e1e" : "#fff",
+  //   textPrimary: isDarkMode ? "#fff" : "#000",
+  //   textSecondary: isDarkMode ? "#ccc" : "#666",
+  //   placeholder: isDarkMode ? "#888" : "#999",
+  //   accent: "#e75e33",
+  //   highlight: "#49A5A2",
+  // };
 
   // Test the import
   // useEffect(() => {
@@ -379,7 +381,7 @@ export default function HomeScreen({ route, navigation }) {
                       onPress={() => setPinModalVisible(false)}
                       style={styles.closeIcon}
                     >
-                      <Icon name="close" size={30} color="#666" />
+                      <Icon name="close" size={22} color="#666" />
                     </TouchableOpacity>
 
                     {/* Content */}
@@ -636,14 +638,24 @@ const styles = StyleSheet.create({
   },
   closeIcon: {
     position: "absolute",
-    top: 10,
+    top: 12,
     right: 10,
-    padding: 5,
+    padding: 2,
+    backgroundColor: "#fff",
+    borderRadius: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+    marginRight: 5,
   },
   modalTitle: {
     fontWeight: "bold",
     fontSize: 18,
     marginBottom: 8,
+    alignItems: "center",
+    textAlign: "center",
   },
   modalCategory: {
     fontSize: 14,
@@ -656,6 +668,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   modalDescription: {
+    alignItems: "center",
+    textAlign: "center",
     marginBottom: 12,
     color: "#333",
   },

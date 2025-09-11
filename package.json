@@ -12,6 +12,7 @@
   "dependencies": {
     "@expo-google-fonts/caveat": "^0.4.1",
     "@react-native-async-storage/async-storage": "^2.1.2",
+    "@react-native-community/blur": "^4.4.1",
     "@react-native-community/datetimepicker": "8.4.1",
     "@react-native-picker/picker": "^2.11.1",
     "@react-navigation/bottom-tabs": "^7.4.2",
@@ -53,7 +54,8 @@
     "react-native-video": "^6.16.1",
     "react-native-walkthrough-tooltip": "^1.6.0",
     "react-native-webview": "13.13.5",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "expo-blur": "~14.1.5"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Alert,
   Modal,
+  StatusBar,
   ScrollView,
 } from "react-native";
 import { db } from "../firebase";
@@ -18,8 +19,13 @@ import {
   deleteDoc,
   doc,
 } from "firebase/firestore";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import Icon from "react-native-vector-icons/Ionicons";
 
 export default function ManageBarangay() {
+  const navigation = useNavigation();
+
   const [barangays, setBarangays] = useState([]);
   const [newBarangayName, setNewBarangayName] = useState("");
   const [selectedBarangayId, setSelectedBarangayId] = useState(null);
@@ -35,9 +41,13 @@ export default function ManageBarangay() {
   const fetchBarangays = async () => {
     const querySnapshot = await getDocs(collection(db, "barangays"));
     const fetched = [];
-    querySnapshot.forEach((doc) => {
-      fetched.push({ id: doc.id, ...doc.data() });
+    querySnapshot.forEach((docSnap) => {
+      fetched.push({ id: docSnap.id, ...docSnap.data() });
     });
+
+    // sort alphabetically by name
+    fetched.sort((a, b) => a.name.localeCompare(b.name));
+
     setBarangays(fetched);
   };
 
@@ -68,9 +78,13 @@ export default function ManageBarangay() {
     const purokRef = collection(db, "barangays", barangayId, "puroks");
     const querySnapshot = await getDocs(purokRef);
     const fetched = [];
-    querySnapshot.forEach((doc) => {
-      fetched.push({ id: doc.id, ...doc.data() });
+    querySnapshot.forEach((docSnap) => {
+      fetched.push({ id: docSnap.id, ...docSnap.data() });
     });
+    
+    // sort alphabetically by name
+    fetched.sort((a, b) => a.name.localeCompare(b.name));
+
     setPuroks(fetched);
   };
 
@@ -82,7 +96,7 @@ export default function ManageBarangay() {
     setShowPurokModal(true);
   };
 
-  // Add a purok to selected barangay
+  // Add a purok
   const handleAddPurok = async () => {
     if (!newPurokName.trim()) {
       Alert.alert("Missing Info", "Please enter purok name.");
@@ -96,14 +110,19 @@ export default function ManageBarangay() {
     fetchPuroks(selectedBarangayId);
   };
 
-  // Delete a purok from selected barangay
+  // Delete a purok
   const handleDeletePurok = async (purokId) => {
-    const purokDocRef = doc(db, "barangays", selectedBarangayId, "puroks", purokId);
+    const purokDocRef = doc(
+      db,
+      "barangays",
+      selectedBarangayId,
+      "puroks",
+      purokId
+    );
     await deleteDoc(purokDocRef);
     fetchPuroks(selectedBarangayId);
   };
 
-  // Close purok modal
   const closePurokModal = () => {
     setShowPurokModal(false);
     setSelectedBarangayId(null);
@@ -114,41 +133,59 @@ export default function ManageBarangay() {
   const selectedBarangay = barangays.find((b) => b.id === selectedBarangayId);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Manage Barangays & Puroks</Text>
-      
-      {/* Add Barangay */}
-      <View style={styles.addContainer}>
-        <TextInput
-          placeholder="Barangay Name"
-          value={newBarangayName}
-          onChangeText={setNewBarangayName}
-          style={styles.input}
-        />
-        <TouchableOpacity style={styles.addButton} onPress={handleAddBarangay}>
-          <Text style={styles.addButtonText}>Add Barangay</Text>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <StatusBar barStyle="light-content" backgroundColor="#e75e33" />
+
+      {/* Top Bar */}
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Icon name="chevron-back" size={26} color="#333" />
         </TouchableOpacity>
+        <Text style={styles.topBarTitle}>Manage Barangays</Text>
+        <View style={styles.backButton} />
       </View>
 
-      {/* Barangay List */}
-      <FlatList
-        data={barangays}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.barangayRow}>
-            <TouchableOpacity
-              style={{ flex: 1 }}
-              onPress={() => handleSelectBarangay(item.id)}
-            >
-              <Text style={styles.barangayName}>{item.name}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => handleDeleteBarangay(item.id)}>
-              <Text style={styles.deleteText}>Delete</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        style={{ marginTop: 16 }}
-      />
+      {/* Content */}
+      <View style={styles.container}>
+        {/* Add Barangay */}
+        <View style={styles.addContainer}>
+          <TextInput
+            placeholder="Barangay Name"
+            value={newBarangayName}
+            onChangeText={setNewBarangayName}
+            style={styles.input}
+          />
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={handleAddBarangay}
+          >
+            <Text style={styles.addButtonText}>Add Barangay</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Barangay List */}
+        <FlatList
+          data={barangays}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <View style={styles.barangayRow}>
+              <TouchableOpacity
+                style={{ flex: 1 }}
+                onPress={() => handleSelectBarangay(item.id)}
+              >
+                <Text style={styles.barangayName}>{item.name}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleDeleteBarangay(item.id)}>
+                <Icon name="trash-outline" size={20} color="#ff4444" />
+              </TouchableOpacity>
+            </View>
+          )}
+          style={{ marginTop: 16 }}
+        />
+      </View>
 
       {/* Purok Modal */}
       <Modal
@@ -161,6 +198,7 @@ export default function ManageBarangay() {
           <View style={styles.modalContainer}>
             {selectedBarangay && (
               <>
+                {/* Header */}
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>
                     Puroks in {selectedBarangay.name}
@@ -173,56 +211,88 @@ export default function ManageBarangay() {
                   </TouchableOpacity>
                 </View>
 
-                {/* Add Purok Section */}
-                <View style={styles.addContainer}>
-                  <TextInput
-                    placeholder="Purok Name"
-                    value={newPurokName}
-                    onChangeText={setNewPurokName}
-                    style={styles.input}
-                  />
-                  <TouchableOpacity style={styles.addButton} onPress={handleAddPurok}>
-                    <Text style={styles.addButtonText}>Add Purok</Text>
-                  </TouchableOpacity>
-                </View>
+                {/* Scrollable Content */}
+                <ScrollView
+                  contentContainerStyle={{ paddingBottom: 20 }}
+                  showsVerticalScrollIndicator={true}
+                >
+                  {/* Add Purok */}
+                  <View style={styles.addContainer}>
+                    <TextInput
+                      placeholder="Purok Name"
+                      value={newPurokName}
+                      onChangeText={setNewPurokName}
+                      style={styles.input}
+                    />
+                    <TouchableOpacity
+                      style={styles.addButton}
+                      onPress={handleAddPurok}
+                    >
+                      <Text style={styles.addButtonText}>Add Purok</Text>
+                    </TouchableOpacity>
+                  </View>
 
-                {/* Purok List stays always visible in modal */}
-                <View style={styles.purokListContainer}>
-                  <FlatList
-                    data={puroks}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => (
-                      <View style={styles.purokRow}>
+                  {/* Purok List */}
+                  {puroks.length > 0 ? (
+                    puroks.map((item) => (
+                      <View key={item.id} style={styles.purokRow}>
                         <Text style={styles.purokName}>{item.name}</Text>
-                        <TouchableOpacity onPress={() => handleDeletePurok(item.id)}>
-                          <Text style={styles.deleteText}>Delete</Text>
+                        <TouchableOpacity
+                          onPress={() => handleDeletePurok(item.id)}
+                        >
+                          <Icon
+                            name="trash-outline"
+                            size={20}
+                            color="#ff4444"
+                          />
                         </TouchableOpacity>
                       </View>
-                    )}
-                    ListEmptyComponent={
-                      <Text style={styles.emptyText}>No puroks added yet</Text>
-                    }
-                    showsVerticalScrollIndicator={true}
-                  />
-                </View>
+                    ))
+                  ) : (
+                    <Text style={styles.emptyText}>No puroks added yet</Text>
+                  )}
+                </ScrollView>
               </>
             )}
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: "#fff" },
-  title: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 16,
-    color: "#e75e33",
-    alignSelf: "center",
+  safeArea: { flex: 1, backgroundColor: "#fff" },
+  topBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 3,
+    elevation: 5,
+    zIndex: 10,
   },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  topBarTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#000",
+    textAlign: "center",
+  },
+
+  container: { flex: 1, padding: 20, backgroundColor: "#fff" },
   addContainer: { marginBottom: 20 },
   input: {
     borderWidth: 1,
@@ -233,7 +303,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f7f7f7",
   },
   addButton: {
-    backgroundColor: "#e75e33",
+    backgroundColor: "#49A5A2",
     padding: 12,
     borderRadius: 8,
     alignItems: "center",
@@ -249,8 +319,8 @@ const styles = StyleSheet.create({
   },
   barangayName: { flex: 1, fontWeight: "bold", color: "#333", fontSize: 16 },
   deleteText: { color: "red", fontWeight: "bold", marginLeft: 12 },
-  
-  // Modal Styles
+
+  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
@@ -264,13 +334,6 @@ const styles = StyleSheet.create({
     padding: 20,
     width: "90%",
     maxHeight: "80%",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
     elevation: 5,
   },
   modalHeader: {
@@ -291,24 +354,23 @@ const styles = StyleSheet.create({
   closeButton: {
     width: 30,
     height: 30,
-    borderRadius: 15,
-    backgroundColor: "#e75e33",
-    justifyContent: "center",
-    alignItems: "center",
+    borderRadius: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderRadius: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   closeButtonText: {
-    color: "#fff",
-    fontSize: 20,
+    color: "#333",
+    fontSize: 22,
     fontWeight: "bold",
+    textAlign: "center",
   },
-  purokListContainer: {
-    flex: 1,
-    minHeight: 200,
-    maxHeight: 300,
-  },
-  purokScrollView: {
-    flex: 1,
-  },
+
+  purokListContainer: { flex: 1, minHeight: 200, maxHeight: 300 },
   purokRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -317,12 +379,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
   },
-  purokName: { 
-    flex: 1, 
-    color: "#333", 
-    fontWeight: "500",
-    fontSize: 14,
-  },
+  purokName: { flex: 1, color: "#333", fontWeight: "500", fontSize: 14 },
   emptyText: {
     textAlign: "center",
     color: "#666",

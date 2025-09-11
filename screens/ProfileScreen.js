@@ -572,7 +572,7 @@ export default function ProfileScreen() {
                   marginBottom: 16,
                 }}
               >
-                <Text style={{ fontSize: 18, fontWeight: "bold" }}>
+                <Text style={{ fontSize: 18, fontWeight: "bold", color: "#e75e33" }}>
                   {isEditing
                     ? "Edit Account Information"
                     : "Account Information"}
@@ -580,9 +580,10 @@ export default function ProfileScreen() {
                 <TouchableOpacity onPress={handleModalClose}>
                   <Icon
                     name="close"
-                    size={24}
+                    size={20}
                     color="#333"
                     style={{
+                      padding: 4,
                       backgroundColor: "#fff",
                       borderRadius: 6,
                       shadowColor: "#000",
@@ -826,7 +827,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   saveButton: {
-    backgroundColor: "#e75e33",
+    backgroundColor: "#49A5A2",
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 10,
