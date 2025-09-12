@@ -193,14 +193,17 @@ export default function SignUp({ navigation }) {
         province,
         city,
         barangay,
+        purok, // <-- make sure to include purok if needed
         password,
         is_verified: 0,
         createdAt: new Date(),
+        accountStatus: "active",
+        userType: "user", // <-- add this line
       });
 
       Alert.alert(
         "Success",
-        `Account created!}`,
+        `Account created!`,
         [
           {
             text: "OK",
@@ -440,7 +443,7 @@ export default function SignUp({ navigation }) {
                   style={[
                     styles.input,
                     (stepTwoErrors.confirmPassword || stepTwoErrors.passwordMismatch) &&
-                      { borderColor: "red" },
+                    { borderColor: "red" },
                   ]}
                   placeholder="Confirm Password"
                   secureTextEntry

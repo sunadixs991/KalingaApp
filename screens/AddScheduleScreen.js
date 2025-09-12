@@ -18,9 +18,35 @@ import * as DocumentPicker from "expo-document-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from '../services/supabaseClient'; // adjust path if your supabase client is exported elsewhere
 import { notifyUsers } from '../services/notification';
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "../firebase"; // adjust path if needed
+import { addDoc, collection, getDocs, query, where, Timestamp } from "firebase/firestore";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { db } from "../firebase";
 
+// Helper to log user activity
+async function logUserActivity({ title, description, userFirstName }) {
+  try {
+    await addDoc(collection(db, "user_activities"), {
+      title,
+      description,
+      userFirstName,
+      timestamp: Timestamp.now(),
+    });
+  } catch (err) {
+    console.log("Failed to log user activity:", err);
+  }
+}
+
+// Helper to get user's first name
+async function getUserFirstName() {
+  try {
+    const userInfoStr = await AsyncStorage.getItem("userInfo");
+    if (userInfoStr) {
+      const userInfo = JSON.parse(userInfoStr);
+      return userInfo.firstName || "Unknown";
+    }
+  } catch {}
+  return "Unknown";
+}
 
 export default function AddScheduleScreen({ navigation, route }) {
   const { onSave } = route.params || {};
@@ -300,6 +326,13 @@ export default function AddScheduleScreen({ navigation, route }) {
         console.error("Notification error:", notifyErr);
       }
 
+      const userFirstName = await getUserFirstName();
+      await logUserActivity({
+        title: "Add Schedule",
+        description: `Added schedule for Barangay ${newSchedule.title}, Purok ${newSchedule.purok}, Location: ${newSchedule.location}`,
+        userFirstName,
+      });
+
       Alert.alert("Success", "New schedule added successfully!");
       navigation.goBack();
     } catch (error) {
@@ -307,6 +340,52 @@ export default function AddScheduleScreen({ navigation, route }) {
       Alert.alert("Error", error?.message || "Failed to add schedule");
     }
   };
+
+  // Edit schedule function (for future use)
+  async function handleEditSchedule(scheduleId, updatedSchedule) {
+    try {
+      // Example: Update in Supabase
+      const { error } = await supabase
+        .from("food_schedules")
+        .update({
+          title: updatedSchedule.title,
+          date: updatedSchedule.date,
+          time: updatedSchedule.time,
+          location: updatedSchedule.location,
+          purok: updatedSchedule.purok,
+          file_url: updatedSchedule.fileUrl,
+          file_name: updatedSchedule.fileName,
+        })
+        .eq("id", scheduleId);
+
+      if (error) throw error;
+
+      // REMOVE logUserActivity call here
+
+      // Optionally refresh list or navigate back
+    } catch (error) {
+      Alert.alert("Error", error?.message || "Failed to edit schedule");
+    }
+  }
+
+  // Remove the logUserActivity call from handleDeleteSchedule
+  async function handleDeleteSchedule(scheduleId, scheduleData) {
+    try {
+      // Example: Delete in Supabase
+      const { error } = await supabase
+        .from("food_schedules")
+        .delete()
+        .eq("id", scheduleId);
+
+      if (error) throw error;
+
+      // REMOVE logUserActivity call here
+
+      // Optionally refresh list or navigate back
+    } catch (error) {
+      Alert.alert("Error", error?.message || "Failed to delete schedule");
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>

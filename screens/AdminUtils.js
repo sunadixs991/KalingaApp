@@ -19,18 +19,13 @@ export default function AdminUtils() {
 
       {/* Top Bar */}
       <View style={styles.topBar}>
-        {/* Back Button */}
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
           <Icon name="chevron-back" size={26} color="#fff" />
         </TouchableOpacity>
-
-        {/* Title */}
         <Text style={styles.topBarTitle}>Admin Utilities</Text>
-
-        {/* Empty placeholder to center the title */}
         <View style={styles.backButton} />
       </View>
 
@@ -66,6 +61,33 @@ export default function AdminUtils() {
         >
           <Icon name="stats-chart-outline" size={28} color="#8e44ad" style={styles.icon} />
           <Text style={styles.optionText}>Analytics</Text>
+        </TouchableOpacity>
+
+        {/* NEW: Manage Users */}
+        <TouchableOpacity
+          style={styles.option}
+          onPress={() => navigation.navigate("ManageUsers")}
+        >
+          <Icon name="people-outline" size={28} color="#2d98da" style={styles.icon} />
+          <Text style={styles.optionText}>Manage Users</Text>
+        </TouchableOpacity>
+
+        {/* NEW: Users Activity */}
+        <TouchableOpacity
+          style={styles.option}
+          onPress={() => navigation.navigate("UsersActivity")}
+        >
+          <Icon name="pulse-outline" size={28} color="#e67e22" style={styles.icon} />
+          <Text style={styles.optionText}>Users Activity</Text>
+        </TouchableOpacity>
+
+        {/* NEW: Manage Category */}
+        <TouchableOpacity
+          style={styles.option}
+          onPress={() => navigation.navigate("ManageCategory")}
+        >
+          <Icon name="pricetags-outline" size={28} color="#16a085" style={styles.icon} />
+          <Text style={styles.optionText}>Manage Category</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

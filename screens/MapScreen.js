@@ -14,7 +14,7 @@ import MapView, { Marker, Polyline } from "react-native-maps"; // <-- Add Polyli
 import * as Location from "expo-location";
 import Icon from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useIsFocused } from "@react-navigation/native";
 import { db } from "../firebase";
 import { supabase } from "../services/supabaseClient";
 import {
@@ -67,6 +67,7 @@ export default function MapScreen({ route }) {
   const [pendingPin, setPendingPin] = useState(null);
   const [description, setDescription] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [categoryStyles, setCategoryStyles] = useState({});
   const mapRef = useRef(null);
   const webviewRef = useRef(null);
   // keep a ref to pinMode to avoid stale closures in WebView onMessage handler
@@ -279,6 +280,8 @@ export default function MapScreen({ route }) {
   const [media, setMedia] = useState(null); // Add this with your other state declarations
   const [showMedia, setShowMedia] = useState(false); // Add this state near your other useState declarations
 
+  const isFocused = useIsFocused();
+
   useEffect(() => {
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -322,6 +325,33 @@ export default function MapScreen({ route }) {
       }
     })();
   }, []);
+
+  // Fetch categories on focus
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const snap = await getDocs(collection(db, "categories"));
+        const styles = {};
+        snap.forEach(doc => {
+          const data = doc.data();
+          if (data.name) {
+            styles[data.name.trim()] = {
+              color: data.color || "#2c352a",
+              icon: data.icon || "list",
+            };
+          }
+        });
+        // Always include Others fallback
+        styles["Others"] = styles["Others"] || { color: "#2c352a", icon: "list" };
+        setCategoryStyles(styles);
+      } catch (error) {
+        setCategoryStyles({
+          "Others": { color: "#2c352a", icon: "list" }
+        });
+      }
+    };
+    fetchCategories();
+  }, [isFocused]);
 
   // Handle focusPin when map is ready and pins are loaded
   useEffect(() => {
@@ -908,29 +938,18 @@ export default function MapScreen({ route }) {
     setRouteCoords([]);
   };
 
-  const categoryStyles = {
-    "Clean Drinking Water": { color: "#2196F3", icon: "tint" },
-    "Medical Aid": { color: "#F44336", icon: "hospital" },
-    "First Aid Kit": { color: "#FF9800", icon: "briefcase-medical" },
-    "Charging Station": { color: "#9C27B0", icon: "charging-station" },
-    "Free Wi-Fi Access": { color: "#00BCD4", icon: "wifi" },
-    "Clothing Supply": { color: "#795548", icon: "tshirt" },
-    "Blankets Supply": { color: "#607D8B", icon: "bed" },
-    "Animal Shelter": { color: "#8BC34A", icon: "paw" },
-    "Temporary Shelter": { color: "#FF5722", icon: "home" },
-    "Rescue Equipment": { color: "#E91E63", icon: "life-ring" },
-    "Sanitation Facility": { color: "#009688", icon: "shower" },
-    "Portable Toilets": { color: "#3F51B5", icon: "toilet" },
-    Others: { color: "#2c352aff", icon: "list" },
-  };
+
   // before return(...)
   const pinsWithIcons = allPins.map((p) => {
+    const categoryKey = (p.category || "Others").trim();
     const category =
-      categoryStyles[(p.category || "").trim()] || categoryStyles["Others"];
+      categoryStyles[categoryKey] ||
+      categoryStyles["Others"] || // fallback if category missing
+      { color: "#2c352a", icon: "list" }; // final fallback
     return {
       ...p,
-      iconClass: `fas fa-${category.icon}`, // e.g. 'fas fa-tint'
-      color: category.color || "#2c352a",
+      iconClass: `fas fa-${category.icon}`,
+      color: category.color,
     };
   });
 

@@ -33,6 +33,7 @@ import {
   updateDoc,
   doc,
 } from "firebase/firestore";
+import { Picker } from "@react-native-picker/picker"; // Add this import if not present
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
@@ -61,6 +62,9 @@ export default function ProfileScreen() {
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  const [barangayList, setBarangayList] = useState([]);
+  const [purokList, setPurokList] = useState([]);
 
   useEffect(() => {
     checkAdminStatus();
@@ -114,6 +118,63 @@ export default function ProfileScreen() {
     }
     fetchProfile();
   }, []);
+
+  useEffect(() => {
+    // Fetch barangay list from Firestore
+    const fetchBarangays = async () => {
+      try {
+        const snap = await getDocs(collection(db, "barangays"));
+        const list = [];
+        snap.forEach((doc) => {
+          const data = doc.data();
+          if (data.name) list.push(data.name);
+        });
+        setBarangayList(list);
+      } catch (error) {
+        console.log("Failed to fetch barangays:", error);
+      }
+    };
+    fetchBarangays();
+  }, []);
+
+  useEffect(() => {
+    // Fetch purok list when barangay changes
+    const fetchPuroks = async () => {
+      if (!editInfo.barangay) {
+        setPurokList([]);
+        setEditInfo((prev) => ({ ...prev, purok: "" }));
+        return;
+      }
+      try {
+        const barangayQuery = query(
+          collection(db, "barangays"),
+          where("name", "==", editInfo.barangay)
+        );
+        const barangaySnap = await getDocs(barangayQuery);
+        if (!barangaySnap.empty) {
+          const barangayDoc = barangaySnap.docs[0];
+          const puroksSnap = await getDocs(
+            collection(barangayDoc.ref, "puroks")
+          );
+          const list = [];
+          puroksSnap.forEach((doc) => {
+            const data = doc.data();
+            if (data.name) list.push(data.name);
+          });
+          setPurokList(list);
+        } else {
+          setPurokList([]);
+        }
+        setEditInfo((prev) => ({ ...prev, purok: "" }));
+      } catch (error) {
+        console.log("Failed to fetch puroks:", error);
+        setPurokList([]);
+        setEditInfo((prev) => ({ ...prev, purok: "" }));
+      }
+    };
+    fetchPuroks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editInfo.barangay]);
 
   const handleLogout = async () => {
     Alert.alert("Log Out", "Are you sure you want to log out?", [
@@ -171,9 +232,49 @@ export default function ProfileScreen() {
     });
   };
 
-  const handleSaveEdit = () => {
-    // TODO: Save updated info to your backend or AsyncStorage
-    setEditModalVisible(false);
+  const handleSaveEdit = async () => {
+    try {
+      setEditModalVisible(false);
+      setIsEditing(false);
+
+      let userIdentifier = await AsyncStorage.getItem("user");
+      if (!userIdentifier) return;
+
+      let cleanIdentifier = userIdentifier;
+      try {
+        const parsed = JSON.parse(userIdentifier);
+        if (typeof parsed === "object" && parsed !== null) {
+          cleanIdentifier =
+            parsed.username || parsed.email || parsed.id || userIdentifier;
+        }
+      } catch (e) {}
+      cleanIdentifier = cleanIdentifier.toString().trim();
+
+      const userQuery = query(
+        collection(db, "users"),
+        where("username", "==", cleanIdentifier)
+      );
+      const userSnap = await getDocs(userQuery);
+      if (!userSnap.empty) {
+        const userDocId = userSnap.docs[0].id;
+        await updateDoc(doc(db, "users", userDocId), {
+          firstName: editInfo.firstName,
+          lastName: editInfo.lastName,
+          email: editInfo.email,
+          phone: editInfo.phone,
+          dob: editInfo.dob,
+          gender: editInfo.gender,
+          status: editInfo.status,
+          barangay: editInfo.barangay,
+          purok: editInfo.purok, // <-- Save purok
+        });
+        const info = await getUserInfo(cleanIdentifier);
+        setUserInfo(info);
+        Alert.alert("Success", "Account information updated!");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to update account information.");
+    }
   };
 
   // --- FIXED Profile Picture Logic with expo-image-picker ---
@@ -427,6 +528,13 @@ export default function ProfileScreen() {
               <Icon name="settings-outline" size={22} color="#555" />
               <Text style={styles.settingText}>Settings</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={() => navigation.navigate("PinLogs")}
+            >
+              <Icon name="location-outline" size={22} color="#555" />
+              <Text style={styles.settingText}>Pin Logs</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.settingItem}>
               <Icon name="information-circle-outline" size={22} color="#555" />
               <Text style={styles.settingText}>About us</Text>
@@ -650,42 +758,61 @@ export default function ProfileScreen() {
                 onChangeText={(text) => setEditInfo({ ...editInfo, dob: text })}
                 editable={isEditing}
               />
-              <TextInput
-                style={styles.input}
-                placeholder="Status"
-                value={editInfo.status}
-                onChangeText={(text) =>
-                  setEditInfo({ ...editInfo, status: text })
-                }
-                editable={isEditing}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Province"
-                value={editInfo.province}
-                onChangeText={(text) =>
-                  setEditInfo({ ...editInfo, province: text })
-                }
-                editable={isEditing}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="City"
-                value={editInfo.city}
-                onChangeText={(text) =>
-                  setEditInfo({ ...editInfo, city: text })
-                }
-                editable={isEditing}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Barangay"
-                value={editInfo.barangay}
-                onChangeText={(text) =>
-                  setEditInfo({ ...editInfo, barangay: text })
-                }
-                editable={isEditing}
-              />
+              {/* Status Dropdown */}
+              <View style={styles.input}>
+                <Text style={{ marginBottom: 5, color: "#333" }}>Status</Text>
+                <Picker
+                  selectedValue={editInfo.status}
+                  onValueChange={(itemValue) =>
+                    setEditInfo({ ...editInfo, status: itemValue })
+                  }
+                  enabled={isEditing}
+                >
+                  <Picker.Item label="Select Status" value="" />
+                  <Picker.Item label="Single" value="Single" />
+                  <Picker.Item label="Married" value="Married" />
+                </Picker>
+              </View>
+              {/* Remove Province and City fields */}
+              {/* Barangay Picker */}
+              <View style={styles.input}>
+                <Text style={{ marginBottom: 5, color: "#333" }}>Barangay</Text>
+                <Picker
+                  selectedValue={editInfo.barangay}
+                  onValueChange={(itemValue) => {
+                    setEditInfo((prev) => ({
+                      ...prev,
+                      barangay: itemValue,
+                      purok: "", // Reset purok when barangay changes
+                    }));
+                  }}
+                  enabled={isEditing}
+                >
+                  <Picker.Item label="Select Barangay" value="" />
+                  {barangayList.map((name, idx) => (
+                    <Picker.Item key={idx} label={name} value={name} />
+                  ))}
+                </Picker>
+              </View>
+              {/* Purok Picker */}
+              <View style={styles.input}>
+                <Text style={{ marginBottom: 5, color: "#333" }}>Purok</Text>
+                <Picker
+                  selectedValue={editInfo.purok || ""}
+                  onValueChange={(itemValue) =>
+                    setEditInfo((prev) => ({
+                      ...prev,
+                      purok: itemValue,
+                    }))
+                  }
+                  enabled={isEditing && !!editInfo.barangay}
+                >
+                  <Picker.Item label={editInfo.barangay ? "Select Purok" : "Select Barangay first"} value="" />
+                  {purokList.map((name, idx) => (
+                    <Picker.Item key={idx} label={name} value={name} />
+                  ))}
+                </Picker>
+              </View>
 
               <View
                 style={{

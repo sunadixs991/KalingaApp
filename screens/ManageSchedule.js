@@ -22,6 +22,35 @@ import { WebView } from "react-native-webview";
 import * as XLSX from "xlsx";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
+import { addDoc, collection, Timestamp, getDocs, query, where } from "firebase/firestore";
+import { db } from "../firebase";
+import { Picker } from "@react-native-picker/picker";
+
+// Helper to log user activity
+async function logUserActivity({ title, description, userFirstName }) {
+  try {
+    await addDoc(collection(db, "user_activities"), {
+      title,
+      description,
+      userFirstName,
+      timestamp: Timestamp.now(),
+    });
+  } catch (err) {
+    console.log("Failed to log user activity:", err);
+  }
+}
+
+// Helper to get user's first name
+async function getUserFirstName() {
+  try {
+    const userInfoStr = await AsyncStorage.getItem("userInfo");
+    if (userInfoStr) {
+      const userInfo = JSON.parse(userInfoStr);
+      return userInfo.firstName || "Unknown";
+    }
+  } catch {}
+  return "Unknown";
+}
 
 export default function ManageSchedule({ navigation }) {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -42,6 +71,8 @@ export default function ManageSchedule({ navigation }) {
   const [excelContent, setExcelContent] = useState(null);
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [barangayList, setBarangayList] = useState([]);
+  const [purokList, setPurokList] = useState([]);
 
   useEffect(() => {
     checkAdminStatus();
@@ -278,6 +309,14 @@ export default function ManageSchedule({ navigation }) {
                   throw deleteError;
                 }
 
+                // Log activity for delete
+                const userFirstName = await getUserFirstName();
+                await logUserActivity({
+                  title: "Delete Schedule",
+                  description: `Deleted schedule for Barangay ${schedule.title}, Location: ${schedule.location}`,
+                  userFirstName,
+                });
+
                 // Update local state
                 setSchedulesList((prevList) =>
                   prevList.filter((item) => item.id !== id)
@@ -477,6 +516,14 @@ export default function ManageSchedule({ navigation }) {
           throw error;
         }
 
+        // Log activity for edit
+        const userFirstName = await getUserFirstName();
+        await logUserActivity({
+          title: "Edit Schedule",
+          description: `Edited schedule for Barangay ${data.title}, Location: ${data.location}`,
+          userFirstName,
+        });
+
         // Update local state with the updated data
         setSchedulesList((prevList) =>
           prevList.map((item) =>
@@ -494,7 +541,18 @@ export default function ManageSchedule({ navigation }) {
           )
         );
 
+        setModalVisible(false);
+        setNewSchedule({
+          title: "",
+          date: new Date(),
+          time: new Date(),
+          location: "",
+        });
+        setSelectedFile(null);
+        setIsEditMode(false);
+        setEditingSchedule(null);
         Alert.alert("Success", "Schedule updated successfully!");
+        return;
       } else {
         const { data, error } = await supabase
           .from("food_schedules")
@@ -546,6 +604,63 @@ export default function ManageSchedule({ navigation }) {
       Alert.alert("Error", "Failed to save schedule. Please try again.");
     }
   };
+
+  // Fetch barangay list from Firestore
+  useEffect(() => {
+    const fetchBarangays = async () => {
+      try {
+        const snap = await getDocs(collection(db, "barangays"));
+        const list = [];
+        snap.forEach((doc) => {
+          const data = doc.data();
+          if (data.name) list.push(data.name);
+        });
+        setBarangayList(list);
+      } catch (error) {
+        console.log("Failed to fetch barangays:", error);
+      }
+    };
+    fetchBarangays();
+  }, []);
+
+  // Fetch purok list when barangay changes in newSchedule
+  useEffect(() => {
+    const fetchPuroks = async () => {
+      if (!newSchedule.title) {
+        setPurokList([]);
+        setNewSchedule((prev) => ({ ...prev, purok: "" }));
+        return;
+      }
+      try {
+        const barangayQuery = query(
+          collection(db, "barangays"),
+          where("name", "==", newSchedule.title)
+        );
+        const barangaySnap = await getDocs(barangayQuery);
+        if (!barangaySnap.empty) {
+          const barangayDoc = barangaySnap.docs[0];
+          const puroksSnap = await getDocs(
+            collection(barangayDoc.ref, "puroks")
+          );
+          const list = [];
+          puroksSnap.forEach((doc) => {
+            const data = doc.data();
+            if (data.name) list.push(data.name);
+          });
+          setPurokList(list);
+        } else {
+          setPurokList([]);
+        }
+        setNewSchedule((prev) => ({ ...prev, purok: "" }));
+      } catch (error) {
+        console.log("Failed to fetch puroks:", error);
+        setPurokList([]);
+        setNewSchedule((prev) => ({ ...prev, purok: "" }));
+      }
+    };
+    fetchPuroks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newSchedule.title]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -652,12 +767,53 @@ export default function ManageSchedule({ navigation }) {
                   {isEditMode ? "Edit Schedule" : "Add New Schedule"}
                 </Text>
 
+                {/* Barangay Picker */}
+                <View style={styles.input}>
+                  <Text style={{ marginBottom: 5, color: "#333" }}>Barangay</Text>
+                  <Picker
+                    selectedValue={newSchedule.title}
+                    onValueChange={(itemValue) => {
+                      setNewSchedule((prev) => ({
+                        ...prev,
+                        title: itemValue,
+                        purok: "", // Reset purok when barangay changes
+                      }));
+                    }}
+                    enabled={isEditMode}
+                  >
+                    <Picker.Item label="Select Barangay" value="" />
+                    {barangayList.map((name, idx) => (
+                      <Picker.Item key={idx} label={name} value={name} />
+                    ))}
+                  </Picker>
+                </View>
+
+                {/* Purok Picker */}
+                <View style={styles.input}>
+                  <Text style={{ marginBottom: 5, color: "#333" }}>Purok</Text>
+                  <Picker
+                    selectedValue={newSchedule.purok || ""}
+                    onValueChange={(itemValue) =>
+                      setNewSchedule((prev) => ({
+                        ...prev,
+                        purok: itemValue,
+                      }))
+                    }
+                    enabled={isEditMode && !!newSchedule.title}
+                  >
+                    <Picker.Item label={newSchedule.title ? "Select Purok" : "Select Barangay first"} value="" />
+                    {purokList.map((name, idx) => (
+                      <Picker.Item key={idx} label={name} value={name} />
+                    ))}
+                  </Picker>
+                </View>
+
                 <TextInput
                   style={styles.input}
-                  placeholder="Barangay Name"
-                  value={newSchedule.title}
+                  placeholder="Location"
+                  value={newSchedule.location}
                   onChangeText={(text) =>
-                    setNewSchedule({ ...newSchedule, title: text })
+                    setNewSchedule({ ...newSchedule, location: text })
                   }
                 />
 
@@ -704,15 +860,6 @@ export default function ManageSchedule({ navigation }) {
                     }}
                   />
                 )}
-
-                <TextInput
-                  style={styles.input}
-                  placeholder="Location"
-                  value={newSchedule.location}
-                  onChangeText={(text) =>
-                    setNewSchedule({ ...newSchedule, location: text })
-                  }
-                />
 
                 <View style={styles.fileSection}>
                   <Text style={styles.fileLabel}>

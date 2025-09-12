@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -13,6 +13,8 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import { db } from "../firebase";
+import { collection, getDocs } from "firebase/firestore";
 
 const CATEGORIES = [
   "Clean Drinking Water",
@@ -40,6 +42,25 @@ const MapPinModal = ({
   setMedia
 }) => {
   const [showCategories, setShowCategories] = useState(false);
+  const [categories, setCategories] = useState(["Others"]);
+
+  // Fetch categories from Firestore on mount
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const snap = await getDocs(collection(db, "categories"));
+        const list = [];
+        snap.forEach(doc => {
+          const data = doc.data();
+          if (data.name && data.name !== "Others") list.push(data.name);
+        });
+        setCategories([...list, "Others"]);
+      } catch (error) {
+        setCategories(["Others"]);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   const handleCategorySelect = (category) => {
     onCategoryChange(category);
@@ -184,131 +205,131 @@ const MapPinModal = ({
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <ScrollView
-        showsVerticalScrollIndicator={true}
-        contentContainerStyle={{ paddingBottom: 20 }}
-        keyboardShouldPersistTaps="handled"
-      >
-          <Text style={styles.modalTitle}>Add Pin Details</Text>
-          
-          {/* DEBUG INFO */}
-          {/* <Text style={{ fontSize: 12, color: 'red', marginBottom: 10 }}>
-            DEBUG - Category: {selectedCategory || 'NONE'} | Show: {showCategories ? 'YES' : 'NO'}
-          </Text> */}
-          
-          {/* Category Selection */}
-          <View style={styles.categorySection}>
-            <Text style={styles.sectionLabel}>Category</Text>
-            <TouchableOpacity 
-              style={styles.categorySelector}
-              onPress={() => {
-                setShowCategories(!showCategories);
-              }}
-            >
-              <Text style={[
-                styles.categorySelectorText,
-                selectedCategory ? styles.selectedCategoryText : styles.placeholderText
-              ]}>
-                {selectedCategory || "Select a category..."}
-              </Text>
-              <Text style={styles.dropdownArrow}>
-                {showCategories ? "▲" : "▼"}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Category Dropdown */}
-            {showCategories && (
-              <View style={styles.categoryDropdown}>
-                <ScrollView style={styles.categoryScrollView} nestedScrollEnabled>
-                  {CATEGORIES.map((category, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={[
-                        styles.categoryOption,
-                        selectedCategory === category && styles.selectedCategoryOption
-                      ]}
-                      onPress={() => handleCategorySelect(category)}
-                    >
-                      <Text style={[
-                        styles.categoryOptionText,
-                        selectedCategory === category && styles.selectedCategoryOptionText
-                      ]}>
-                        {category}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-          </View>
-
-          {/* Description Input */}
-          <View style={styles.descriptionSection}>
-            <Text style={styles.sectionLabel}>Description</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Describe this location..."
-              value={description}
-              onChangeText={onChangeDescription}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
-          </View>
-
-          {/* Media Picker */}
-          <View style={styles.mediaSection}>
-            <Text style={styles.sectionLabel}>
-              Media (Image/Video) - {media ? media.length : 0}/{MAX_MEDIA_COUNT}
-            </Text>
+            showsVerticalScrollIndicator={true}
+            contentContainerStyle={{ paddingBottom: 20 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={styles.modalTitle}>Add Pin Details</Text>
             
-            {(!media || media.length < MAX_MEDIA_COUNT) && (
+            {/* DEBUG INFO */}
+            {/* <Text style={{ fontSize: 12, color: 'red', marginBottom: 10 }}>
+              DEBUG - Category: {selectedCategory || 'NONE'} | Show: {showCategories ? 'YES' : 'NO'}
+            </Text> */}
+            
+            {/* Category Selection */}
+            <View style={styles.categorySection}>
+              <Text style={styles.sectionLabel}>Category</Text>
               <TouchableOpacity 
-                onPress={pickMedia} 
-                style={styles.mediaPickerButton}
+                style={styles.categorySelector}
+                onPress={() => {
+                  setShowCategories(!showCategories);
+                }}
               >
-                <Text style={styles.mediaPickerText}>
-                  {media ? "Add More Media" : "Upload Media"}
+                <Text style={[
+                  styles.categorySelectorText,
+                  selectedCategory ? styles.selectedCategoryText : styles.placeholderText
+                ]}>
+                  {selectedCategory || "Select a category..."}
+                </Text>
+                <Text style={styles.dropdownArrow}>
+                  {showCategories ? "▲" : "▼"}
                 </Text>
               </TouchableOpacity>
-            )}
-            
-            {/* Media Preview Grid */}
-            {media && (
-              <View style={styles.mediaPreviewGrid}>
-                {media.map((item, index) => (
-                  <View key={index} style={styles.mediaPreviewItem}>
-                    <Image 
-                      source={{ uri: item.uri }} 
-                      style={styles.mediaPreviewImage} 
-                      resizeMode="cover"
-                    />
-                    <TouchableOpacity 
-                      style={styles.removeMediaButton}
-                      onPress={() => removeMedia(index)}
-                    >
-                      <Text style={styles.removeMediaText}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
 
-          {/* Action Buttons */}
-          <View style={styles.buttonRow}>
-            <TouchableOpacity 
-              style={[styles.modalButton, styles.cancelButton]} 
-              onPress={handleCancel}
-            >
-              <Text style={styles.buttonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.modalButton, styles.saveButton]} 
-              onPress={handleSave}
-            >
-              <Text style={styles.buttonText}>Save Pin</Text>
-            </TouchableOpacity>
-          </View>
+              {/* Category Dropdown */}
+              {showCategories && (
+                <View style={styles.categoryDropdown}>
+                  <ScrollView style={styles.categoryScrollView} nestedScrollEnabled>
+                    {categories.map((category, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.categoryOption,
+                          selectedCategory === category && styles.selectedCategoryOption
+                        ]}
+                        onPress={() => handleCategorySelect(category)}
+                      >
+                        <Text style={[
+                          styles.categoryOptionText,
+                          selectedCategory === category && styles.selectedCategoryOptionText
+                        ]}>
+                          {category}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
+            {/* Description Input */}
+            <View style={styles.descriptionSection}>
+              <Text style={styles.sectionLabel}>Description</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Describe this location..."
+                value={description}
+                onChangeText={onChangeDescription}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+            </View>
+
+            {/* Media Picker */}
+            <View style={styles.mediaSection}>
+              <Text style={styles.sectionLabel}>
+                Media (Image/Video) - {media ? media.length : 0}/{MAX_MEDIA_COUNT}
+              </Text>
+              
+              {(!media || media.length < MAX_MEDIA_COUNT) && (
+                <TouchableOpacity 
+                  onPress={pickMedia} 
+                  style={styles.mediaPickerButton}
+                >
+                  <Text style={styles.mediaPickerText}>
+                    {media ? "Add More Media" : "Upload Media"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              
+              {/* Media Preview Grid */}
+              {media && (
+                <View style={styles.mediaPreviewGrid}>
+                  {media.map((item, index) => (
+                    <View key={index} style={styles.mediaPreviewItem}>
+                      <Image 
+                        source={{ uri: item.uri }} 
+                        style={styles.mediaPreviewImage} 
+                        resizeMode="cover"
+                      />
+                      <TouchableOpacity 
+                        style={styles.removeMediaButton}
+                        onPress={() => removeMedia(index)}
+                      >
+                        <Text style={styles.removeMediaText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.buttonRow}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelButton]} 
+                onPress={handleCancel}
+              >
+                <Text style={styles.buttonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.saveButton]} 
+                onPress={handleSave}
+              >
+                <Text style={styles.buttonText}>Save Pin</Text>
+              </TouchableOpacity>
+            </View>
           </ScrollView>
         </View>
       </View>

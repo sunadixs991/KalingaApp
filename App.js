@@ -19,8 +19,19 @@ import ContactScreen from "./screens/ManageContact";
 import BarangayScreen from "./screens/ManageBarangay";
 import ManageSchedule from "./screens/ManageSchedule";
 import AccountInfoScreen from "./screens/AccountInfoScreen";
+import ManageUsers from "./screens/ManageUsers";
+import UsersActivity from "./screens/UsersActivity";
+import PinLogs from "./screens/PinLogs";
+import ManageCategory from "./screens/ManageCategory";
+import { LogBox } from 'react-native';
 
 const Stack = createStackNavigator();
+
+LogBox.ignoreLogs([
+  'It looks like you might be using shared value',
+  'react-native-reanimated',
+  'shared value\'s .value inside reanimated inline style'
+]);
 
 export default function App() {
   return (
@@ -53,6 +64,11 @@ export default function App() {
           <Stack.Screen name="ManageContact" component={ContactScreen} />
           <Stack.Screen name="ManageBarangay" component={BarangayScreen} />
           <Stack.Screen name="ManageSchedule" component={ManageSchedule} />
+          <Stack.Screen name="ManageUsers" component={ManageUsers} />
+          <Stack.Screen name="UsersActivity" component={UsersActivity} />
+          <Stack.Screen name="PinLogs" component={PinLogs} />
+          <Stack.Screen name="ManageCategory" component={ManageCategory} />
+
         </Stack.Navigator>
       </NavigationContainer>
     </ThemeProvider>
