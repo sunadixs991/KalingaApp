@@ -3,7 +3,7 @@ import { TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 
-const FloatingButtons = ({ onPin, onLocate, onClear, hasRoute }) => {
+const FloatingButtons = ({ onPin, onLocate, onClear, hasRoute, onAdd, isAdmin }) => {
   return (
     <>
       {/* Clear Route Button - only visible if hasRoute is true */}
@@ -17,6 +17,13 @@ const FloatingButtons = ({ onPin, onLocate, onClear, hasRoute }) => {
       <TouchableOpacity style={[styles.circleButton, styles.pinButton]} onPress={onPin}>
         <Icon name="add" size={24} color="#fff" />
       </TouchableOpacity>
+
+      {/* Show the new add button only if admin and signed in */}
+      {isAdmin && (
+        <TouchableOpacity style={[styles.circleButton, styles.addButton]} onPress={onAdd}>
+          <Icon name="create-outline" size={24} color="#fff" />
+        </TouchableOpacity>
+      )}
 
       {/* Locate Button */}
       <TouchableOpacity style={styles.circleButton} onPress={onLocate}>
@@ -45,8 +52,12 @@ const styles = StyleSheet.create({
     bottom: hp('11%'),
     backgroundColor: '#49A5A2',
   },
-  clearButton: {
+  addButton: {
     bottom: hp('18.5%'),
+    backgroundColor: '#1976D2',
+  },
+  clearButton: {
+    bottom: hp('26%'),
     backgroundColor: '#EC6135',
   },
 });

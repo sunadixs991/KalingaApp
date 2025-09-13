@@ -28,9 +28,7 @@ import { LogBox } from 'react-native';
 const Stack = createStackNavigator();
 
 LogBox.ignoreLogs([
-  'It looks like you might be using shared value',
-  'react-native-reanimated',
-  'shared value\'s .value inside reanimated inline style'
+  "shared value's .value inside reanimated inline style",
 ]);
 
 export default function App() {

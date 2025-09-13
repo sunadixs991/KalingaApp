@@ -45,6 +45,8 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { WebView } from "react-native-webview";
 
 import { Image } from "react-native";
+import EvacuationPinModal from "../components/EvacuationPinModal"; // <-- Import your new modal
+import useEvacuationPins from "../hooks/useEvacuationPins";
 
 // Debug: Log the imports immediately
 // console.log("=== IMPORT DEBUG ===");
@@ -72,6 +74,8 @@ export default function MapScreen({ route }) {
   const webviewRef = useRef(null);
   // keep a ref to pinMode to avoid stale closures in WebView onMessage handler
   const pinModeRef = useRef(pinMode);
+  const [evacPinMode, setEvacPinMode] = useState(false);
+  
   useEffect(() => {
     pinModeRef.current = pinMode;
     // inform WebView when pinMode changes (keeps hint & behavior in sync)
@@ -279,6 +283,14 @@ export default function MapScreen({ route }) {
   const [routeCoords, setRouteCoords] = useState([]); // <-- Add this state
   const [media, setMedia] = useState(null); // Add this with your other state declarations
   const [showMedia, setShowMedia] = useState(false); // Add this state near your other useState declarations
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [evacModalVisible, setEvacModalVisible] = useState(false);
+  const [evacDescription, setEvacDescription] = useState("");
+  const [evacSelectedCategory, setEvacSelectedCategory] = useState("");
+  const [evacMedia, setEvacMedia] = useState(null);
+  const [evacCapacity, setEvacCapacity] = useState("");
+  const [evacContactPerson, setEvacContactPerson] = useState("");
+  const [pendingEvacPin, setPendingEvacPin] = useState(null);
 
   const isFocused = useIsFocused();
 
@@ -322,6 +334,24 @@ export default function MapScreen({ route }) {
         setAllPins(pins);
       } catch (error) {
         console.error("Error fetching pins:", error);
+      }
+    })();
+  }, []);
+
+  // Check admin status on mount (or use your own logic)
+  useEffect(() => {
+    (async () => {
+      // Example: check AsyncStorage for admin flag
+      const userInfoStr = await AsyncStorage.getItem("userInfo");
+      if (userInfoStr) {
+        try {
+          const userInfo = JSON.parse(userInfoStr);
+          setIsAdmin(userInfo?.isAdmin === true);
+        } catch (e) {
+          setIsAdmin(false);
+        }
+      } else {
+        setIsAdmin(false);
       }
     })();
   }, []);
@@ -384,9 +414,9 @@ export default function MapScreen({ route }) {
   };
 
   const handlePinButton = () => {
+    setEvacPinMode(false); // Make sure evacuation mode is off
     if (userInfo) {
       setPinMode(true);
-      // inform WebView to enable pin mode
       if (webviewRef.current) {
         webviewRef.current.postMessage(
           JSON.stringify({ type: "setPinMode", enabled: true })
@@ -660,7 +690,7 @@ export default function MapScreen({ route }) {
 
       // 1. Upload image files to SUPABASE STORAGE
       if (media && media.length > 0) {
-       Alert.alert("Uploading", "Uploading image files...", []);
+        Alert.alert("Uploading", "Uploading image files...", []);
 
 
         // Scan all images first
@@ -938,7 +968,169 @@ export default function MapScreen({ route }) {
     setRouteCoords([]);
   };
 
+  // Place this inside your MapScreen component, before the return statement
+  const handleEvacPinButton = () => {
+    setEvacPinMode(true); // Set evacuation mode ON
+    if (userInfo) {
+      setPinMode(true);
+      if (webviewRef.current) {
+        webviewRef.current.postMessage(
+          JSON.stringify({ type: "setPinMode", enabled: true })
+        );
+      }
+      Alert.alert(
+        "Evacuation Pin Mode",
+        "Tap or long-press on the map to place an evacuation pin. Tap Cancel to exit pin mode."
+      );
+    } else {
+      Alert.alert(
+        "Sign in required",
+        "You need to sign in to add an evacuation pin.",
+        [
+          { text: "No thanks!", style: "cancel" },
+          {
+            text: "Sign in",
+            onPress: () => navigation.navigate("LoginScreen"),
+          },
+        ]
+      );
+    }
+  };
+const handleSaveEvacPin = async () => {
+  if (!evacSelectedCategory.trim()) {
+    Alert.alert("Category required", "Please select a category.");
+    return;
+  }
+  if (!evacDescription.trim()) {
+    Alert.alert("Description required", "Please enter a description.");
+    return;
+  }
+  if (!evacCapacity.trim() || isNaN(Number(evacCapacity))) {
+    Alert.alert("Capacity required", "Please enter a valid capacity.");
+    return;
+  }
+  if (!evacContactPerson.trim()) {
+    Alert.alert("Contact Person required", "Please enter a contact person.");
+    return;
+  }
 
+  try {
+    let mediaUrls = [];
+
+    // --- Upload evacuation media to Supabase ---
+    if (evacMedia && evacMedia.length > 0) {
+      Alert.alert("Uploading", "Uploading image files...", []);
+
+      // (Optional) Scan images for safety here if you want
+
+      for (let i = 0; i < evacMedia.length; i++) {
+        const mediaItem = evacMedia[i];
+
+        // Only allow images
+        if (!mediaItem.type || !mediaItem.type.startsWith("image")) {
+          Alert.alert(
+            "Invalid File",
+            "Only image files are allowed. Please remove any non-image files."
+          );
+          return;
+        }
+
+        // Upload image to Supabase
+        const fileName = `evacuation_pins/${Date.now()}_${i}_${mediaItem.fileName || "media"}`;
+
+        let uploadData;
+        try {
+          // Try FormData upload
+          const formData = new FormData();
+          formData.append("file", {
+            uri: mediaItem.uri,
+            type: mediaItem.type,
+            name: mediaItem.fileName || `media_${i}.jpg`,
+          });
+
+          const { data, error } = await supabase.storage
+            .from("pin-media")
+            .upload(fileName, formData, {
+              contentType: mediaItem.type,
+              cacheControl: "3600",
+              upsert: true,
+            });
+
+          if (error) {
+            // Fallback to blob method
+            const response = await fetch(mediaItem.uri);
+            if (!response.ok)
+              throw new Error(`Failed to fetch media: ${response.status}`);
+            const blob = await response.blob();
+
+            const { data: blobData, error: blobError } = await supabase.storage
+              .from("pin-media")
+              .upload(fileName, blob, {
+                contentType: mediaItem.type,
+                cacheControl: "3600",
+                upsert: true,
+              });
+
+            if (blobError) throw blobError;
+            uploadData = blobData;
+          } else {
+            uploadData = data;
+          }
+        } catch (uploadError) {
+          Alert.alert(
+            "Upload Warning",
+            `Failed to upload image file ${i + 1}: ${uploadError.message}. Continuing with other files...`
+          );
+          continue; // Skip this file
+        }
+
+        // Get public URL from Supabase
+        const { data: urlData } = supabase.storage
+          .from("pin-media")
+          .getPublicUrl(uploadData.path);
+
+        mediaUrls.push({
+          url: urlData.publicUrl,
+          type: mediaItem.type,
+          fileName: mediaItem.fileName,
+          path: uploadData.path,
+        });
+      }
+    }
+
+    // --- Save evacuation pin to Firestore with Supabase URLs ---
+    await addDoc(collection(db, "evacuation_pins"), {
+      latitude: pendingEvacPin.latitude,
+      longitude: pendingEvacPin.longitude,
+      userId: userInfo || "anonymous",
+      userFirstName: userFirstName || "anonymous",
+      description: evacDescription.trim(),
+      category: evacSelectedCategory.trim(),
+      capacity: evacCapacity.trim(),
+      contactPerson: evacContactPerson.trim(),
+      media: mediaUrls, // URLs from Supabase Storage
+      createdAt: serverTimestamp(),
+    });
+
+    setEvacModalVisible(false);
+    setEvacDescription("");
+    setEvacSelectedCategory("");
+    setEvacMedia(null);
+    setEvacCapacity("");
+    setEvacContactPerson("");
+    setPinMode(false);
+    setPendingEvacPin(null);
+
+    Alert.alert("Evacuation Pin Added!", "The evacuation pin has been added successfully.");
+    // Optionally, refresh evacuation pins here
+  } catch (error) {
+    console.error("Error saving evacuation pin:", error);
+    Alert.alert(
+      "Error",
+      `There was an error adding the evacuation pin: ${error.message}. Please try again.`
+    );
+  }
+};
   // before return(...)
   const pinsWithIcons = allPins.map((p) => {
     const categoryKey = (p.category || "Others").trim();
@@ -1003,12 +1195,22 @@ export default function MapScreen({ route }) {
                 );
                 return;
               }
-              setPendingPin({
-                latitude: msg.latitude,
-                longitude: msg.longitude,
-              });
-              setDescModalVisible(true);
-              return;
+              // If admin and evacuation pin mode, open evacuation modal
+              if (evacPinMode) {
+                setPendingEvacPin({
+                  latitude: msg.latitude,
+                  longitude: msg.longitude,
+                });
+                setEvacModalVisible(true);
+                return;
+              } else {
+                setPendingPin({
+                  latitude: msg.latitude,
+                  longitude: msg.longitude,
+                });
+                setDescModalVisible(true);
+                return;
+              }
             }
 
             // Keep marker clicks as before
@@ -1017,8 +1219,6 @@ export default function MapScreen({ route }) {
               const pin = allPins.find((p) => p.id === msg.id);
               if (pin) handlePinMarkerPress(pin);
             }
-
-            // Optional: ignore plain mapClick for pin creation
           } catch (e) {
             console.log("WebView message parse error", e);
           }
@@ -1030,6 +1230,12 @@ export default function MapScreen({ route }) {
         onPin={handlePinButton}
         onLocate={goToMyLocation}
         hasRoute={routeCoords.length > 0}
+        onAdd={
+          isAdmin && userInfo
+            ? handleEvacPinButton
+            : undefined
+        }
+        isAdmin={isAdmin && !!userInfo}
       />
 
       {/* PIN CREATION MODAL WITH CATEGORY */}
@@ -1044,7 +1250,7 @@ export default function MapScreen({ route }) {
           setDescription("");
           setSelectedCategory("");
           setPendingPin(null);
-          setMedia(null); // Clear media when canceling
+          setMedia(null);
           setPinMode(false);
           if (webviewRef.current) {
             webviewRef.current.postMessage(
@@ -1054,7 +1260,6 @@ export default function MapScreen({ route }) {
         }}
         onSave={async () => {
           await handleSavePin();
-          // after save, also disable pin mode
           setPinMode(false);
           if (webviewRef.current) {
             webviewRef.current.postMessage(
@@ -1062,8 +1267,47 @@ export default function MapScreen({ route }) {
             );
           }
         }}
-        media={media} // Add this
-        setMedia={setMedia} // Add this
+        media={media}
+        setMedia={setMedia}
+      />
+
+      {/* EVACUATION PIN MODAL */}
+      <EvacuationPinModal
+        visible={evacModalVisible}
+        description={evacDescription}
+        onChangeDescription={setEvacDescription}
+        selectedCategory={evacSelectedCategory}
+        onCategoryChange={setEvacSelectedCategory}
+        onCancel={() => {
+          setEvacModalVisible(false);
+          setEvacDescription("");
+          setEvacSelectedCategory("");
+          setEvacMedia(null);
+          setEvacCapacity("");
+          setEvacContactPerson("");
+          setPinMode(false);
+          setPendingEvacPin(null);
+          if (webviewRef.current) {
+            webviewRef.current.postMessage(
+              JSON.stringify({ type: "setPinMode", enabled: false })
+            );
+          }
+        }}
+        onSave={async () => {
+          await handleSaveEvacPin();
+          setPinMode(false);
+          if (webviewRef.current) {
+            webviewRef.current.postMessage(
+              JSON.stringify({ type: "setPinMode", enabled: false })
+            );
+          }
+        }}
+        media={evacMedia}
+        setMedia={setEvacMedia}
+        capacity={evacCapacity}
+        onChangeCapacity={setEvacCapacity}
+        contactPerson={evacContactPerson}
+        onChangeContactPerson={setEvacContactPerson}
       />
 
       {/* PIN INFO MODAL WITH VOTING */}
@@ -1090,7 +1334,7 @@ export default function MapScreen({ route }) {
                   {selectedPin.userFirstName}
                 </Text>
 
-                  {/* Category */}
+                {/* Category */}
                 <Text style={styles.modalCategory} numberOfLines={0}>
                   {selectedPin.category}
                 </Text>
@@ -1098,7 +1342,7 @@ export default function MapScreen({ route }) {
                   {selectedPin.description || "User"}
                 </Text>
 
-              
+
 
                 {/* User */}
                 <Text style={styles.modalTime}>
@@ -1658,3 +1902,5 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
 });
+
+
