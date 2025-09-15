@@ -52,7 +52,7 @@ export default function AdminUtils() {
           onPress={() => navigation.navigate("ManageSchedule")}
         >
           <Icon name="calendar-outline" size={28} color="#007AFF" style={styles.icon} />
-          <Text style={styles.optionText}>Manage Schedule</Text>
+          <Text style={styles.optionText}>Food Distribution Schedules</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

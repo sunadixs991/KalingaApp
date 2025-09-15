@@ -1,13 +1,32 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, StatusBar, TouchableOpacity, Modal, TextInput, Alert, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  ActivityIndicator,
+  StatusBar,
+  TouchableOpacity,
+  Modal,
+  TextInput,
+  Alert,
+  ScrollView,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
 import FontAwesome5 from "react-native-vector-icons/FontAwesome5";
 import { db } from "../firebase";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+} from "firebase/firestore";
 import { useNavigation } from "@react-navigation/native";
+import { Swipeable } from "react-native-gesture-handler";
 
-// PATCH: Add more icon and color options
 const ICON_OPTIONS = [
   { label: "Water", value: "tint" },
   { label: "Medical", value: "hospital" },
@@ -23,15 +42,9 @@ const ICON_OPTIONS = [
   { label: "Toilets", value: "toilet" },
   { label: "Food", value: "utensils" },
   { label: "Fire", value: "fire" },
-  { label: "Baby", value: "baby" },
-  { label: "Bus", value: "bus" },
-  { label: "Car", value: "car" },
-  { label: "Bicycle", value: "bicycle" },
-  { label: "Tree", value: "tree" },
   { label: "School", value: "school" },
   { label: "Store", value: "store" },
   { label: "Phone", value: "phone" },
-  { label: "Camera", value: "camera" },
   { label: "Map", value: "map-marker-alt" },
   { label: "Flag", value: "flag" },
   { label: "Star", value: "star" },
@@ -44,20 +57,19 @@ const COLOR_OPTIONS = [
   { label: "Purple", value: "#9C27B0" },
   { label: "Cyan", value: "#00BCD4" },
   { label: "Brown", value: "#795548" },
-  { label: "Gray", value: "#607D8B" },         // keep only one for #607D8B
+  { label: "Gray", value: "#607D8B" },
   { label: "Green", value: "#8BC34A" },
   { label: "Deep Orange", value: "#FF5722" },
   { label: "Pink", value: "#E91E63" },
   { label: "Teal", value: "#009688" },
   { label: "Indigo", value: "#3F51B5" },
   { label: "Yellow", value: "#FFEB3B" },
-  { label: "Light Green", value: "#AED581" },  // changed to a unique light green
+  { label: "Light Green", value: "#AED581" },
   { label: "Light Blue", value: "#03A9F4" },
   { label: "Deep Purple", value: "#673AB7" },
-  { label: "Lime", value: "#CDDC39" },         // keep only one for #CDDC39
+  { label: "Lime", value: "#CDDC39" },
   { label: "Amber", value: "#FFC107" },
   { label: "Black", value: "#222" },
-//   { label: "White", value: "#fff" },
   { label: "Default", value: "#888" },
 ];
 
@@ -80,10 +92,7 @@ export default function ManageCategory() {
     setLoading(true);
     try {
       const snap = await getDocs(collection(db, "categories"));
-      const list = [];
-      snap.forEach(docu => {
-        list.push({ id: docu.id, ...docu.data() });
-      });
+      const list = snap.docs.map((docu) => ({ id: docu.id, ...docu.data() }));
       setCategories(list);
     } catch (error) {
       console.log("Failed to fetch categories:", error);
@@ -102,7 +111,7 @@ export default function ManageCategory() {
         icon: newIcon,
         color: newColor,
       });
-      setCategories(prev => [
+      setCategories((prev) => [
         ...prev,
         { id: docRef.id, name: newName.trim(), icon: newIcon, color: newColor },
       ]);
@@ -134,8 +143,8 @@ export default function ManageCategory() {
         icon: newIcon,
         color: newColor,
       });
-      setCategories(prev =>
-        prev.map(cat =>
+      setCategories((prev) =>
+        prev.map((cat) =>
           cat.id === selectedCategory.id
             ? { ...cat, name: newName.trim(), icon: newIcon, color: newColor }
             : cat
@@ -163,7 +172,9 @@ export default function ManageCategory() {
           onPress: async () => {
             try {
               await deleteDoc(doc(db, "categories", categoryId));
-              setCategories(prev => prev.filter(cat => cat.id !== categoryId));
+              setCategories((prev) =>
+                prev.filter((cat) => cat.id !== categoryId)
+              );
             } catch (e) {
               Alert.alert("Error", "Failed to delete category.");
             }
@@ -173,10 +184,9 @@ export default function ManageCategory() {
     );
   };
 
-  // Icon/color picker UI
   const renderIconPicker = (selected, setSelected) => (
     <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 10 }}>
-      {ICON_OPTIONS.map(opt => (
+      {ICON_OPTIONS.map((opt) => (
         <TouchableOpacity
           key={opt.value}
           style={[
@@ -194,7 +204,7 @@ export default function ManageCategory() {
 
   const renderColorPicker = (selected, setSelected) => (
     <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 10 }}>
-      {COLOR_OPTIONS.map(opt => (
+      {COLOR_OPTIONS.map((opt) => (
         <TouchableOpacity
           key={opt.value}
           style={[
@@ -212,6 +222,55 @@ export default function ManageCategory() {
     </View>
   );
 
+  const renderCategoryItem = ({ item }) => {
+    const renderRightActions = () => (
+      <TouchableOpacity
+        style={{
+          backgroundColor: "#ff4444",
+          justifyContent: "center",
+          alignItems: "center",
+          width: 60,
+          borderRadius: 12,
+          marginLeft: 10,
+          height: "85%",
+
+        }}
+        onPress={() => handleDeleteCategory(item.id)}
+      >
+        <Icon name="trash-outline" size={22} color="#fff" />
+        {/* <Text style={{ color: "#fff", fontWeight: "bold", marginTop: 2 }}>
+          Delete
+        </Text> */}
+      </TouchableOpacity>
+    );
+
+    return (
+      <Swipeable renderRightActions={renderRightActions}>
+        <View style={styles.categoryCard}>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <FontAwesome5
+              name={item.icon || "question"}
+              size={22}
+              color={item.color || "#888"}
+              style={{ marginRight: 10 }}
+            />
+            <Text
+              style={[styles.categoryName, { color: item.color || "#333" }]}
+            >
+              {item.name}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => handleEditCategory(item)}
+          >
+            <Icon name="create-outline" size={20} color="#666" />
+          </TouchableOpacity>
+        </View>
+      </Swipeable>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <StatusBar barStyle="light-content" backgroundColor="#e75e33" />
@@ -220,54 +279,29 @@ export default function ManageCategory() {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Icon name="chevron-back" size={26} color="#fff" />
+          <Icon name="chevron-back" size={26} color="#000" />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Manage Category</Text>
         <View style={styles.backButton} />
       </View>
+
       <View style={styles.container}>
         {loading ? (
           <ActivityIndicator size="large" color="#e75e33" />
         ) : (
           <FlatList
             data={categories}
-            keyExtractor={item => item.id}
-            renderItem={({ item }) => (
-              <View style={styles.categoryCard}>
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <FontAwesome5
-                    name={item.icon || "question"}
-                    size={22}
-                    color={item.color || "#888"}
-                    style={{ marginRight: 10 }}
-                  />
-                  <Text style={[styles.categoryName, { color: item.color || "#333" }]}>
-                    {item.name}
-                  </Text>
-                </View>
-                <View style={styles.actionRow}>
-                  <TouchableOpacity
-                    style={styles.actionBtn}
-                    onPress={() => handleEditCategory(item)}
-                  >
-                    <Icon name="create-outline" size={20} color="#007AFF" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.actionBtn}
-                    onPress={() => handleDeleteCategory(item.id)}
-                  >
-                    <Icon name="trash-outline" size={20} color="#ff4444" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
+            keyExtractor={(item) => item.id}
+            renderItem={renderCategoryItem}
           />
         )}
       </View>
+
       {/* Floating Add Button */}
       <TouchableOpacity style={styles.fab} onPress={() => setAdding(true)}>
         <Icon name="add" size={30} color="#fff" />
       </TouchableOpacity>
+
       {/* Add Category Modal */}
       <Modal visible={adding} transparent animationType="slide">
         <View style={styles.modalContainer}>
@@ -275,7 +309,6 @@ export default function ManageCategory() {
             <ScrollView
               contentContainerStyle={{ paddingBottom: 20 }}
               keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
             >
               <Text style={styles.modalTitle}>Add New Category</Text>
               <TextInput
@@ -311,6 +344,7 @@ export default function ManageCategory() {
           </View>
         </View>
       </Modal>
+
       {/* Edit Category Modal */}
       <Modal visible={editing} transparent animationType="slide">
         <View style={styles.modalContainer}>
@@ -318,7 +352,6 @@ export default function ManageCategory() {
             <ScrollView
               contentContainerStyle={{ paddingBottom: 20 }}
               keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
             >
               <Text style={styles.modalTitle}>Edit Category</Text>
               <TextInput
@@ -360,15 +393,12 @@ export default function ManageCategory() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
+  safeArea: { flex: 1, backgroundColor: "#fff" },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#e75e33",
+    backgroundColor: "#fff",
     paddingVertical: 10,
     paddingHorizontal: 15,
     shadowColor: "#000",
@@ -387,14 +417,10 @@ const styles = StyleSheet.create({
   topBarTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#fff",
+    color: "#000",
     textAlign: "center",
   },
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-    padding: 16,
-  },
+  container: { flex: 1, backgroundColor: "#fff", padding: 16 },
   categoryCard: {
     backgroundColor: "#f7f7f7",
     borderRadius: 12,
@@ -405,22 +431,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  categoryName: {
-    fontSize: 17,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  actionRow: {
-    flexDirection: "row",
-  },
-  actionBtn: {
-    marginLeft: 16,
-  },
+  categoryName: { fontSize: 17, fontWeight: "bold", color: "#333" },
+  actionRow: { flexDirection: "row" },
+  actionBtn: { marginLeft: 16 },
   fab: {
     position: "absolute",
     bottom: "6%",
     right: 20,
-    backgroundColor: "#16a085",
+    backgroundColor: "#49A5A2",
     width: 55,
     height: 55,
     borderRadius: 15,
@@ -468,7 +486,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   modalButtonSave: {
-    backgroundColor: "#e75e33",
+    backgroundColor: "#49A5A2",
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,
@@ -480,11 +498,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
     borderRadius: 8,
   },
-  modalButtonText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 15,
-  },
+  modalButtonText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
   iconOption: {
     alignItems: "center",
     justifyContent: "center",
@@ -496,10 +510,7 @@ const styles = StyleSheet.create({
     borderColor: "#eee",
     backgroundColor: "#f9f9f9",
   },
-  selectedIconOption: {
-    borderColor: "#e75e33",
-    backgroundColor: "#ffe5d0",
-  },
+  selectedIconOption: { borderColor: "#e75e33", backgroundColor: "#ffe5d0" },
   colorOption: {
     width: 32,
     height: 32,
@@ -510,8 +521,5 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#fff",
   },
-  selectedColorOption: {
-    borderColor: "#e75e33",
-    borderWidth: 3,
-  },
+  selectedColorOption: { borderColor: "#e75e33", borderWidth: 3 },
 });

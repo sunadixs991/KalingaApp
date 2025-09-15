@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   FlatList,
-  StatusBar,
   TextInput,
   ActivityIndicator,
   Alert,
@@ -28,6 +27,7 @@ import {
   doc,
   addDoc,
 } from "firebase/firestore";
+import { Menu, Provider } from "react-native-paper";
 
 export default function ManageContact({ navigation }) {
   const [contacts, setContacts] = useState([]);
@@ -39,6 +39,7 @@ export default function ManageContact({ navigation }) {
   const [newNumber, setNewNumber] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(null);
 
   useEffect(() => {
     checkAdminStatus();
@@ -129,150 +130,164 @@ export default function ManageContact({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      {/* <StatusBar barStyle="light-content" backgroundColor="#e75e33" /> */}
-
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        {/* Back Button */}
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Icon name="chevron-back" size={26} color="#333" />
-        </TouchableOpacity>
-
-        {/* Title */}
-        <Text style={styles.topBarTitle}>Manage Contacts</Text>
-
-        {/* Empty View Placeholder for Center Alignment */}
-        <View style={styles.backButton} />
-      </View>
-
-      {/* Contact List */}
-      {contactsLoading ? (
-        <ActivityIndicator
-          size="large"
-          color="#e75e33"
-          style={{ marginTop: 30 }}
-        />
-      ) : (
-        <FlatList
-          data={contacts}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={true}
-          contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => (
-            <View style={styles.contactRow}>
-              <View style={styles.contactInfo}>
-                <Text style={styles.contactName}>{item.name}</Text>
-                {isLoggedIn && isAdmin && editingId === item.id ? (
-                  <TextInput
-                    value={editingNumber}
-                    onChangeText={setEditingNumber}
-                    style={[styles.contactNumber, { borderBottomWidth: 1 }]}
-                    keyboardType="phone-pad"
-                  />
-                ) : (
-                  <Text style={styles.contactNumber}>{item.number}</Text>
-                )}
-              </View>
-              {isLoggedIn && isAdmin && (
-                <View style={styles.iconRow}>
-                  {editingId === item.id ? (
-                    <>
-                      <TouchableOpacity
-                        onPress={() => {
-                          setEditingId(null);
-                          setEditingNumber("");
-                        }}
-                        style={styles.iconButton}
-                      >
-                        <Icon name="close-outline" size={28} color="red" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => handleSave(item.id)}
-                        style={styles.iconButton}
-                      >
-                        <Icon
-                          name="checkmark-outline"
-                          size={28}
-                          color="green"
-                        />
-                      </TouchableOpacity>
-                    </>
-                  ) : (
-                    <>
-                      <TouchableOpacity
-                        onPress={() => handleEdit(item.id, item.number)}
-                        style={styles.iconButton}
-                      >
-                        <Icon name="create-outline" size={22} color="#666" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => handleDelete(item.id)}
-                        style={styles.iconButton}
-                      >
-                        <Icon name="trash-outline" size={22} color="#e75e33" />
-                      </TouchableOpacity>
-                    </>
-                  )}
-                </View>
-              )}
-            </View>
-          )}
-        />
-      )}
-
-      {/* Floating Add Button */}
-      {isLoggedIn && isAdmin && (
-        <>
-          <TouchableOpacity style={styles.fab} onPress={() => setAdding(true)}>
-            <Icon name="add" size={30} color="#fff" />
+    <Provider>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        {/* Top Bar */}
+        <View style={styles.topBar}>
+          {/* Back Button */}
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Icon name="chevron-back" size={26} color="#333" />
           </TouchableOpacity>
 
-          {/* Add Contact Modal */}
-          <Modal visible={adding} transparent animationType="slide">
-            <View style={styles.modalContainer}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Add New Contact</Text>
-                <TextInput
-                  placeholder="Contact Name"
-                  value={newName}
-                  onChangeText={setNewName}
-                  style={styles.addContactInput}
-                />
-                <TextInput
-                  placeholder="Phone Number"
-                  value={newNumber}
-                  onChangeText={setNewNumber}
-                  style={styles.addContactInput}
-                  keyboardType="phone-pad"
-                />
-                <View style={styles.modalActions}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setAdding(false);
-                      setNewName("");
-                      setNewNumber("");
-                    }}
-                    style={styles.modalButtonCancel}
-                  >
-                    <Text style={styles.modalButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={handleAddContact}
-                    style={styles.modalButtonSave}
-                  >
-                    <Text style={styles.modalButtonText}>Save</Text>
-                  </TouchableOpacity>
+          {/* Title */}
+          <Text style={styles.topBarTitle}>Manage Contacts</Text>
+
+          {/* Empty View for alignment */}
+          <View style={styles.backButton} />
+        </View>
+
+        {/* Contact List */}
+        {contactsLoading ? (
+          <ActivityIndicator
+            size="large"
+            color="#e75e33"
+            style={{ marginTop: 30 }}
+          />
+        ) : (
+          <FlatList
+            data={contacts}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={true}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item }) => (
+              <View style={styles.contactRow}>
+                <View style={styles.contactInfo}>
+                  <Text style={styles.contactName}>{item.name}</Text>
+                  {isLoggedIn && isAdmin && editingId === item.id ? (
+                    <TextInput
+                      value={editingNumber}
+                      onChangeText={setEditingNumber}
+                      style={[styles.contactNumber, { borderBottomWidth: 1 }]}
+                      keyboardType="phone-pad"
+                    />
+                  ) : (
+                    <Text style={styles.contactNumber}>{item.number}</Text>
+                  )}
+                </View>
+
+                {isLoggedIn && isAdmin && (
+                  <View>
+                    {editingId === item.id ? (
+                      <View style={{ flexDirection: "row" }}>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setEditingId(null);
+                            setEditingNumber("");
+                          }}
+                          style={styles.iconButton}
+                        >
+                          <Icon name="close-outline" size={28} color="red" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handleSave(item.id)}
+                          style={styles.iconButton}
+                        >
+                          <Icon name="checkmark-outline" size={28} color="green" />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <Menu
+                        visible={menuVisible === item.id}
+                        onDismiss={() => setMenuVisible(null)}
+                        anchor={
+                          <TouchableOpacity
+                            onPress={() => setMenuVisible(item.id)}
+                            style={styles.iconButton}
+                          >
+                            <Icon
+                              name="ellipsis-vertical"
+                              size={22}
+                              color="#666"
+                            />
+                          </TouchableOpacity>
+                        }
+                      >
+                        <Menu.Item
+                          onPress={() => {
+                            setMenuVisible(null);
+                            handleEdit(item.id, item.number);
+                          }}
+                          title="Edit"
+                        />
+                        <Menu.Item
+                          onPress={() => {
+                            setMenuVisible(null);
+                            handleDelete(item.id);
+                          }}
+                          title="Delete"
+                        />
+                      </Menu>
+                    )}
+                  </View>
+                )}
+              </View>
+            )}
+          />
+        )}
+
+        {/* Floating Add Button */}
+        {isLoggedIn && isAdmin && (
+          <>
+            <TouchableOpacity style={styles.fab} onPress={() => setAdding(true)}>
+              <Icon name="add" size={30} color="#fff" />
+            </TouchableOpacity>
+
+            {/* Add Contact Modal */}
+            <Modal visible={adding} transparent animationType="slide">
+              <View style={styles.modalContainer}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Add New Contact</Text>
+                  <TextInput
+                    placeholder="Contact Name"
+                    value={newName}
+                    onChangeText={setNewName}
+                    style={styles.addContactInput}
+                  />
+                  <TextInput
+                    placeholder="Phone Number"
+                    value={newNumber}
+                    onChangeText={setNewNumber}
+                    style={styles.addContactInput}
+                    keyboardType="phone-pad"
+                  />
+                  <View style={styles.modalActions}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setAdding(false);
+                        setNewName("");
+                        setNewNumber("");
+                      }}
+                      style={styles.modalButtonCancel}
+                    >
+                      <Text style={styles.modalButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleAddContact}
+                      style={styles.modalButtonSave}
+                    >
+                      <Text style={styles.modalButtonText}>Save</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
-            </View>
-          </Modal>
-        </>
-      )}
-    </SafeAreaView>
+            </Modal>
+          </>
+        )}
+      </SafeAreaView>
+    </Provider>
   );
 }
 
@@ -337,10 +352,6 @@ const styles = StyleSheet.create({
     color: "#666",
     marginTop: 2,
   },
-  iconRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
   iconButton: {
     marginLeft: wp("3%"),
   },
@@ -396,7 +407,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   modalButtonSave: {
-    backgroundColor: "#e75e33",
+    backgroundColor: "#49A5A2",
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,

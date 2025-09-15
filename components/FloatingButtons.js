@@ -15,7 +15,7 @@ const FloatingButtons = ({ onPin, onLocate, onClear, hasRoute, onAdd, isAdmin })
 
       {/* Pin Button */}
       <TouchableOpacity style={[styles.circleButton, styles.pinButton]} onPress={onPin}>
-        <Icon name="add" size={24} color="#fff" />
+        <Icon name="pin-sharp" size={24} color="#fff" />
       </TouchableOpacity>
 
       {/* Show the new add button only if admin and signed in */}

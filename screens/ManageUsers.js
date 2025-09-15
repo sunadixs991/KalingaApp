@@ -77,7 +77,7 @@ export default function ManageUsers() {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Icon name="chevron-back" size={26} color="#fff" />
+          <Icon name="chevron-back" size={26} color="#000" />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Manage Users</Text>
         <View style={styles.backButton} />
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#e75e33",
+    backgroundColor: "#fff",
     paddingVertical: 10,
     paddingHorizontal: 15,
     shadowColor: "#000",
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
   topBarTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#fff",
+    color: "#000",
     textAlign: "center",
   },
   container: {

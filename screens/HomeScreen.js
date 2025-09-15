@@ -33,35 +33,34 @@ import userProfile from "../assets/user.png";
 // Simple PinCard component defined inline to avoid import issues
 const SimplePinCard = ({ pin, onPress }) => (
   <TouchableOpacity
-    style={{
-      backgroundColor: "#fff",
-      borderRadius: 12,
-      padding: 20,
-      marginBottom: 12,
-      elevation: 3,
-    }}
+    style={styles.cardNearby}
     onPress={() => onPress && onPress(pin)}
+    activeOpacity={0.9}
   >
-    <Text
-      style={{
-        fontWeight: "bold",
-        marginBottom: 8,
-        fontSize: 15,
-        color: "#e75e33",
-      }}
-    >
-      {pin.category}
-    </Text>
-    <Text style={{ marginBottom: 8 }}>{pin.description}</Text>
-    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-      <Text style={{ fontWeight: "bold", marginBottom: 8 }}>
-        Pinned by: {pin.userFirstName}
-      </Text>
-      <Text style={{ color: "#49A5A2" }}>{pin.formattedDistance}</Text>
+    {/* Category header */}
+    <View style={styles.cardHeader}>
+      <Text style={styles.cardCategory}>{pin.category}</Text>
+      <Text style={styles.cardDistance}>{pin.formattedDistance}</Text>
     </View>
-    <Text style={{ fontWeight: "bold" }}>
-      👍{pin.upvotes || 0} 👎{pin.downvotes || 0}
-    </Text>
+
+    {/* Description */}
+    <Text style={styles.cardDescription}>{pin.description}</Text>
+
+    {/* Footer */}
+    <View style={styles.cardFooter}>
+      <Text style={styles.cardUser}>📌 {pin.userFirstName}</Text>
+      <View style={styles.voteRow}>
+        <Icon name="thumbs-up-sharp" size={18} color="#49A5A2" />
+        <Text style={styles.voteText}>{pin.upvotes || 0}</Text>
+        <Icon
+          name="thumbs-down-sharp"
+          size={18}
+          color="#e75e33"
+          style={{ marginLeft: 12 }}
+        />
+        <Text style={styles.voteText}>{pin.downvotes || 0}</Text>
+      </View>
+    </View>
   </TouchableOpacity>
 );
 
@@ -76,8 +75,8 @@ export default function HomeScreen({ route, navigation }) {
   const [selectedPin, setSelectedPin] = useState(null);
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const { isDarkMode } = useTheme();
-  const [notificationModalVisible, setNotificationModalVisible] = useState(false);
-
+  const [notificationModalVisible, setNotificationModalVisible] =
+    useState(false);
 
   // const colors = {
   //   background: isDarkMode ? "#121212" : "#fff",
@@ -315,7 +314,7 @@ export default function HomeScreen({ route, navigation }) {
             <Text style={styles.sectionTitle}>Services</Text>
             <View style={styles.cardRow}>
               <TouchableOpacity
-                style={styles.card}
+                style={styles.cardServices}
                 onPress={() => navigation.navigate("FoodDistribution")}
               >
                 <Image
@@ -326,7 +325,7 @@ export default function HomeScreen({ route, navigation }) {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.card}
+                style={styles.cardServices}
                 onPress={() => navigation.navigate("MedicalSupport")}
               >
                 <Image
@@ -337,7 +336,7 @@ export default function HomeScreen({ route, navigation }) {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.card}
+                style={styles.cardServices}
                 onPress={() => navigation.navigate("EvacuationCenters")}
               >
                 <Image
@@ -398,7 +397,14 @@ export default function HomeScreen({ route, navigation }) {
                       Distance: {selectedPin.formattedDistance}
                     </Text>
                     <Text style={styles.modalMeta}>
-                      👍{selectedPin.upvotes || 0} 👎
+                      <Icon name="thumbs-up-sharp" size={18} color="#49A5A2" />{" "}
+                      {selectedPin.upvotes || 0}
+                      {"   "}
+                      <Icon
+                        name="thumbs-down-sharp"
+                        size={18}
+                        color="#e75e33"
+                      />{" "}
                       {selectedPin.downvotes || 0}
                     </Text>
 
@@ -534,14 +540,18 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 10,
   },
-  card: {
+  cardServices: {
     width: wp("44%"),
     height: wp("44%"),
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: wp("5%"),
     alignItems: "center",
-    elevation: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   cardImage: {
     width: 60,
@@ -556,6 +566,59 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: "center",
   },
+  cardNearby: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  cardCategory: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#e75e33",
+  },
+  cardDistance: {
+    fontSize: 13,
+    color: "#49A5A2",
+    fontWeight: "500",
+  },
+  cardDescription: {
+    fontSize: 14,
+    color: "#444",
+    marginBottom: 10,
+    lineHeight: 20,
+  },
+  cardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  cardUser: {
+    fontSize: 14,
+    color: "#666",
+    fontWeight: "500",
+  },
+  voteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  voteText: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginLeft: 4,
+    color: "#333",
+  },
+
   placeholder: {
     backgroundColor: "#e1e1e1",
   },
@@ -676,9 +739,9 @@ const styles = StyleSheet.create({
   modalMeta: {
     marginBottom: 4,
     color: "#555",
-    fontSize: 16,
+    fontSize: 15,
     paddingLeft: 8,
-    fontWeight: "bold",
+    fontWeight: "500",
     alignSelf: "center",
   },
   modalDistance: {

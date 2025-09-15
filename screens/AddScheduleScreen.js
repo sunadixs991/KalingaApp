@@ -16,9 +16,16 @@ import Icon from "react-native-vector-icons/Ionicons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { supabase } from '../services/supabaseClient'; // adjust path if your supabase client is exported elsewhere
-import { notifyUsers } from '../services/notification';
-import { addDoc, collection, getDocs, query, where, Timestamp } from "firebase/firestore";
+import { supabase } from "../services/supabaseClient"; // adjust path if your supabase client is exported elsewhere
+import { notifyUsers } from "../services/notification";
+import {
+  addDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+  Timestamp,
+} from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { db } from "../firebase";
 
@@ -75,10 +82,14 @@ export default function AddScheduleScreen({ navigation, route }) {
       try {
         const snap = await getDocs(collection(db, "barangays"));
         const list = [];
-        snap.forEach(doc => {
+        snap.forEach((doc) => {
           const data = doc.data();
           if (data.name) list.push(data.name);
         });
+        
+        // ✅ Sort alphabetically (case-insensitive)
+        list.sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+
         setBarangayList(list);
       } catch (error) {
         console.log("Failed to fetch barangays:", error);
@@ -147,7 +158,8 @@ export default function AddScheduleScreen({ navigation, route }) {
         const asset = res.assets[0];
         const uri = asset.uri;
         const name = asset.name || asset.fileName || uri.split("/").pop();
-        const mimeType = asset.mimeType || asset.type || "application/octet-stream";
+        const mimeType =
+          asset.mimeType || asset.type || "application/octet-stream";
         const fileObj = { uri, name, type: mimeType };
         console.log("Picked file (assets):", fileObj);
         setSelectedFile(fileObj);
@@ -166,7 +178,11 @@ export default function AddScheduleScreen({ navigation, route }) {
       }
 
       // User cancelled (various shapes)
-      if (res?.canceled === true || res?.type === "cancel" || res?.type === "cancelled") {
+      if (
+        res?.canceled === true ||
+        res?.type === "cancel" ||
+        res?.type === "cancelled"
+      ) {
         console.log("DocumentPicker cancelled by user");
         Alert.alert("No file selected", "You cancelled file selection.");
         return;
@@ -241,13 +257,14 @@ export default function AddScheduleScreen({ navigation, route }) {
           // Use a simple filename (you may keep folders if you prefer)
           const uploadName = uniqueFileName; // e.g. "166xxx_abcd.xlsx"
 
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from("schedule-files")
-            .upload(uploadName, uint8Array, {
-              contentType: selectedFile.type || "application/octet-stream",
-              cacheControl: "3600",
-              upsert: false,
-            });
+          const { data: uploadData, error: uploadError } =
+            await supabase.storage
+              .from("schedule-files")
+              .upload(uploadName, uint8Array, {
+                contentType: selectedFile.type || "application/octet-stream",
+                cacheControl: "3600",
+                upsert: false,
+              });
 
           if (uploadError) {
             console.error("Supabase upload error detail:", uploadError);
@@ -402,7 +419,9 @@ export default function AddScheduleScreen({ navigation, route }) {
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Barangay Selector */}
           <View style={styles.input}>
-            <Text style={{ marginBottom: 5, color: "#333" }}>Select Barangay</Text>
+            <Text style={{ marginBottom: 5, color: "#333" }}>
+              Select Barangay
+            </Text>
             <TouchableOpacity
               style={styles.selectorButton}
               onPress={() => setBarangayModalVisible(true)}
@@ -410,7 +429,12 @@ export default function AddScheduleScreen({ navigation, route }) {
               <Text style={{ color: newSchedule.title ? "#333" : "#aaa" }}>
                 {newSchedule.title || "Select Barangay"}
               </Text>
-              <Icon name="chevron-down" size={20} color="#333" style={{ marginLeft: 8 }} />
+              <Icon
+                name="chevron-down"
+                size={20}
+                color="#333"
+                style={{ marginLeft: 8 }}
+              />
             </TouchableOpacity>
           </View>
 
@@ -431,7 +455,11 @@ export default function AddScheduleScreen({ navigation, route }) {
                     <TouchableOpacity
                       style={styles.modalItem}
                       onPress={() => {
-                        setNewSchedule({ ...newSchedule, title: item, purok: "" }); // <-- Reset purok when barangay changes
+                        setNewSchedule({
+                          ...newSchedule,
+                          title: item,
+                          purok: "",
+                        }); // <-- Reset purok when barangay changes
                         setBarangayModalVisible(false);
                       }}
                     >
@@ -458,9 +486,17 @@ export default function AddScheduleScreen({ navigation, route }) {
               disabled={!newSchedule.title}
             >
               <Text style={{ color: newSchedule.purok ? "#333" : "#aaa" }}>
-                {newSchedule.purok || (newSchedule.title ? "Select Purok" : "Select Barangay first")}
+                {newSchedule.purok ||
+                  (newSchedule.title
+                    ? "Select Purok"
+                    : "Select Barangay first")}
               </Text>
-              <Icon name="chevron-down" size={20} color="#333" style={{ marginLeft: 8 }} />
+              <Icon
+                name="chevron-down"
+                size={20}
+                color="#333"
+                style={{ marginLeft: 8 }}
+              />
             </TouchableOpacity>
           </View>
 
@@ -669,7 +705,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
   },
   cancelButton: { backgroundColor: "#999" },
-  saveButton: { backgroundColor: "#e75e33" },
+  saveButton: { backgroundColor: "#49A5A2" },
   buttonText: { color: "#fff", fontWeight: "600" },
   pickerWrapper: {
     borderWidth: 1,

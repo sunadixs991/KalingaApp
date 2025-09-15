@@ -13,6 +13,7 @@ import {
   Linking,
   ActivityIndicator,
 } from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
 import Icon from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../services/supabaseClient";
@@ -22,7 +23,14 @@ import { WebView } from "react-native-webview";
 import * as XLSX from "xlsx";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
-import { addDoc, collection, Timestamp, getDocs, query, where } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  Timestamp,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
 import { db } from "../firebase";
 import { Picker } from "@react-native-picker/picker";
 
@@ -615,6 +623,10 @@ export default function ManageSchedule({ navigation }) {
           const data = doc.data();
           if (data.name) list.push(data.name);
         });
+
+        // ✅ Sort alphabetically (case-insensitive)
+        list.sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+
         setBarangayList(list);
       } catch (error) {
         console.log("Failed to fetch barangays:", error);
@@ -678,7 +690,7 @@ export default function ManageSchedule({ navigation }) {
           <Icon name="chevron-back" size={26} color="#000" />
         </TouchableOpacity>
 
-        <Text style={styles.topBarTitle}>Manage Schedules</Text>
+        <Text style={styles.topBarTitle}>Food Distribution Schedules</Text>
 
         {/* Placeholder to balance layout */}
         <View style={{ width: 26 }} />
@@ -690,48 +702,59 @@ export default function ManageSchedule({ navigation }) {
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingVertical: 16 }}
-          renderItem={({ item }) => (
-            <View style={styles.cardRow}>
-              <View style={styles.cardInfo}>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardText}>📅 {item.date}</Text>
-                <Text style={styles.cardText}>⏰ {item.time}</Text>
-                <Text style={styles.cardText}>📍 {item.location}</Text>
-                {item.purok && (
-                  <Text style={styles.cardText}>🏘️ Purok: {item.purok}</Text>
-                )}
-                {item.fileUrl && (
-                  <TouchableOpacity
-                    style={styles.fileLink}
-                    onPress={() => {
-                      setSelectedFileUrl(item.fileUrl);
-                      setFileViewerVisible(true);
-                      parseExcelFile(item.fileUrl);
-                    }}
-                  >
-                    <Icon name="document-text" size={16} color="#e75e33" />
-                    <Text style={styles.fileLinkText}>View List of Names</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              {isLoggedIn && isAdmin ? (
-                <View style={styles.adminActions}>
-                  <TouchableOpacity
-                    onPress={() => handleEditSchedule(item)}
-                    style={styles.actionButton}
-                  >
-                    <Icon name="create-outline" size={22} color="#666" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => handleDeleteSchedule(item.id)}
-                    style={styles.actionButton}
-                  >
-                    <Icon name="trash-outline" size={22} color="#ff4444" />
-                  </TouchableOpacity>
+          renderItem={({ item }) => {
+            const renderRightActions = () => (
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDeleteSchedule(item.id)}
+              >
+                <Icon name="trash-outline" size={24} color="#fff" />
+              </TouchableOpacity>
+            );
+
+            return (
+              <Swipeable renderRightActions={renderRightActions}>
+                <View style={styles.cardRow}>
+                  <View style={styles.cardInfo}>
+                    <Text style={styles.cardTitle}>{item.title}</Text>
+                    <Text style={styles.cardText}>📅 {item.date}</Text>
+                    <Text style={styles.cardText}>⏰ {item.time}</Text>
+                    <Text style={styles.cardText}>📍 {item.location}</Text>
+                    {item.purok && (
+                      <Text style={styles.cardText}>🏘️ {item.purok}</Text>
+                    )}
+                    {item.fileUrl && (
+                      <TouchableOpacity
+                        style={styles.fileLink}
+                        onPress={() => {
+                          setSelectedFileUrl(item.fileUrl);
+                          setFileViewerVisible(true);
+                          parseExcelFile(item.fileUrl);
+                        }}
+                      >
+                        <Icon name="document-text" size={16} color="#e75e33" />
+                        <Text style={styles.fileLinkText}>
+                          View List of Names
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {isLoggedIn && isAdmin ? (
+                    <View style={styles.adminActions}>
+                      <TouchableOpacity
+                        onPress={() => handleEditSchedule(item)}
+                        style={styles.actionButton}
+                      >
+                        <Icon name="create-outline" size={22} color="#666" />
+                      </TouchableOpacity>
+                      {/* ❌ Removed the delete button from here */}
+                    </View>
+                  ) : null}
                 </View>
-              ) : null}
-            </View>
-          )}
+              </Swipeable>
+            );
+          }}
         />
 
         {isLoggedIn && isAdmin ? (
@@ -746,166 +769,193 @@ export default function ManageSchedule({ navigation }) {
 
         {isAdmin && (
           <Modal
-            animationType="fade" // Changed from "slide" to "fade"
+            animationType="fade"
             transparent={true}
             visible={modalVisible}
             onRequestClose={() => setModalVisible(false)}
           >
             <View
-              style={[
-                styles.modalOverlay,
-                { opacity: modalVisible ? 1 : 0 }, // Add fade effect
-              ]}
+              style={[styles.modalOverlay, { opacity: modalVisible ? 1 : 0 }]}
             >
               <View
                 style={[
                   styles.modalContent,
-                  { transform: [{ scale: modalVisible ? 1 : 0.9 }] }, // Add scale effect
+                  { transform: [{ scale: modalVisible ? 1 : 0.9 }] },
                 ]}
               >
-                <Text style={styles.modalTitle}>
-                  {isEditMode ? "Edit Schedule" : "Add New Schedule"}
-                </Text>
+                <ScrollView
+                  contentContainerStyle={{ paddingBottom: 20 }}
+                  showsVerticalScrollIndicator={true}
+                >
+                  <Text style={styles.modalTitle}>
+                    {isEditMode ? "Edit Schedule" : "Add New Schedule"}
+                  </Text>
 
-                {/* Barangay Picker */}
-                <View style={styles.input}>
-                  <Text style={{ marginBottom: 5, color: "#333" }}>Barangay</Text>
-                  <Picker
-                    selectedValue={newSchedule.title}
-                    onValueChange={(itemValue) => {
-                      setNewSchedule((prev) => ({
-                        ...prev,
-                        title: itemValue,
-                        purok: "", // Reset purok when barangay changes
-                      }));
-                    }}
-                    enabled={isEditMode}
-                  >
-                    <Picker.Item label="Select Barangay" value="" />
-                    {barangayList.map((name, idx) => (
-                      <Picker.Item key={idx} label={name} value={name} />
-                    ))}
-                  </Picker>
-                </View>
+                  {/* Barangay Picker */}
+                  <View style={styles.input}>
+                    <Text style={{ marginBottom: 5, color: "#333" }}>
+                      Barangay
+                    </Text>
+                    <Picker
+                      selectedValue={newSchedule.title}
+                      onValueChange={(itemValue) => {
+                        setNewSchedule((prev) => ({
+                          ...prev,
+                          title: itemValue,
+                          purok: "",
+                        }));
+                      }}
+                      enabled={isEditMode}
+                    >
+                      <Picker.Item label="Select Barangay" value="" />
+                      {barangayList.map((name, idx) => (
+                        <Picker.Item key={idx} label={name} value={name} />
+                      ))}
+                    </Picker>
+                  </View>
 
-                {/* Purok Picker */}
-                <View style={styles.input}>
-                  <Text style={{ marginBottom: 5, color: "#333" }}>Purok</Text>
-                  <Picker
-                    selectedValue={newSchedule.purok || ""}
-                    onValueChange={(itemValue) =>
-                      setNewSchedule((prev) => ({
-                        ...prev,
-                        purok: itemValue,
-                      }))
+                  {/* Purok Picker */}
+                  <View style={styles.input}>
+                    <Text style={{ marginBottom: 5, color: "#333" }}>
+                      Purok
+                    </Text>
+                    <Picker
+                      selectedValue={newSchedule.purok || ""}
+                      onValueChange={(itemValue) =>
+                        setNewSchedule((prev) => ({
+                          ...prev,
+                          purok: itemValue,
+                        }))
+                      }
+                      enabled={isEditMode && !!newSchedule.title}
+                    >
+                      <Picker.Item
+                        label={
+                          newSchedule.title
+                            ? "Select Purok"
+                            : "Select Barangay first"
+                        }
+                        value=""
+                      />
+                      {purokList.map((name, idx) => (
+                        <Picker.Item key={idx} label={name} value={name} />
+                      ))}
+                    </Picker>
+                  </View>
+
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Location"
+                    value={newSchedule.location}
+                    onChangeText={(text) =>
+                      setNewSchedule({ ...newSchedule, location: text })
                     }
-                    enabled={isEditMode && !!newSchedule.title}
-                  >
-                    <Picker.Item label={newSchedule.title ? "Select Purok" : "Select Barangay first"} value="" />
-                    {purokList.map((name, idx) => (
-                      <Picker.Item key={idx} label={name} value={name} />
-                    ))}
-                  </Picker>
-                </View>
-
-                <TextInput
-                  style={styles.input}
-                  placeholder="Location"
-                  value={newSchedule.location}
-                  onChangeText={(text) =>
-                    setNewSchedule({ ...newSchedule, location: text })
-                  }
-                />
-
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => setShowDatePicker(true)}
-                >
-                  <Text style={styles.dateButtonText}>
-                    Select Date: {newSchedule.date.toLocaleDateString()}
-                  </Text>
-                </TouchableOpacity>
-
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={newSchedule.date}
-                    mode="date"
-                    onChange={(event, selectedDate) => {
-                      setShowDatePicker(false);
-                      if (selectedDate) {
-                        setNewSchedule({ ...newSchedule, date: selectedDate });
-                      }
-                    }}
                   />
-                )}
 
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => setShowTimePicker(true)}
-                >
-                  <Text style={styles.dateButtonText}>
-                    Select Time: {newSchedule.time.toLocaleTimeString()}
-                  </Text>
-                </TouchableOpacity>
-
-                {showTimePicker && (
-                  <DateTimePicker
-                    value={newSchedule.time}
-                    mode="time"
-                    onChange={(event, selectedTime) => {
-                      setShowTimePicker(false);
-                      if (selectedTime) {
-                        setNewSchedule({ ...newSchedule, time: selectedTime });
-                      }
-                    }}
-                  />
-                )}
-
-                <View style={styles.fileSection}>
-                  <Text style={styles.fileLabel}>
-                    List of Names (Excel File)
-                  </Text>
                   <TouchableOpacity
-                    style={[
-                      styles.fileButton,
-                      selectedFile && styles.fileButtonSelected,
-                    ]}
-                    onPress={handleFilePick}
+                    style={styles.dateButton}
+                    onPress={() => setShowDatePicker(true)}
                   >
-                    <Icon name="document-attach" size={24} color="#666" />
-                    <Text style={styles.fileButtonText} numberOfLines={1}>
-                      {selectedFile ? selectedFile.name : "Select Excel File"}
+                    <Text style={styles.dateButtonText}>
+                      Select Date: {newSchedule.date.toLocaleDateString()}
                     </Text>
                   </TouchableOpacity>
-                  {selectedFile && (
-                    <View style={styles.selectedFileInfo}>
-                      <Icon name="checkmark-circle" size={16} color="#4CAF50" />
-                      <Text style={styles.selectedFileText}>File selected</Text>
-                      <TouchableOpacity
-                        style={styles.removeFileButton}
-                        onPress={() => setSelectedFile(null)}
-                      >
-                        <Icon name="close-circle" size={20} color="#FF5252" />
-                      </TouchableOpacity>
-                    </View>
+
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={newSchedule.date}
+                      mode="date"
+                      onChange={(event, selectedDate) => {
+                        setShowDatePicker(false);
+                        if (selectedDate) {
+                          setNewSchedule({
+                            ...newSchedule,
+                            date: selectedDate,
+                          });
+                        }
+                      }}
+                    />
                   )}
-                </View>
-
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.cancelButton]}
-                    onPress={() => setModalVisible(false)}
-                  >
-                    <Text style={styles.buttonText}>Cancel</Text>
-                  </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[styles.modalButton, styles.saveButton]}
-                    onPress={handleSaveSchedule}
+                    style={styles.dateButton}
+                    onPress={() => setShowTimePicker(true)}
                   >
-                    <Text style={styles.buttonText}>Save</Text>
+                    <Text style={styles.dateButtonText}>
+                      Select Time: {newSchedule.time.toLocaleTimeString()}
+                    </Text>
                   </TouchableOpacity>
-                </View>
+
+                  {showTimePicker && (
+                    <DateTimePicker
+                      value={newSchedule.time}
+                      mode="time"
+                      onChange={(event, selectedTime) => {
+                        setShowTimePicker(false);
+                        if (selectedTime) {
+                          setNewSchedule({
+                            ...newSchedule,
+                            time: selectedTime,
+                          });
+                        }
+                      }}
+                    />
+                  )}
+
+                  {/* File Upload */}
+                  <View style={styles.fileSection}>
+                    <Text style={styles.fileLabel}>
+                      List of Names (Excel File)
+                    </Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.fileButton,
+                        selectedFile && styles.fileButtonSelected,
+                      ]}
+                      onPress={handleFilePick}
+                    >
+                      <Icon name="document-attach" size={24} color="#666" />
+                      <Text style={styles.fileButtonText} numberOfLines={1}>
+                        {selectedFile ? selectedFile.name : "Select Excel File"}
+                      </Text>
+                    </TouchableOpacity>
+                    {selectedFile && (
+                      <View style={styles.selectedFileInfo}>
+                        <Icon
+                          name="checkmark-circle"
+                          size={16}
+                          color="#4CAF50"
+                        />
+                        <Text style={styles.selectedFileText}>
+                          File selected
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.removeFileButton}
+                          onPress={() => setSelectedFile(null)}
+                        >
+                          <Icon name="close-circle" size={20} color="#FF5252" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Buttons */}
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity
+                      style={[styles.modalButton, styles.cancelButton]}
+                      onPress={() => setModalVisible(false)}
+                    >
+                      <Text style={styles.buttonText}>Cancel</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.modalButton, styles.saveButton]}
+                      onPress={handleSaveSchedule}
+                    >
+                      <Text style={styles.buttonText}>Save</Text>
+                    </TouchableOpacity>
+                  </View>
+                </ScrollView>
               </View>
             </View>
           </Modal>
@@ -1000,6 +1050,15 @@ const styles = StyleSheet.create({
     padding: 4,
     marginRight: 6,
   },
+  deleteButton: {
+    backgroundColor: "#ff4444",
+    justifyContent: "center",
+    alignItems: "center",
+    width: 70,
+    borderRadius: 10,
+    height: "90%",
+    marginLeft: 10,
+  },
   topBarTitle: {
     flex: 1,
     textAlign: "center",
@@ -1029,7 +1088,7 @@ const styles = StyleSheet.create({
   cardRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 18,
+    marginBottom: 12,
     backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#eee",
@@ -1091,7 +1150,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     width: "90%",
-    maxHeight: "80%",
+    maxHeight: "85%",
   },
   modalTitle: {
     fontSize: 20,
@@ -1175,7 +1234,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveButton: {
-    backgroundColor: "#e75e33",
+    backgroundColor: "#49A5A2",
   },
   cancelButton: {
     backgroundColor: "#999",

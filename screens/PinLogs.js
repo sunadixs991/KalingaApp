@@ -100,13 +100,13 @@ export default function PinLogs() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <StatusBar barStyle="light-content" backgroundColor="#e75e33" />
+      {/* <StatusBar barStyle="light-content" backgroundColor="#e75e33" /> */}
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Icon name="chevron-back" size={26} color="#fff" />
+          <Icon name="chevron-back" size={26} color="#e75e33" />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Pin Logs</Text>
         <View style={styles.backButton} />
@@ -183,15 +183,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#e75e33",
+    backgroundColor: "#fff",
     paddingVertical: 10,
     paddingHorizontal: 15,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 3,
-    elevation: 4,
-    zIndex: 10,
+    // shadowColor: "#000",
+    // shadowOpacity: 0.2,
+    // shadowOffset: { width: 0, height: 2 },
+    // shadowRadius: 3,
+    // elevation: 4,
+    // zIndex: 10,
   },
   backButton: {
     width: 40,
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
   topBarTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#fff",
+    color: "#000",
     textAlign: "center",
   },
   container: {

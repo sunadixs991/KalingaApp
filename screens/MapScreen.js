@@ -1426,8 +1426,8 @@ const handleSaveEvacPin = async () => {
                       setPinInfoModalVisible(false);
                     }}
                   >
-                    <MaterialCommunityIcons
-                      name="navigation"
+                    <Icon
+                      name="navigate"
                       size={28}
                       color="#1976D2"
                     />

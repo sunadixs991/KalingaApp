@@ -25,6 +25,7 @@ import { useTheme } from "../context/ThemeContext";
 import * as ImagePicker from "expo-image-picker";
 import { supabase } from "../services/supabaseClient";
 import { db } from "../firebase";
+
 import {
   query,
   collection,
@@ -509,10 +510,22 @@ export default function ProfileScreen() {
           <View style={styles.settingsList}>
             <TouchableOpacity
               style={styles.settingItem}
-              onPress={() => setEditModalVisible(true)}
+              onPress={() =>
+                navigation.navigate("AccountInfoScreen", {
+                  userInfo: userInfo,
+                  onUpdate: (updatedInfo) => setUserInfo(updatedInfo), // callback to update Profile screen
+                })
+              }
             >
               <Icon name="person-outline" size={22} color="#555" />
               <Text style={styles.settingText}>Account Information</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={() => navigation.navigate("PinLogs")}
+            >
+              <Icon name="location-outline" size={22} color="#555" />
+              <Text style={styles.settingText}>Pin Logs</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.settingItem}
@@ -527,17 +540,6 @@ export default function ProfileScreen() {
             >
               <Icon name="settings-outline" size={22} color="#555" />
               <Text style={styles.settingText}>Settings</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.settingItem}
-              onPress={() => navigation.navigate("PinLogs")}
-            >
-              <Icon name="location-outline" size={22} color="#555" />
-              <Text style={styles.settingText}>Pin Logs</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.settingItem}>
-              <Icon name="information-circle-outline" size={22} color="#555" />
-              <Text style={styles.settingText}>About us</Text>
             </TouchableOpacity>
             {/* Admin Utilities - only visible for admin */}
             {isLoggedIn && isAdmin && (
@@ -560,6 +562,10 @@ export default function ProfileScreen() {
                 </Text>
               </TouchableOpacity>
             )}
+            <TouchableOpacity style={styles.settingItem}>
+              <Icon name="information-circle-outline" size={22} color="#555" />
+              <Text style={styles.settingText}>About us</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Log Out */}
@@ -680,7 +686,9 @@ export default function ProfileScreen() {
                   marginBottom: 16,
                 }}
               >
-                <Text style={{ fontSize: 18, fontWeight: "bold", color: "#e75e33" }}>
+                <Text
+                  style={{ fontSize: 18, fontWeight: "bold", color: "#e75e33" }}
+                >
                   {isEditing
                     ? "Edit Account Information"
                     : "Account Information"}
@@ -807,7 +815,14 @@ export default function ProfileScreen() {
                   }
                   enabled={isEditing && !!editInfo.barangay}
                 >
-                  <Picker.Item label={editInfo.barangay ? "Select Purok" : "Select Barangay first"} value="" />
+                  <Picker.Item
+                    label={
+                      editInfo.barangay
+                        ? "Select Purok"
+                        : "Select Barangay first"
+                    }
+                    value=""
+                  />
                   {purokList.map((name, idx) => (
                     <Picker.Item key={idx} label={name} value={name} />
                   ))}

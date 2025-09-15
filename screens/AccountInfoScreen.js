@@ -1,190 +1,287 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   ScrollView,
-  StatusBar,
   Alert,
-  Platform,
+  StyleSheet,
 } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { db } from "../firebase";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  updateDoc,
+  doc,
+} from "firebase/firestore";
+import { Picker } from "@react-native-picker/picker";
+import { getUserInfo } from "../services/getinfo";
 
 export default function AccountInfoScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const userInfo = route.params?.userInfo || {};
+  const { userInfo, onUpdate } = route.params;
+  const [uploading, setUploading] = useState(false);
 
-  const [isEditing, setIsEditing] = useState(false);
   const [editInfo, setEditInfo] = useState({
-    firstName: userInfo.firstName || "",
-    lastName: userInfo.lastName || "",
-    username: userInfo.username || "",
-    email: userInfo.email || "",
-    phone: userInfo.phone || "",
-    dob: userInfo.dob || "",
-    gender: userInfo.gender || "",
-    status: userInfo.status || "",
-    province: userInfo.province || "",
-    city: userInfo.city || "",
-    barangay: userInfo.barangay || "",
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    dob: "",
+    gender: "",
+    status: "",
+    barangay: "",
+    purok: "",
   });
+  const [isEditing, setIsEditing] = useState(false);
+  const [barangayList, setBarangayList] = useState([]);
+  const [purokList, setPurokList] = useState([]);
 
-  const handleEditToggle = () => {
-    if (isEditing) {
+  useEffect(() => {
+    if (userInfo) {
       setEditInfo({
         firstName: userInfo.firstName || "",
         lastName: userInfo.lastName || "",
-        username: userInfo.username || "",
         email: userInfo.email || "",
         phone: userInfo.phone || "",
         dob: userInfo.dob || "",
         gender: userInfo.gender || "",
         status: userInfo.status || "",
-        province: userInfo.province || "",
-        city: userInfo.city || "",
         barangay: userInfo.barangay || "",
+        purok: userInfo.purok || "",
       });
-      setIsEditing(false);
-    } else {
-      setIsEditing(true);
+    }
+  }, [userInfo]);
+
+  // Fetch Barangays
+  useEffect(() => {
+    const fetchBarangays = async () => {
+      try {
+        const snap = await getDocs(collection(db, "barangays"));
+        const list = snap.docs.map((doc) => doc.data().name).sort();
+        setBarangayList(list);
+      } catch (err) {
+        console.log("Failed to fetch barangays:", err);
+      }
+    };
+    fetchBarangays();
+  }, []);
+
+  // Fetch Puroks when Barangay changes
+  useEffect(() => {
+    const fetchPuroks = async () => {
+      if (!editInfo.barangay) {
+        setPurokList([]);
+        setEditInfo((prev) => ({ ...prev, purok: "" }));
+        return;
+      }
+      try {
+        const q = query(
+          collection(db, "barangays"),
+          where("name", "==", editInfo.barangay)
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const docRef = snap.docs[0].ref;
+          const purokSnap = await getDocs(collection(docRef, "puroks"));
+          const list = purokSnap.docs.map((d) => d.data().name).sort();
+          setPurokList(list);
+          setEditInfo((prev) => ({
+            ...prev,
+            purok: list.includes(prev.purok) ? prev.purok : "",
+          }));
+        }
+      } catch (err) {
+        console.log("Failed to fetch puroks:", err);
+      }
+    };
+    fetchPuroks();
+  }, [editInfo.barangay]);
+
+  const handleSaveEdit = async () => {
+    try {
+      setUploading(true); // optional for loader
+      let userIdentifier = await AsyncStorage.getItem("user");
+      if (!userIdentifier) return;
+
+      let cleanIdentifier = userIdentifier;
+      try {
+        const parsed = JSON.parse(userIdentifier);
+        if (typeof parsed === "object" && parsed !== null) {
+          cleanIdentifier =
+            parsed.username || parsed.email || parsed.id || userIdentifier;
+        }
+      } catch (e) {}
+      cleanIdentifier = cleanIdentifier.toString().trim();
+
+      const userQuery = query(
+        collection(db, "users"),
+        where("username", "==", cleanIdentifier)
+      );
+      const userSnap = await getDocs(userQuery);
+      if (!userSnap.empty) {
+        const userDocId = userSnap.docs[0].id;
+        await updateDoc(doc(db, "users", userDocId), {
+          firstName: editInfo.firstName,
+          lastName: editInfo.lastName,
+          email: editInfo.email,
+          phone: editInfo.phone,
+          dob: editInfo.dob,
+          gender: editInfo.gender,
+          status: editInfo.status,
+          barangay: editInfo.barangay,
+          purok: editInfo.purok,
+        });
+
+        // Manually update userInfo state immediately
+        if (onUpdate) {
+          onUpdate(editInfo); // <-- this updates Profile screen immediately
+        }
+        setIsEditing(false);
+        Alert.alert("Success", "Account information updated!");
+      }
+    } catch (error) {
+      console.log(error);
+      Alert.alert("Error", "Failed to update account information.");
+    } finally {
+      setUploading(false);
     }
   };
 
-  const handleSave = () => {
-    Alert.alert("Success", "Account information updated!");
-    setIsEditing(false);
-  };
-
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#e75e33" />
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Icon name="chevron-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.topBarTitle}>Account Information</Text>
-        <View style={{ width: 24 }} /> 
-      </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: 20,
+          }}
+        >
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Icon name="chevron-back" size={24} color="#e75e33" />
+          </TouchableOpacity>
+          <Text style={{ fontSize: 18, fontWeight: "bold", textAlign: "center", flex: 1 }}>
+            {isEditing ? "Edit Account Information" : "Account Information"}
+          </Text>
+        </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
         <TextInput
           style={styles.input}
           placeholder="First Name"
           value={editInfo.firstName}
-          onChangeText={(text) => setEditInfo({ ...editInfo, firstName: text })}
+          onChangeText={(t) => setEditInfo({ ...editInfo, firstName: t })}
           editable={isEditing}
         />
         <TextInput
           style={styles.input}
           placeholder="Last Name"
           value={editInfo.lastName}
-          onChangeText={(text) => setEditInfo({ ...editInfo, lastName: text })}
+          onChangeText={(t) => setEditInfo({ ...editInfo, lastName: t })}
           editable={isEditing}
         />
         <TextInput
           style={styles.input}
           placeholder="Email"
           value={editInfo.email}
-          onChangeText={(text) => setEditInfo({ ...editInfo, email: text })}
-          keyboardType="email-address"
+          onChangeText={(t) => setEditInfo({ ...editInfo, email: t })}
           editable={isEditing}
         />
         <TextInput
           style={styles.input}
           placeholder="Phone"
           value={editInfo.phone}
-          onChangeText={(text) => setEditInfo({ ...editInfo, phone: text })}
-          keyboardType="phone-pad"
-          editable={isEditing}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Gender"
-          value={editInfo.gender}
-          onChangeText={(text) => setEditInfo({ ...editInfo, gender: text })}
-          editable={isEditing}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Birthdate (YYYY-MM-DD)"
-          value={editInfo.dob}
-          onChangeText={(text) => setEditInfo({ ...editInfo, dob: text })}
-          editable={isEditing}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Status"
-          value={editInfo.status}
-          onChangeText={(text) => setEditInfo({ ...editInfo, status: text })}
-          editable={isEditing}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Province"
-          value={editInfo.province}
-          onChangeText={(text) => setEditInfo({ ...editInfo, province: text })}
-          editable={isEditing}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="City"
-          value={editInfo.city}
-          onChangeText={(text) => setEditInfo({ ...editInfo, city: text })}
-          editable={isEditing}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Barangay"
-          value={editInfo.barangay}
-          onChangeText={(text) => setEditInfo({ ...editInfo, barangay: text })}
+          onChangeText={(t) => setEditInfo({ ...editInfo, phone: t })}
           editable={isEditing}
         />
 
-        <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.cancelButton} onPress={handleEditToggle}>
+        {/* Status Picker */}
+        <View style={styles.input}>
+          <Picker
+            selectedValue={editInfo.status}
+            onValueChange={(v) => setEditInfo({ ...editInfo, status: v })}
+            enabled={isEditing}
+          >
+            <Picker.Item label="Select Status" value="" />
+            <Picker.Item label="Single" value="Single" />
+            <Picker.Item label="Married" value="Married" />
+          </Picker>
+        </View>
+
+        {/* Barangay Picker */}
+        <View style={styles.input}>
+          <Picker
+            selectedValue={editInfo.barangay}
+            onValueChange={(v) =>
+              setEditInfo({ ...editInfo, barangay: v, purok: "" })
+            }
+            enabled={isEditing}
+          >
+            <Picker.Item label="Select Barangay" value="" />
+            {barangayList.map((b, idx) => (
+              <Picker.Item key={idx} label={b} value={b} />
+            ))}
+          </Picker>
+        </View>
+
+        {/* Purok Picker */}
+        <View style={styles.input}>
+          <Picker
+            selectedValue={editInfo.purok}
+            onValueChange={(v) => setEditInfo({ ...editInfo, purok: v })}
+            enabled={isEditing && !!editInfo.barangay}
+          >
+            <Picker.Item
+              label={
+                editInfo.barangay ? "Select Purok" : "Select Barangay first"
+              }
+              value=""
+            />
+            {purokList.map((p, idx) => (
+              <Picker.Item key={idx} label={p} value={p} />
+            ))}
+          </Picker>
+        </View>
+
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "flex-end",
+            marginTop: 20,
+          }}
+        >
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() => setIsEditing((prev) => !prev)}
+          >
             <Text style={styles.cancelButtonText}>
               {isEditing ? "Cancel" : "Edit"}
             </Text>
           </TouchableOpacity>
+
           {isEditing && (
-            <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={handleSaveEdit}
+            >
               <Text style={styles.saveButtonText}>Save</Text>
             </TouchableOpacity>
           )}
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-  },
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    justifyContent: "space-between",
-  },
-  topBarTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#000",
-    textAlign: "center",
-  },
-  scrollContent: {
-    padding: 20,
-  },
   input: {
     borderWidth: 1,
     borderColor: "#ccc",
@@ -194,34 +291,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     fontSize: 16,
   },
-  buttonRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: 18,
-  },
   cancelButton: {
     marginRight: 10,
     backgroundColor: "#ccc",
     paddingHorizontal: 18,
     paddingVertical: 12,
     borderRadius: 10,
-    alignItems: "center",
   },
   cancelButtonText: {
     color: "#333",
     fontWeight: "bold",
-    fontSize: 15,
   },
   saveButton: {
-    backgroundColor: "#e75e33",
+    backgroundColor: "#49A5A2",
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 10,
-    alignItems: "center",
   },
   saveButtonText: {
     color: "#fff",
     fontWeight: "bold",
-    fontSize: 15,
   },
 });

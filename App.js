@@ -23,7 +23,8 @@ import ManageUsers from "./screens/ManageUsers";
 import UsersActivity from "./screens/UsersActivity";
 import PinLogs from "./screens/PinLogs";
 import ManageCategory from "./screens/ManageCategory";
-import { LogBox } from 'react-native';
+import { LogBox } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 const Stack = createStackNavigator();
 
@@ -33,42 +34,46 @@ LogBox.ignoreLogs([
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Splash" component={SplashScreen} />
-          <Stack.Screen name="MainTabs" component={TabNavigator} />
-          <Stack.Screen name="LoginScreen" component={LoginScreen} />
-          <Stack.Screen name="SignUp" component={SignUp} />
-          <Stack.Screen name="AnalyticsScreen" component={AnalyticsScreen} />
-          <Stack.Screen name="FoodDistribution" component={FoodDistribution} />
-          <Stack.Screen
-            name="EvacuationCenters"
-            component={EvacuationCenters}
-          />
-          <Stack.Screen name="MedicalSupport" component={MedicalSupport} />
-          <Stack.Screen
-            name="AddSchedule"
-            component={AddScheduleScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen name="PrivacyScreen" component={PrivacyScreen} />
-          <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
-          <Stack.Screen
-            name="AccountInfoScreen"
-            component={AccountInfoScreen}
-          />
-          <Stack.Screen name="AdminUtils" component={AdminUtils} />
-          <Stack.Screen name="ManageContact" component={ContactScreen} />
-          <Stack.Screen name="ManageBarangay" component={BarangayScreen} />
-          <Stack.Screen name="ManageSchedule" component={ManageSchedule} />
-          <Stack.Screen name="ManageUsers" component={ManageUsers} />
-          <Stack.Screen name="UsersActivity" component={UsersActivity} />
-          <Stack.Screen name="PinLogs" component={PinLogs} />
-          <Stack.Screen name="ManageCategory" component={ManageCategory} />
-
-        </Stack.Navigator>
-      </NavigationContainer>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <NavigationContainer>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Splash" component={SplashScreen} />
+            <Stack.Screen name="MainTabs" component={TabNavigator} />
+            <Stack.Screen name="LoginScreen" component={LoginScreen} />
+            <Stack.Screen name="SignUp" component={SignUp} />
+            <Stack.Screen name="AnalyticsScreen" component={AnalyticsScreen} />
+            <Stack.Screen
+              name="FoodDistribution"
+              component={FoodDistribution}
+            />
+            <Stack.Screen
+              name="EvacuationCenters"
+              component={EvacuationCenters}
+            />
+            <Stack.Screen name="MedicalSupport" component={MedicalSupport} />
+            <Stack.Screen
+              name="AddSchedule"
+              component={AddScheduleScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen name="PrivacyScreen" component={PrivacyScreen} />
+            <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
+            <Stack.Screen
+              name="AccountInfoScreen"
+              component={AccountInfoScreen}
+            />
+            <Stack.Screen name="AdminUtils" component={AdminUtils} />
+            <Stack.Screen name="ManageContact" component={ContactScreen} />
+            <Stack.Screen name="ManageBarangay" component={BarangayScreen} />
+            <Stack.Screen name="ManageSchedule" component={ManageSchedule} />
+            <Stack.Screen name="ManageUsers" component={ManageUsers} />
+            <Stack.Screen name="UsersActivity" component={UsersActivity} />
+            <Stack.Screen name="PinLogs" component={PinLogs} />
+            <Stack.Screen name="ManageCategory" component={ManageCategory} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
