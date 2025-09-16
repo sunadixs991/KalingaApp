@@ -9,6 +9,7 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
+  TextInput
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps"; // <-- Add Polyline
 import * as Location from "expo-location";
@@ -22,6 +23,11 @@ import {
   addDoc,
   serverTimestamp,
   getDocs,
+  setDoc,
+  doc,
+  deleteDoc,
+  updateDoc,
+  deleteField
 } from "firebase/firestore";
 import { scanImageWithSightengine } from "../services/sightengine";
 import {
@@ -139,6 +145,10 @@ export default function MapScreen({ route }) {
   const [evacCapacity, setEvacCapacity] = useState("");
   const [evacContactPerson, setEvacContactPerson] = useState("");
   const [pendingEvacPin, setPendingEvacPin] = useState(null);
+  const [voteMessageModalVisible, setVoteMessageModalVisible] = useState(false);
+  const [pendingVoteType, setPendingVoteType] = useState(null);
+  const [voteMessage, setVoteMessage] = useState("");
+
 
   const isFocused = useIsFocused();
 
@@ -367,7 +377,8 @@ export default function MapScreen({ route }) {
   };
 
   // HANDLE VOTING
-  const handleVote = async (voteType) => {
+  const handleVote = async (voteType, voteMessage = "") => {
+    // ...existing code...
     console.log("handleVote called with:", voteType);
     console.log("castVote function check:", typeof castVote);
 
@@ -483,8 +494,39 @@ export default function MapScreen({ route }) {
     // --- OPTIMISTIC UPDATE END ---
 
     try {
-      console.log("Calling castVote with:", selectedPin.id, userInfo, voteType);
-      await castVote(selectedPin.id, userInfo, voteType, closePinInfoModal);
+      console.log("Calling castVote with:", selectedPin.id, userInfo, voteType, voteMessage);
+      await castVote(selectedPin.id, userInfo, voteType, voteMessage, closePinInfoModal);
+
+      // Save vote to top-level votes collection (not subcollection)
+      if (selectedPin && userInfo) {
+        // Use a composite key for the document ID (e.g. `${pinId}_${userId}`)
+        const voteDocId = `${selectedPin.id}_${userInfo}`;
+        await setDoc(
+          doc(db, "votes", voteDocId),
+          {
+            pinId: selectedPin.id,
+            userId: userInfo,
+            userFirstName: userFirstName || "",
+            userLastName: (typeof getUserInfo === "function" && userInfo)
+              ? (await getUserInfo(userInfo))?.lastName || ""
+              : "",
+            voteType,
+            voteMessage: voteMessage ? voteMessage.trim() : "",
+            createdAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+        console.log("Vote document updated in votes collection:", {
+          pinId: selectedPin.id,
+          userId: userInfo,
+          userFirstName: userFirstName || "",
+          userLastName: (typeof getUserInfo === "function" && userInfo)
+            ? (await getUserInfo(userInfo))?.lastName || ""
+            : "",
+          voteType,
+          voteMessage: voteMessage ? voteMessage.trim() : "",
+        });
+      }
 
       // Get updated pin data
       // console.log('Getting updated pin data...');
@@ -1260,6 +1302,62 @@ export default function MapScreen({ route }) {
         contactPerson={evacContactPerson}
         onChangeContactPerson={setEvacContactPerson}
       />
+      <Modal
+        visible={voteMessageModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setVoteMessageModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { padding: 24 }]}>
+            <Text style={{ fontSize: 16, fontWeight: "bold", marginBottom: 10 }}>
+              Optional message about your vote
+            </Text>
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: "#ccc",
+                borderRadius: 8,
+                padding: 10,
+                width: "100%",
+                marginBottom: 16,
+              }}
+              placeholder="Enter your message (optional)"
+              value={voteMessage}
+              onChangeText={setVoteMessage}
+              multiline
+            />
+            <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: "#999",
+                  paddingVertical: 10,
+                  paddingHorizontal: 20,
+                  borderRadius: 8,
+                  marginRight: 10,
+                }}
+                onPress={() => setVoteMessageModalVisible(false)}
+              >
+                <Text style={{ color: "#fff", fontWeight: "bold" }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: "#1976D2",
+                  paddingVertical: 10,
+                  paddingHorizontal: 20,
+                  borderRadius: 8,
+                }}
+                onPress={async () => {
+                  setVoteMessageModalVisible(false);
+                  await handleVote(pendingVoteType, voteMessage);
+                }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "bold" }}>Submit Vote</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* PIN INFO MODAL WITH VOTING */}
       <Modal
@@ -1317,7 +1415,17 @@ export default function MapScreen({ route }) {
                       userVoteStatus.voteType === "upvote" &&
                       styles.activeUpvote,
                     ]}
-                    onPress={() => handleVote("upvote")}
+                    onPress={() => {
+                      if (userVoteStatus.voteType === "upvote") {
+                        // Already upvoted, so remove vote directly (no modal)
+                        handleVote("upvote", "");
+                      } else {
+                        // Show modal for optional message
+                        setPendingVoteType("upvote");
+                        setVoteMessage("");
+                        setVoteMessageModalVisible(true);
+                      }
+                    }}
                     disabled={isVoting}
                   >
                     <Text
@@ -1351,7 +1459,17 @@ export default function MapScreen({ route }) {
                       userVoteStatus.voteType === "downvote" &&
                       styles.activeDownvote,
                     ]}
-                    onPress={() => handleVote("downvote")}
+                    onPress={() => {
+                      if (userVoteStatus.voteType === "downvote") {
+                        // Already downvoted, so remove vote directly (no modal)
+                        handleVote("downvote", "");
+                      } else {
+                        // Show modal for optional message
+                        setPendingVoteType("downvote");
+                        setVoteMessage("");
+                        setVoteMessageModalVisible(true);
+                      }
+                    }}
                     disabled={isVoting}
                   >
                     <Text

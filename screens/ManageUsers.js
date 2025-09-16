@@ -44,7 +44,9 @@ export default function ManageUsers() {
             (u.firstName && u.firstName.toLowerCase().includes(search.toLowerCase())) ||
             (u.lastName && u.lastName.toLowerCase().includes(search.toLowerCase())) ||
             (u.username && u.username.toLowerCase().includes(search.toLowerCase())) ||
-            (u.email && u.email.toLowerCase().includes(search.toLowerCase()))
+            (u.email && u.email.toLowerCase().includes(search.toLowerCase())) ||
+            (u.barangay && u.barangay.toLowerCase().includes(search.toLowerCase())) || // <-- Added
+            (u.purok && u.purok.toLowerCase().includes(search.toLowerCase()))           // <-- Added
         )
       );
     }
@@ -107,9 +109,15 @@ export default function ManageUsers() {
                 <Text style={styles.userName}>
                   {item.firstName} {item.lastName}
                 </Text>
-                <Text style={styles.userInfo}>Username: {item.username}</Text>
-                <Text style={styles.userInfo}>Email: {item.email}</Text>
-                <Text style={styles.userInfo}>User Type: {item.userType || "user"}</Text>
+                <Text style={styles.userInfo}>
+                  Barangay: {item.barangay || "N/A"}
+                </Text>
+                <Text style={styles.userInfo}>
+                  Purok: {item.purok || "N/A"}
+                </Text>
+                <Text style={styles.userInfo}>
+                  User Type: {item.userType || "user"}
+                </Text>
                 <Text style={styles.editText}>Tap to edit</Text>
               </TouchableOpacity>
             )}

@@ -335,7 +335,7 @@ export default function AddScheduleScreen({ navigation, route }) {
           `Barangay: ${newItem.title}\n` +
           `Date: ${newItem.date}\n` +
           `Time: ${newItem.time}\n` +
-          `Location: ${newItem.location}`;
+          `Landmark: ${newItem.location}`;
 
         const notifyResult = await notifyUsers(notificationMessage);
         console.log("notifyUsers result:", notifyResult);
@@ -346,7 +346,7 @@ export default function AddScheduleScreen({ navigation, route }) {
       const userFirstName = await getUserFirstName();
       await logUserActivity({
         title: "Add Schedule",
-        description: `Added schedule for Barangay ${newSchedule.title}, Purok ${newSchedule.purok}, Location: ${newSchedule.location}`,
+        description: `Added schedule for Barangay ${newSchedule.title}, Purok ${newSchedule.purok}, Landmark: ${newSchedule.location}`,
         userFirstName,
       });
 
@@ -581,7 +581,7 @@ export default function AddScheduleScreen({ navigation, route }) {
 
           <TextInput
             style={styles.input}
-            placeholder="Location"
+            placeholder="Landmark"
             value={newSchedule.location}
             onChangeText={(text) =>
               setNewSchedule({ ...newSchedule, location: text })

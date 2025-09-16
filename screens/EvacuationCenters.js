@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,46 +7,112 @@ import {
   Image,
   TouchableOpacity,
   StatusBar,
+  ActivityIndicator,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
-
-const centers = [
-  {
-    id: "1",
-    name: "Central School Gym",
-    address: "Poblacion, City Center",
-    capacity: "500 people",
-    status: "Open",
-    // image: require("../assets/evac1.png"),
-  },
-  {
-    id: "2",
-    name: "Barangay 2 Covered Court",
-    address: "Barangay 2, Main Road",
-    capacity: "300 people",
-    status: "Open",
-    // image: require("../assets/evac2.png"),
-  },
-  {
-    id: "3",
-    name: "Community Hall",
-    address: "Barangay 3, Near Plaza",
-    capacity: "200 people",
-    status: "Full",
-    // image: require("../assets/evac3.png"),
-  },
-];
+import { db } from "../firebase";
+import { collection, getDocs } from "firebase/firestore";
+import * as Location from "expo-location"; // Add this import
 
 export default function EvacuationCenters() {
   const navigation = useNavigation();
+  const [centers, setCenters] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [currentLocation, setCurrentLocation] = useState(null);
+  const [selectedCenter, setSelectedCenter] = useState(null);
+  const [centerModalVisible, setCenterModalVisible] = useState(false);
+
+  useEffect(() => {
+    getCurrentLocation();
+  }, []);
+
+  useEffect(() => {
+    if (currentLocation) fetchCenters();
+  }, [currentLocation]);
+
+  const getCurrentLocation = async () => {
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setCurrentLocation(null);
+        return;
+      }
+      let location = await Location.getCurrentPositionAsync({});
+      setCurrentLocation(location.coords);
+    } catch (e) {
+      setCurrentLocation(null);
+    }
+  };
+
+  function getDistance(lat1, lon1, lat2, lon2) {
+    // Haversine formula
+    function toRad(x) {
+      return (x * Math.PI) / 180;
+    }
+    const R = 6371; // km
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  const fetchCenters = async () => {
+    setLoading(true);
+    try {
+      const snap = await getDocs(collection(db, "evacuation_pins"));
+      const list = snap.docs.map((docu) => {
+        const data = docu.data();
+        let distance = null;
+        if (
+          currentLocation &&
+          data.latitude &&
+          data.longitude
+        ) {
+          distance = getDistance(
+            currentLocation.latitude,
+            currentLocation.longitude,
+            data.latitude,
+            data.longitude
+          );
+        }
+        return {
+          id: docu.id,
+          name: data.description || "Evacuation Center",
+          address: data.barangay
+            ? `${data.barangay}${data.purok ? ", Purok " + data.purok : ""}`
+            : "Unknown Address",
+          capacity: data.capacity ? `${data.capacity} people` : "N/A",
+          status: data.status || "Open",
+          image:
+            data.media && data.media.length > 0
+              ? { uri: data.media[0].url }
+              : null,
+          distance: distance !== null ? `${distance.toFixed(2)} km` : "N/A",
+        };
+      });
+      setCenters(list);
+    } catch (error) {
+      setCenters([]);
+    }
+    setLoading(false);
+  };
+
+  const handleCenterPress = (center) => {
+    setSelectedCenter(center);
+    setCenterModalVisible(true);
+  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      {/* StatusBar for better contrast */}
-      {/* <StatusBar barStyle="dark-content" backgroundColor="#fff" /> */}
-
       {/* Top Bar */}
       <View style={styles.topBar}>
         <TouchableOpacity
@@ -56,42 +122,107 @@ export default function EvacuationCenters() {
           <Icon name="chevron-back" size={26} color="#333" />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Evacuation Centers</Text>
-        <View style={{ width: 32 }} /> 
+        <View style={{ width: 32 }} />
       </View>
 
       {/* Main Content */}
       <View style={styles.container}>
-        <FlatList
-          data={centers}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingVertical: 16 }}
-          renderItem={({ item }) => (
-            <View style={styles.cardRow}>
-              <View style={styles.cardInfo}>
-                <Text style={styles.cardTitle}>{item.name}</Text>
-                <Text style={styles.cardText}>📍 {item.address}</Text>
-                <Text style={styles.cardText}>👥 {item.capacity}</Text>
-                <Text
-                  style={[
-                    styles.cardText,
-                    { color: item.status === "Full" ? "#e75e33" : "#49A5A2" },
-                  ]}
-                >
-                  {item.status}
-                </Text>
-              </View>
-              {item.image && (
-                <Image source={item.image} style={styles.cardImage} />
-              )}
-            </View>
-          )}
-        />
+        {loading ? (
+          <ActivityIndicator
+            size="large"
+            color="#1976D2"
+            style={{ marginTop: 40 }}
+          />
+        ) : (
+          <FlatList
+            data={centers}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingVertical: 16 }}
+            renderItem={({ item }) => (
+              <TouchableOpacity onPress={() => handleCenterPress(item)}>
+                <View style={styles.cardRow}>
+                  <View style={styles.cardInfo}>
+                    <Text style={styles.cardTitle}>{item.name}</Text>
+                    <Text style={styles.cardText}>📍 {item.address}</Text>
+                    <Text style={styles.cardText}>👥 {item.capacity}</Text>
+                    <Text
+                      style={[
+                        styles.cardText,
+                        {
+                          color:
+                            item.status === "Full" ? "#e75e33" : "#49A5A2",
+                        },
+                      ]}
+                    >
+                      {item.status}
+                    </Text>
+                    <Text style={styles.cardText}>
+                      <Icon name="walk-outline" size={16} color="#1976D2" /> {item.distance}
+                    </Text>
+                  </View>
+                  {item.image && (
+                    <Image source={item.image} style={styles.cardImage} />
+                  )}
+                </View>
+              </TouchableOpacity>
+            )}
+          />
+        )}
 
         <Text style={styles.info}>
           Stay updated on evacuation center availability and capacity.
         </Text>
       </View>
+
+      {/* Modal for selected center */}
+      <Modal
+        visible={centerModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCenterModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <TouchableOpacity
+              onPress={() => setCenterModalVisible(false)}
+              style={styles.closeIcon}
+            >
+              <Icon name="close" size={22} color="#666" />
+            </TouchableOpacity>
+            {selectedCenter && (
+              <>
+                <Text style={styles.modalTitle}>{selectedCenter.name}</Text>
+                <Text style={styles.modalDescription}>{selectedCenter.address}</Text>
+                <Text style={styles.modalCategory}>{selectedCenter.capacity}</Text>
+                <Text style={styles.modalMeta}>{selectedCenter.status}</Text>
+                <Text style={styles.modalDistance}>
+                  <Icon name="walk-outline" size={16} color="#1976D2" /> {selectedCenter.distance}
+                </Text>
+                <TouchableOpacity
+                  style={styles.viewMapButton}
+                  onPress={() => {
+                    setCenterModalVisible(false);
+                    navigation.navigate("MainTabs", {
+                      screen: "Map",
+                      params: {
+                        focusPin: {
+                          latitude: selectedCenter.latitude,
+                          longitude: selectedCenter.longitude,
+                          id: selectedCenter.id,
+                        },
+                      },
+                    });
+                  }}
+                >
+                  <Icon name="eye-outline" size={20} color="#fff" style={styles.viewMapIcon} />
+                  <Text style={styles.viewMapText}>View on Map</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -172,5 +303,72 @@ const styles = StyleSheet.create({
     height: 70,
     borderRadius: 10,
     backgroundColor: "#fff",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContainer: {
+    width: "85%",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+  },
+  closeIcon: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    padding: 8,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 8,
+  },
+  modalDescription: {
+    fontSize: 16,
+    color: "#333",
+    marginBottom: 12,
+  },
+  modalCategory: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#1976D2",
+    marginBottom: 8,
+  },
+  modalMeta: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 8,
+  },
+  modalDistance: {
+    fontSize: 14,
+    color: "#333",
+    marginBottom: 16,
+  },
+  viewMapButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1976D2",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  viewMapIcon: {
+    marginRight: 8,
+  },
+  viewMapText: {
+    fontSize: 16,
+    color: "#fff",
+    fontWeight: "500",
   },
 });

@@ -50,10 +50,10 @@ const SimplePinCard = ({ pin, onPress }) => (
     <View style={styles.cardFooter}>
       <Text style={styles.cardUser}>📌 {pin.userFirstName}</Text>
       <View style={styles.voteRow}>
-        <Icon name="thumbs-up-sharp" size={18} color="#49A5A2" />
+        <Icon name="arrow-up-sharp" size={18} color="#49A5A2" />
         <Text style={styles.voteText}>{pin.upvotes || 0}</Text>
         <Icon
-          name="thumbs-down-sharp"
+          name="arrow-down-sharp"
           size={18}
           color="#e75e33"
           style={{ marginLeft: 12 }}
@@ -397,11 +397,11 @@ export default function HomeScreen({ route, navigation }) {
                       Distance: {selectedPin.formattedDistance}
                     </Text>
                     <Text style={styles.modalMeta}>
-                      <Icon name="thumbs-up-sharp" size={18} color="#49A5A2" />{" "}
+                      <Icon name="arrow-up-sharp" size={18} color="#49A5A2" />{" "}
                       {selectedPin.upvotes || 0}
                       {"   "}
                       <Icon
-                        name="thumbs-down-sharp"
+                        name="arrow-down-sharp"
                         size={18}
                         color="#e75e33"
                       />{" "}

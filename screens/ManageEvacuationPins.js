@@ -8,7 +8,8 @@ import {
     StatusBar,
     TouchableOpacity,
     Alert,
-    ScrollView,
+    Modal,
+    Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
@@ -20,6 +21,8 @@ import { Swipeable } from "react-native-gesture-handler";
 export default function ManageEvacuationPins() {
     const [pins, setPins] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [mediaModalVisible, setMediaModalVisible] = useState(false);
+    const [selectedMedia, setSelectedMedia] = useState([]);
     const navigation = useNavigation();
 
     useEffect(() => {
@@ -60,12 +63,17 @@ export default function ManageEvacuationPins() {
         );
     };
 
-    // Right swipe delete for evacuation pin
+    // Swipe-to-delete style (same as ManageBarangay)
     const renderRightActions = (onDelete) => (
         <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
             <Icon name="trash-outline" size={22} color="#fff" />
         </TouchableOpacity>
     );
+
+    const handlePinPress = (item) => {
+        setSelectedMedia(item.media || []);
+        setMediaModalVisible(true);
+    };
 
     const renderPinItem = ({ item }) => (
         <Swipeable
@@ -73,24 +81,25 @@ export default function ManageEvacuationPins() {
                 renderRightActions(() => handleDeletePin(item.id))
             }
         >
-            <View style={styles.pinCard}>
-                {/* Removed the FontAwesome5 icon here */}
-                <View style={{ flex: 1 }}>
-                    <Text style={styles.pinTitle}>{item.description}</Text>
-                    <Text style={styles.pinDetail}>
-                        Category: {item.category || "Evacuation"}
-                    </Text>
-                    <Text style={styles.pinDetail}>
-                        Capacity: {item.capacity || "N/A"}
-                    </Text>
-                    <Text style={styles.pinDetail}>
-                        Contact: {item.contactPerson || "N/A"}
-                    </Text>
-                    <Text style={styles.pinDetail}>
-                        Barangay: {item.barangay || "N/A"}
-                    </Text>
+            <TouchableOpacity onPress={() => handlePinPress(item)}>
+                <View style={styles.pinCard}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.pinTitle}>{item.description}</Text>
+                        <Text style={styles.pinDetail}>
+                            Category: {item.category || "Evacuation"}
+                        </Text>
+                        <Text style={styles.pinDetail}>
+                            Capacity: {item.capacity || "N/A"}
+                        </Text>
+                        <Text style={styles.pinDetail}>
+                            Contact: {item.contactPerson || "N/A"}
+                        </Text>
+                        <Text style={styles.pinDetail}>
+                            Barangay: {item.barangay || "N/A"}
+                        </Text>
+                    </View>
                 </View>
-            </View>
+            </TouchableOpacity>
         </Swipeable>
     );
 
@@ -124,6 +133,41 @@ export default function ManageEvacuationPins() {
                     />
                 )}
             </View>
+
+            {/* Media Modal */}
+            <Modal visible={mediaModalVisible} transparent animationType="slide">
+                <View style={styles.mediaModalOverlay}>
+                    <View style={styles.mediaModalContent}>
+                        <Text style={styles.mediaModalTitle}>Pin Media</Text>
+                        {selectedMedia.length === 0 ? (
+                            <Text style={{ textAlign: "center", color: "#888" }}>
+                                No media available.
+                            </Text>
+                        ) : (
+                            <FlatList
+                                data={selectedMedia}
+                                keyExtractor={(item, idx) => idx.toString()}
+                                renderItem={({ item }) => (
+                                    <Image
+                                        source={{ uri: item.url }}
+                                        style={styles.mediaImage}
+                                        resizeMode="contain"
+                                    />
+                                )}
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={{ alignItems: "center" }}
+                            />
+                        )}
+                        <TouchableOpacity
+                            style={styles.closeMediaBtn}
+                            onPress={() => setMediaModalVisible(false)}
+                        >
+                            <Text style={styles.closeMediaText}>Close</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -171,10 +215,50 @@ const styles = StyleSheet.create({
     pinDetail: { fontSize: 13, color: "#555", marginTop: 2 },
     deleteBtn: {
         backgroundColor: "#ff4444",
-        padding: 10,
-        borderRadius: 10,
-        marginLeft: 10,
-        alignItems: "center",
         justifyContent: "center",
+        alignItems: "center",
+        width: 60,
+        borderRadius: 8,
+        marginBottom: 12,
+        marginLeft: 10,
+    },
+    mediaModalOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.5)",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    mediaModalContent: {
+        backgroundColor: "#fff",
+        borderRadius: 12,
+        padding: 20,
+        width: "90%",
+        maxHeight: "80%",
+        alignItems: "center",
+    },
+    mediaModalTitle: {
+        fontSize: 18,
+        fontWeight: "bold",
+        marginBottom: 15,
+        color: "#333",
+    },
+    mediaImage: {
+        width: 220,
+        height: 220,
+        marginHorizontal: 8,
+        borderRadius: 10,
+        backgroundColor: "#eee",
+    },
+    closeMediaBtn: {
+        marginTop: 18,
+        backgroundColor: "#1976D2",
+        paddingVertical: 10,
+        paddingHorizontal: 30,
+        borderRadius: 8,
+    },
+    closeMediaText: {
+        color: "#fff",
+        fontWeight: "bold",
+        fontSize: 16,
     },
 });

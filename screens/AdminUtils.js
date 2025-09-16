@@ -98,6 +98,14 @@ export default function AdminUtils() {
           <Icon name="home-outline" size={28} color="#1976D2" style={styles.icon} />
           <Text style={styles.optionText}>Manage Evacuation Pins</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.option}
+          onPress={() => navigation.navigate("ManagePins")}
+        >
+          <Icon name="pin-outline" size={28} color="#EC6135" style={styles.icon} />
+          <Text style={styles.optionText}>Manage Pins</Text>
+        </TouchableOpacity>
+
       </View>
     </SafeAreaView>
   );

@@ -28,6 +28,9 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import ManageCategory from "./screens/ManageCategory";
 import ManageEvacuationCategory from "./screens/ManageEvacuationCategory";
 import ManageEvacuationPins from "./screens/ManageEvacuationPins";
+import ManagePins from "./screens/ManagePins";
+import MapScreen from "./screens/MapScreen";
+import PinMessages from "./screens/PinMessages";
 
 const Stack = createStackNavigator();
 
@@ -77,6 +80,9 @@ export default function App() {
             <Stack.Screen name="ManageCategory" component={ManageCategory} />
             <Stack.Screen name="ManageEvacuationCategory" component={ManageEvacuationCategory} />
             <Stack.Screen name="ManageEvacuationPins" component={ManageEvacuationPins} />
+            <Stack.Screen name="ManagePins" component={ManagePins} />
+            <Stack.Screen name="MapScreen" component={MapScreen} />
+            <Stack.Screen name="PinMessages" component={PinMessages} />
           </Stack.Navigator>
         </NavigationContainer>
       </ThemeProvider>
