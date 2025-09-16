@@ -22,9 +22,12 @@ import AccountInfoScreen from "./screens/AccountInfoScreen";
 import ManageUsers from "./screens/ManageUsers";
 import UsersActivity from "./screens/UsersActivity";
 import PinLogs from "./screens/PinLogs";
-import ManageCategory from "./screens/ManageCategory";
+import ManagePinCategory from "./screens/ManagePinCategory";
 import { LogBox } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import ManageCategory from "./screens/ManageCategory";
+import ManageEvacuationCategory from "./screens/ManageEvacuationCategory";
+import ManageEvacuationPins from "./screens/ManageEvacuationPins";
 
 const Stack = createStackNavigator();
 
@@ -70,7 +73,10 @@ export default function App() {
             <Stack.Screen name="ManageUsers" component={ManageUsers} />
             <Stack.Screen name="UsersActivity" component={UsersActivity} />
             <Stack.Screen name="PinLogs" component={PinLogs} />
+            <Stack.Screen name="ManagePinCategory" component={ManagePinCategory} />
             <Stack.Screen name="ManageCategory" component={ManageCategory} />
+            <Stack.Screen name="ManageEvacuationCategory" component={ManageEvacuationCategory} />
+            <Stack.Screen name="ManageEvacuationPins" component={ManageEvacuationPins} />
           </Stack.Navigator>
         </NavigationContainer>
       </ThemeProvider>

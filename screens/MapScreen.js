@@ -47,6 +47,7 @@ import { WebView } from "react-native-webview";
 import { Image } from "react-native";
 import EvacuationPinModal from "../components/EvacuationPinModal"; // <-- Import your new modal
 import useEvacuationPins from "../hooks/useEvacuationPins";
+import getMapHtml from "../utils/getMapHtml";
 
 // Debug: Log the imports immediately
 // console.log("=== IMPORT DEBUG ===");
@@ -75,7 +76,31 @@ export default function MapScreen({ route }) {
   // keep a ref to pinMode to avoid stale closures in WebView onMessage handler
   const pinModeRef = useRef(pinMode);
   const [evacPinMode, setEvacPinMode] = useState(false);
-  
+  const [evacPins, setEvacPins] = useState([]);
+  const [evacCategoryStyles, setEvacCategoryStyles] = useState({});
+
+  useEffect(() => {
+    const fetchEvacCategories = async () => {
+      try {
+        const snap = await getDocs(collection(db, "evacuation_categories"));
+        const styles = {};
+        snap.forEach(doc => {
+          const data = doc.data();
+          if (data.name) {
+            styles[data.name.trim()] = {
+              color: data.color || "#1976D2",
+              icon: data.icon || "home",
+            };
+          }
+        });
+        setEvacCategoryStyles(styles);
+      } catch (error) {
+        setEvacCategoryStyles({});
+      }
+    };
+    fetchEvacCategories();
+  }, []);
+
   useEffect(() => {
     pinModeRef.current = pinMode;
     // inform WebView when pinMode changes (keeps hint & behavior in sync)
@@ -90,184 +115,7 @@ export default function MapScreen({ route }) {
     }
   }, [pinMode]);
 
-  const getMapHtml = (
-    pins = [],
-    loc = { latitude: 0, longitude: 0 },
-    route = []
-  ) => {
-    const pinsJson = JSON.stringify(pins);
-    const routeJson = JSON.stringify(route);
-    const centerLat = loc.latitude || 0;
-    const centerLng = loc.longitude || 0;
-    return `<!doctype html>
-      <html><head>
-        <meta name="viewport" content="initial-scale=1.0, width=device-width" />
-        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"/>
-        <style>
-          html,body,#map{height:100%;margin:0;padding:0;}
-         /* hide Leaflet zoom (+ / -) controls */
-         .leaflet-control-zoom { display: none !important; }
-         /* keep attribution visible but small (if needed) */
-         .leaflet-control-attribution { font-size: 11px !important; opacity: 0.8; }
-          .custom-pin { background: transparent; }
-          .pin {
-            display:flex; align-items:center; justify-content:center;
-            width:36px; height:36px; border-radius:18px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.6);
-            color: #fff;
-            border: 2px solid rgba(255,255,255,0.3);
-          }
-          .pin i { font-size:18px; line-height:18px; }
-          /* pin mode visual hint (optional) */
-          .pin-mode-hint {
-            position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.6);
-            color: #fff;
-            padding: 6px 10px;
-            border-radius: 12px;
-            font-size: 12px;
-            z-index: 9999;
-            display: none;
-          }
-          .pin-mode-hint.show { display: block; }
-        </style>
-      </head><body>
-        <div id="map" style="touch-action: none;"></div>
-        <div id="pinHint" class="pin-mode-hint">Pin mode: long-press or tap to place</div>
-        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-        <script>
-          const pins = ${pinsJson};
-          const route = ${routeJson};
-          // Disable default zoom control (we hide + / -). Attribution control kept or disabled as required.
-          const map = L.map('map', { attributionControl: false, zoomControl: false }).setView([${centerLat}, ${centerLng}], 13);
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-            attribution: '&copy; OpenStreetMap contributors'
-          }).addTo(map);
 
-          let _pinMode = false; // controlled by RN via setPinMode messages
-          const pinHintEl = document.getElementById('pinHint');
-
-          const markers = {};
-          function addPins(list){
-            Object.values(markers).forEach(m=>map.removeLayer(m));
-            for(const p of list){
-              const iconHtml = '<div class="pin" style="background:' + (p.color||'#2c352a') + ';">' +
-                               '<i class="' + (p.iconClass || 'fas fa-map-marker-alt') + '" aria-hidden="true"></i>' +
-                               '</div>';
-              const myIcon = L.divIcon({ html: iconHtml, className: 'custom-pin', iconSize: [36,36], iconAnchor: [18,36] });
-              const m = L.marker([p.latitude, p.longitude], { icon: myIcon }).addTo(map);
-              m.on('click', ()=> window.ReactNativeWebView.postMessage(JSON.stringify({type:'markerClick', id: p.id})));
-              markers[p.id] = m;
-            }
-          }
-
-          function drawRoute(r){
-            if(window._route) map.removeLayer(window._route);
-            if(r && r.length){
-              const latlngs = r.map(c=>[c.latitude, c.longitude]);
-              window._route = L.polyline(latlngs, {color:'#EC6135', weight:6}).addTo(map);
-              map.fitBounds(window._route.getBounds(), {padding:[40,40]});
-            }
-          }
-
-          addPins(pins);
-          drawRoute(route);
-
-          // Long-press detection (works for touch and mouse)
-          (function() {
-            let timer = null;
-            let startPoint = null;
-            const threshold = 600; // ms required to consider long-press
-            let longPressed = false;
-
-            function getLatLngFromEvent(e){
-              try {
-                if (!e) return null;
-                // If Leaflet event with latlng
-                if(e.latlng) return e.latlng;
-                // Use Leaflet helper for raw DOM events (pointer/mouse/touch)
-                const raw = e && e.originalEvent ? e.originalEvent : e;
-                if(raw) return map.mouseEventToLatLng(raw);
-              } catch(err){}
-              return null;
-            }
-
-            function onDown(e){
-              longPressed = false;
-              startPoint = getLatLngFromEvent(e) || null;
-              if(timer){ clearTimeout(timer); timer = null; }
-              timer = setTimeout(() => {
-                if(startPoint && _pinMode){
-                  longPressed = true;
-                  window.ReactNativeWebView.postMessage(JSON.stringify({
-                    type: 'mapLongPress',
-                    latitude: startPoint.lat,
-                    longitude: startPoint.lng
-                  }));
-                }
-              }, threshold);
-            }
-
-            function onUp(e){
-              if(timer){
-                clearTimeout(timer);
-                timer = null;
-              }
-              if(!_pinMode){
-                longPressed = false;
-                return;
-              }
-              if(longPressed){
-                longPressed = false;
-                return;
-              }
-              const pt = getLatLngFromEvent(e) || null;
-              if(pt){
-                window.ReactNativeWebView.postMessage(JSON.stringify({
-                  type: 'mapPin',
-                  latitude: pt.lat,
-                  longitude: pt.lng
-                }));
-              }
-            }
-
-            // Attach to the map container using pointer/touch/mouse events (more reliable in WebView)
-            const container = map.getContainer();
-            container.addEventListener('pointerdown', onDown);
-            container.addEventListener('pointerup', onUp);
-            container.addEventListener('touchstart', onDown);
-            container.addEventListener('touchend', onUp);
-            container.addEventListener('touchcancel', onUp);
-            container.addEventListener('mousedown', onDown);
-            container.addEventListener('mouseup', onUp);
-
-            // Keep click for informational use
-            map.on('click', function(e){
-              window.ReactNativeWebView.postMessage(JSON.stringify({type:'mapClick', latitude: e.latlng.lat, longitude: e.latlng.lng}));
-            });
-          })();
-
-          function handleMessage(m){
-            try{
-              const msg = typeof m.data === 'string' ? JSON.parse(m.data) : m.data;
-              if(msg?.type === 'updatePins') addPins(msg.pins||[]);
-              if(msg?.type === 'updateRoute') drawRoute(msg.route||[]);
-              if(msg?.type === 'flyTo') map.setView([msg.latitude, msg.longitude], msg.zoom||15);
-              if(msg?.type === 'setPinMode'){
-                _pinMode = !!msg.enabled;
-                if(_pinMode) pinHintEl.classList.add('show'); else pinHintEl.classList.remove('show');
-              }
-            }catch(e){}
-          }
-          document.addEventListener('message', handleMessage);
-          window.addEventListener('message', handleMessage);
-        </script>
-      </body></html>`;
-  };
 
   const navigation = useNavigation();
   const [pinModalVisible, setPinModalVisible] = useState(false);
@@ -382,7 +230,37 @@ export default function MapScreen({ route }) {
     };
     fetchCategories();
   }, [isFocused]);
-
+  // Fetch evacuation pins on mount
+  useEffect(() => {
+    const fetchEvacPins = async () => {
+      try {
+        const snap = await getDocs(collection(db, "evacuation_pins"));
+        const pins = [];
+        snap.forEach((doc) => {
+          const data = doc.data();
+          if (data.latitude && data.longitude) {
+            pins.push({
+              id: doc.id,
+              latitude: data.latitude,
+              longitude: data.longitude,
+              userId: data.userId,
+              userFirstName: data.userFirstName || "anonymous",
+              description: data.description,
+              category: data.category || "Evacuation",
+              media: data.media || [],
+              createdAt: data.createdAt,
+              capacity: data.capacity || "",
+              contactPerson: data.contactPerson || "",
+            });
+          }
+        });
+        setEvacPins(pins);
+      } catch (error) {
+        setEvacPins([]);
+      }
+    };
+    fetchEvacPins();
+  }, []);
   // Handle focusPin when map is ready and pins are loaded
   useEffect(() => {
     if (focusPin && webviewRef.current && allPins.length > 0) {
@@ -968,6 +846,21 @@ export default function MapScreen({ route }) {
     setRouteCoords([]);
   };
 
+  const evacPinsWithIcons = evacPins.map((p) => {
+    const categoryKey = (p.category || "Evacuation").trim();
+    const category =
+      evacCategoryStyles[categoryKey] ||
+      { color: "#1976D2", icon: "home" }; // fallback
+
+    return {
+      ...p,
+      iconClass: `fas fa-${category.icon}`,
+      color: category.color,
+      size: 46, // Make evacuation pins bigger (default regular pin is 36)
+      isEvacuation: true, // For further highlighting if needed
+    };
+  });
+
   // Place this inside your MapScreen component, before the return statement
   const handleEvacPinButton = () => {
     setEvacPinMode(true); // Set evacuation mode ON
@@ -996,141 +889,187 @@ export default function MapScreen({ route }) {
       );
     }
   };
-const handleSaveEvacPin = async () => {
-  if (!evacSelectedCategory.trim()) {
-    Alert.alert("Category required", "Please select a category.");
-    return;
-  }
-  if (!evacDescription.trim()) {
-    Alert.alert("Description required", "Please enter a description.");
-    return;
-  }
-  if (!evacCapacity.trim() || isNaN(Number(evacCapacity))) {
-    Alert.alert("Capacity required", "Please enter a valid capacity.");
-    return;
-  }
-  if (!evacContactPerson.trim()) {
-    Alert.alert("Contact Person required", "Please enter a contact person.");
-    return;
-  }
+  // ...existing code...
 
-  try {
-    let mediaUrls = [];
+  const handleSaveEvacPin = async () => {
+    if (!evacSelectedCategory.trim()) {
+      Alert.alert("Category required", "Please select a category.");
+      return;
+    }
+    if (!evacDescription.trim()) {
+      Alert.alert("Description required", "Please enter a description.");
+      return;
+    }
+    if (!evacCapacity.trim() || isNaN(Number(evacCapacity))) {
+      Alert.alert("Capacity required", "Please enter a valid capacity.");
+      return;
+    }
+    if (!evacContactPerson.trim()) {
+      Alert.alert("Contact Person required", "Please enter a contact person.");
+      return;
+    }
 
-    // --- Upload evacuation media to Supabase ---
-    if (evacMedia && evacMedia.length > 0) {
-      Alert.alert("Uploading", "Uploading image files...", []);
+    try {
+      let mediaUrls = [];
 
-      // (Optional) Scan images for safety here if you want
-
-      for (let i = 0; i < evacMedia.length; i++) {
-        const mediaItem = evacMedia[i];
-
-        // Only allow images
-        if (!mediaItem.type || !mediaItem.type.startsWith("image")) {
-          Alert.alert(
-            "Invalid File",
-            "Only image files are allowed. Please remove any non-image files."
-          );
-          return;
-        }
-
-        // Upload image to Supabase
-        const fileName = `evacuation_pins/${Date.now()}_${i}_${mediaItem.fileName || "media"}`;
-
-        let uploadData;
-        try {
-          // Try FormData upload
-          const formData = new FormData();
-          formData.append("file", {
-            uri: mediaItem.uri,
-            type: mediaItem.type,
-            name: mediaItem.fileName || `media_${i}.jpg`,
-          });
-
-          const { data, error } = await supabase.storage
-            .from("pin-media")
-            .upload(fileName, formData, {
-              contentType: mediaItem.type,
-              cacheControl: "3600",
-              upsert: true,
+      // --- Upload evacuation media to Supabase ---
+      if (evacMedia && evacMedia.length > 0) {
+        Alert.alert("Uploading", "Uploading image files...", []);
+        for (let i = 0; i < evacMedia.length; i++) {
+          const mediaItem = evacMedia[i];
+          if (!mediaItem.type || !mediaItem.type.startsWith("image")) {
+            Alert.alert(
+              "Invalid File",
+              "Only image files are allowed. Please remove any non-image files."
+            );
+            return;
+          }
+          const fileName = `evacuation_pins/${Date.now()}_${i}_${mediaItem.fileName || "media"}`;
+          let uploadData;
+          try {
+            const formData = new FormData();
+            formData.append("file", {
+              uri: mediaItem.uri,
+              type: mediaItem.type,
+              name: mediaItem.fileName || `media_${i}.jpg`,
             });
-
-          if (error) {
-            // Fallback to blob method
-            const response = await fetch(mediaItem.uri);
-            if (!response.ok)
-              throw new Error(`Failed to fetch media: ${response.status}`);
-            const blob = await response.blob();
-
-            const { data: blobData, error: blobError } = await supabase.storage
+            const { data, error } = await supabase.storage
               .from("pin-media")
-              .upload(fileName, blob, {
+              .upload(fileName, formData, {
                 contentType: mediaItem.type,
                 cacheControl: "3600",
                 upsert: true,
               });
-
-            if (blobError) throw blobError;
-            uploadData = blobData;
-          } else {
-            uploadData = data;
+            if (error) {
+              const response = await fetch(mediaItem.uri);
+              if (!response.ok)
+                throw new Error(`Failed to fetch media: ${response.status}`);
+              const blob = await response.blob();
+              const { data: blobData, error: blobError } = await supabase.storage
+                .from("pin-media")
+                .upload(fileName, blob, {
+                  contentType: mediaItem.type,
+                  cacheControl: "3600",
+                  upsert: true,
+                });
+              if (blobError) throw blobError;
+              uploadData = blobData;
+            } else {
+              uploadData = data;
+            }
+          } catch (uploadError) {
+            Alert.alert(
+              "Upload Warning",
+              `Failed to upload image file ${i + 1}: ${uploadError.message}. Continuing with other files...`
+            );
+            continue;
           }
-        } catch (uploadError) {
-          Alert.alert(
-            "Upload Warning",
-            `Failed to upload image file ${i + 1}: ${uploadError.message}. Continuing with other files...`
-          );
-          continue; // Skip this file
+          const { data: urlData } = supabase.storage
+            .from("pin-media")
+            .getPublicUrl(uploadData.path);
+          mediaUrls.push({
+            url: urlData.publicUrl,
+            type: mediaItem.type,
+            fileName: mediaItem.fileName,
+            path: uploadData.path,
+          });
         }
-
-        // Get public URL from Supabase
-        const { data: urlData } = supabase.storage
-          .from("pin-media")
-          .getPublicUrl(uploadData.path);
-
-        mediaUrls.push({
-          url: urlData.publicUrl,
-          type: mediaItem.type,
-          fileName: mediaItem.fileName,
-          path: uploadData.path,
-        });
       }
+
+      // --- Save evacuation pin to Firestore with Supabase URLs and Barangay ---
+      let barangayName = await getBarangayFromCoords(
+        pendingEvacPin.latitude,
+        pendingEvacPin.longitude
+      );
+      // --- Save evacuation pin to Firestore with Supabase URLs and Barangay ---
+      await addDoc(collection(db, "evacuation_pins"), {
+        latitude: pendingEvacPin.latitude,
+        longitude: pendingEvacPin.longitude,
+        userId: userInfo || "anonymous",
+        userFirstName: userFirstName || "anonymous",
+        description: evacDescription.trim(),
+        category: evacSelectedCategory.trim(),
+        capacity: evacCapacity.trim(),
+        contactPerson: evacContactPerson.trim(),
+        media: mediaUrls,
+        createdAt: serverTimestamp(),
+        barangay: barangayName, // <-- Added barangay field
+      });
+
+      setEvacModalVisible(false);
+      setEvacDescription("");
+      setEvacSelectedCategory("");
+      setEvacMedia(null);
+      setEvacCapacity("");
+      setEvacContactPerson("");
+      setPinMode(false);
+      setPendingEvacPin(null);
+
+      Alert.alert("Evacuation Pin Added!", "The evacuation pin has been added successfully.");
+
+      // --- Refetch all evacuation pins after saving ---
+      try {
+        const snap = await getDocs(collection(db, "evacuation_pins"));
+        const pins = [];
+        snap.forEach((doc) => {
+          const data = doc.data();
+          if (data.latitude && data.longitude) {
+            pins.push({
+              id: doc.id,
+              latitude: data.latitude,
+              longitude: data.longitude,
+              userId: data.userId,
+              userFirstName: data.userFirstName || "anonymous",
+              description: data.description,
+              category: data.category || "Evacuation",
+              media: data.media || [],
+              createdAt: data.createdAt,
+              capacity: data.capacity || "",
+              contactPerson: data.contactPerson || "",
+            });
+          }
+        });
+        setEvacPins(pins);
+      } catch (error) {
+        setEvacPins([]);
+      }
+      // --- Refetch all regular pins after saving ---
+      try {
+        const querySnapshot = await getDocs(collection(db, "pins"));
+        const pins = [];
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.latitude && data.longitude) {
+            pins.push({
+              id: doc.id,
+              latitude: data.latitude,
+              longitude: data.longitude,
+              userId: data.userId,
+              userFirstName: data.userFirstName || "anonymous",
+              description: data.description,
+              category: data.category || "Unknown",
+              media: data.media || [],
+              createdAt: data.createdAt,
+              upvotes: data.upvotes || 0,
+              downvotes: data.downvotes || 0,
+            });
+          }
+        });
+        setAllPins(pins);
+      } catch (error) {
+        setAllPins([]);
+      }
+    } catch (error) {
+      console.error("Error saving evacuation pin:", error);
+      Alert.alert(
+        "Error",
+        `There was an error adding the evacuation pin: ${error.message}. Please try again.`
+      );
     }
+  };
 
-    // --- Save evacuation pin to Firestore with Supabase URLs ---
-    await addDoc(collection(db, "evacuation_pins"), {
-      latitude: pendingEvacPin.latitude,
-      longitude: pendingEvacPin.longitude,
-      userId: userInfo || "anonymous",
-      userFirstName: userFirstName || "anonymous",
-      description: evacDescription.trim(),
-      category: evacSelectedCategory.trim(),
-      capacity: evacCapacity.trim(),
-      contactPerson: evacContactPerson.trim(),
-      media: mediaUrls, // URLs from Supabase Storage
-      createdAt: serverTimestamp(),
-    });
 
-    setEvacModalVisible(false);
-    setEvacDescription("");
-    setEvacSelectedCategory("");
-    setEvacMedia(null);
-    setEvacCapacity("");
-    setEvacContactPerson("");
-    setPinMode(false);
-    setPendingEvacPin(null);
-
-    Alert.alert("Evacuation Pin Added!", "The evacuation pin has been added successfully.");
-    // Optionally, refresh evacuation pins here
-  } catch (error) {
-    console.error("Error saving evacuation pin:", error);
-    Alert.alert(
-      "Error",
-      `There was an error adding the evacuation pin: ${error.message}. Please try again.`
-    );
-  }
-};
+  // ...existing code...
   // before return(...)
   const pinsWithIcons = allPins.map((p) => {
     const categoryKey = (p.category || "Others").trim();
@@ -1146,15 +1085,22 @@ const handleSaveEvacPin = async () => {
   });
 
   // Add current location as a special pin so the WebView map shows it
+  let allPinsForMap = [...pinsWithIcons, ...evacPinsWithIcons];
   if (location) {
-    pinsWithIcons.unshift({
-      id: "__current_location",
-      latitude: location.latitude,
-      longitude: location.longitude,
-      iconClass: "fas fa-map-marker-alt",
-      color: "#EC6135",
-    });
+    allPinsForMap = [
+      {
+        id: "__current_location",
+        latitude: location.latitude,
+        longitude: location.longitude,
+        iconClass: "fas fa-map-marker-alt",
+        color: "#EC6135",
+        size: 36,
+      },
+      ...allPinsForMap,
+    ];
   }
+
+
 
   return (
     <View style={styles.container}>
@@ -1163,7 +1109,7 @@ const handleSaveEvacPin = async () => {
         originWhitelist={["*"]}
         source={{
           html: getMapHtml(
-            pinsWithIcons,
+            allPinsForMap,
             location || { latitude: 0, longitude: 0 },
             routeCoords
           ),
@@ -1216,7 +1162,12 @@ const handleSaveEvacPin = async () => {
             // Keep marker clicks as before
             if (msg.type === "markerClick") {
               if (msg.id === "__current_location") return;
-              const pin = allPins.find((p) => p.id === msg.id);
+              // Try to find in regular pins first
+              let pin = allPins.find((p) => p.id === msg.id);
+              // If not found, try evacuation pins
+              if (!pin) {
+                pin = evacPins.find((p) => p.id === msg.id);
+              }
               if (pin) handlePinMarkerPress(pin);
             }
           } catch (e) {
@@ -1426,8 +1377,8 @@ const handleSaveEvacPin = async () => {
                       setPinInfoModalVisible(false);
                     }}
                   >
-                    <Icon
-                      name="navigate"
+                    <MaterialCommunityIcons
+                      name="navigation"
                       size={28}
                       color="#1976D2"
                     />
@@ -1902,5 +1853,3 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
 });
-
-

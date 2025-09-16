@@ -558,7 +558,7 @@ export default function ProfileScreen() {
                     { color: "#e75e33", fontWeight: "bold" },
                   ]}
                 >
-                  Admin Utilities
+                  Utilities
                 </Text>
               </TouchableOpacity>
             )}

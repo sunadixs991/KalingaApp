@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from "react";
 import {
-  Modal,
   View,
   Text,
-  TextInput,
+  Modal,
   TouchableOpacity,
-  StyleSheet,
+  TextInput,
   ScrollView,
+  StyleSheet,
   Alert,
   Image
-} from 'react-native';
+} from "react-native";
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
@@ -181,15 +181,14 @@ const EvacuationPinModal = ({
 
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+      <View style={styles.overlay}>
+        <View style={styles.modal}>
+          <Text style={styles.title}>Add Evacuation Pin</Text>
           <ScrollView
             showsVerticalScrollIndicator={true}
             contentContainerStyle={{ paddingBottom: 20 }}
             keyboardShouldPersistTaps="handled"
           >
-            <Text style={styles.modalTitle}>Add Evacuation Pin Details</Text>
-
             {/* Category Selection */}
             <View style={styles.categorySection}>
               <Text style={styles.sectionLabel}>Category</Text>
@@ -306,18 +305,12 @@ const EvacuationPinModal = ({
             </View>
 
             {/* Action Buttons */}
-            <View style={styles.buttonRow}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.cancelButton]} 
-                onPress={handleCancel}
-              >
-                <Text style={styles.buttonText}>Cancel</Text>
+            <View style={styles.actions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
+                <Text style={styles.actionText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.saveButton]} 
-                onPress={handleSave}
-              >
-                <Text style={styles.buttonText}>Save Pin</Text>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                <Text style={styles.actionText}>Save</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -329,7 +322,82 @@ const EvacuationPinModal = ({
 
 export default EvacuationPinModal;
 
- const styles = StyleSheet.create({
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modal: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+    width: "90%",
+    maxWidth: 400,
+    elevation: 5,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 15,
+    textAlign: "center",
+  },
+  input: {
+    borderBottomWidth: 1,
+    borderColor: "#ccc",
+    fontSize: 16,
+    marginBottom: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    backgroundColor: "#fff",
+    borderRadius: 6,
+  },
+  label: {
+    fontWeight: "bold",
+    marginBottom: 5,
+    marginTop: 10,
+  },
+  categoryBtn: {
+    backgroundColor: "#eee",
+    borderRadius: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginRight: 8,
+  },
+  selectedCategoryBtn: {
+    backgroundColor: "#1976D2",
+  },
+  categoryText: {
+    color: "#333",
+    fontWeight: "500",
+  },
+  selectedCategoryText: {
+    color: "#fff",
+  },
+  actions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 15,
+  },
+  cancelBtn: {
+    backgroundColor: "#999",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginRight: 10,
+  },
+  saveBtn: {
+    backgroundColor: "#1976D2",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  actionText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 15,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -344,25 +412,6 @@ export default EvacuationPinModal;
     width: '90%',
     maxHeight: '90%',
     elevation: 5,
-  },
-  modalTitle: {
-    fontWeight: '700',
-    fontSize: wp('5%'),
-    marginBottom: hp('2.5%'),
-    textAlign: 'center',
-    color: '#333',
-  },
-  categorySection: {
-    marginBottom: hp('2%'),
-    backgroundColor: '#f9f9f9', // Debug: make section visible
-    padding: 10,
-    borderRadius: 5,
-  },
-  descriptionSection: {
-    marginBottom: hp('2.5%'),
-  },
-  mediaSection: {
-    marginBottom: hp('2.5%'),
   },
   sectionLabel: {
     fontSize: wp('4%'),
@@ -431,15 +480,11 @@ export default EvacuationPinModal;
     color: '#fff',
     fontWeight: '600',
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: wp('3%'),
-    paddingVertical: hp('1.5%'),
-    paddingHorizontal: wp('4%'),
-    fontSize: wp('3.8%'),
-    color: '#333',
-    minHeight: hp('8%'),
+  descriptionSection: {
+    marginBottom: hp('2.5%'),
+  },
+  mediaSection: {
+    marginBottom: hp('2.5%'),
   },
   mediaPickerButton: {
     padding: 12,
