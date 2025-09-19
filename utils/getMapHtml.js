@@ -63,6 +63,7 @@ function getMapHtml(
                 '<div class="pin" style="background:' + (p.color||'#2c352a') + ';' +
                 (p.size ? 'width:' + p.size + 'px;height:' + p.size + 'px;border-radius:' + (p.size/2) + 'px;box-shadow:0 2px 8px rgba(25,118,210,0.4);border:3px solid #fff;' : '') +
                 (p.isEvacuation ? 'outline:3px solid #1976D2;' : '') +
+                (p.isMedical ? 'outline:3px solid #1976D2;' : '') +
                 '">' +
                 '<i class="' + (p.iconClass || 'fas fa-map-marker-alt') + '" aria-hidden="true" style="font-size:' + (p.size ? Math.floor(p.size/2) : 18) + 'px;"></i>' +
                 '</div>';

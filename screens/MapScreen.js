@@ -29,7 +29,7 @@ import {
   updateDoc,
   deleteField
 } from "firebase/firestore";
-import { scanImageWithSightengine } from "../services/sightengine";
+
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -55,6 +55,7 @@ import EvacuationPinModal from "../components/EvacuationPinModal"; // <-- Import
 import useEvacuationPins from "../hooks/useEvacuationPins";
 import getMapHtml from "../utils/getMapHtml";
 import MedicalPinModal from "../components/MedicalPinModal";
+import { handleSaveEvacPin, handleSavePin, handleSaveMedicalPin } from "../utils/pinHandlers";
 
 // Debug: Log the imports immediately
 // console.log("=== IMPORT DEBUG ===");
@@ -93,28 +94,8 @@ export default function MapScreen({ route }) {
   const [medicalOpenTime, setMedicalOpenTime] = useState("");
   const [pendingMedicalPin, setPendingMedicalPin] = useState(null);
   const [medicalPinMode, setMedicalPinMode] = useState(false);
+  const [medicalPins, setMedicalPins] = useState([]);
 
-  useEffect(() => {
-    const fetchEvacCategories = async () => {
-      try {
-        const snap = await getDocs(collection(db, "evacuation_categories"));
-        const styles = {};
-        snap.forEach(doc => {
-          const data = doc.data();
-          if (data.name) {
-            styles[data.name.trim()] = {
-              color: data.color || "#1976D2",
-              icon: data.icon || "home",
-            };
-          }
-        });
-        setEvacCategoryStyles(styles);
-      } catch (error) {
-        setEvacCategoryStyles({});
-      }
-    };
-    fetchEvacCategories();
-  }, []);
 
   useEffect(() => {
     pinModeRef.current = pinMode;
@@ -223,6 +204,32 @@ export default function MapScreen({ route }) {
     })();
   }, []);
 
+  // Fetch evacuation categories on mount
+  useEffect(() => {
+    const fetchEvacCategories = async () => {
+      try {
+        const snap = await getDocs(collection(db, "evacuation_categories"));
+        const styles = {};
+        snap.forEach(doc => {
+          const data = doc.data();
+          if (data.name) {
+            // Lowercase and trim the key for consistency
+            styles[data.name.trim().toLowerCase()] = {
+              color: data.color || "#1976D2",
+              icon: data.icon || "home",
+            };
+          }
+        });
+        styles["others"] = styles["others"] || { color: "#1976D2", icon: "home" };
+        setEvacCategoryStyles(styles);
+      } catch (error) {
+        setEvacCategoryStyles({
+          "others": { color: "#1976D2", icon: "home" }
+        });
+      }
+    };
+    fetchEvacCategories();
+  }, []);
   // Fetch categories on focus
   useEffect(() => {
     const fetchCategories = async () => {
@@ -249,6 +256,7 @@ export default function MapScreen({ route }) {
     };
     fetchCategories();
   }, [isFocused]);
+
   // Fetch evacuation pins on mount
   useEffect(() => {
     const fetchEvacPins = async () => {
@@ -280,6 +288,40 @@ export default function MapScreen({ route }) {
     };
     fetchEvacPins();
   }, []);
+
+
+  useEffect(() => {
+    const fetchMedicalPins = async () => {
+      try {
+        const snap = await getDocs(collection(db, "medical_pins"));
+        const pins = [];
+        snap.forEach((doc) => {
+          const data = doc.data();
+          if (data.latitude && data.longitude) {
+            pins.push({
+              id: doc.id,
+              latitude: data.latitude,
+              longitude: data.longitude,
+              userId: data.userId,
+              userFirstName: data.userFirstName || "anonymous",
+              description: data.description,
+              category: data.category || "Medical Support",
+              media: data.media || [],
+              createdAt: data.createdAt,
+              openTime: data.openTime || "",
+              barangay: data.barangay || "",
+            });
+          }
+        });
+        setMedicalPins(pins); // You need: const [medicalPins, setMedicalPins] = useState([]);
+      } catch (error) {
+        setMedicalPins([]);
+      }
+    };
+    fetchMedicalPins();
+  }, []);
+
+
   // Handle focusPin when map is ready and pins are loaded
   useEffect(() => {
     if (focusPin && webviewRef.current && allPins.length > 0) {
@@ -327,6 +369,65 @@ export default function MapScreen({ route }) {
       Alert.alert(
         "Sign in required",
         "You need to sign in to pin a location.",
+        [
+          { text: "No thanks!", style: "cancel" },
+          {
+            text: "Sign in",
+            onPress: () => navigation.navigate("LoginScreen"),
+          },
+        ]
+      );
+    }
+  };
+
+
+  const handleMedicalPinButton = () => {
+    setEvacPinMode(false); // Make sure evacuation mode is off
+    if (userInfo) {
+      setPinMode(true);
+      if (webviewRef.current) {
+        webviewRef.current.postMessage(
+          JSON.stringify({ type: "setPinMode", enabled: true })
+        );
+      }
+      Alert.alert(
+        "Medical Support Pin Mode",
+        "Tap or long-press on the map to place a medical support pin. Tap Cancel to exit pin mode."
+      );
+      // Set a state to indicate medical pin mode, then show your MedicalPinModal when pin is placed
+      setMedicalPinMode(true); // You need to declare this state: const [medicalPinMode, setMedicalPinMode] = useState(false);
+    } else {
+      Alert.alert(
+        "Sign in required",
+        "You need to sign in to add a medical support pin.",
+        [
+          { text: "No thanks!", style: "cancel" },
+          {
+            text: "Sign in",
+            onPress: () => navigation.navigate("LoginScreen"),
+          },
+        ]
+      );
+    }
+  };
+
+  const handleEvacPinButton = () => {
+    setEvacPinMode(true); // Set evacuation mode ON
+    if (userInfo) {
+      setPinMode(true);
+      if (webviewRef.current) {
+        webviewRef.current.postMessage(
+          JSON.stringify({ type: "setPinMode", enabled: true })
+        );
+      }
+      Alert.alert(
+        "Evacuation Pin Mode",
+        "Tap or long-press on the map to place an evacuation pin. Tap Cancel to exit pin mode."
+      );
+    } else {
+      Alert.alert(
+        "Sign in required",
+        "You need to sign in to add an evacuation pin.",
         [
           { text: "No thanks!", style: "cancel" },
           {
@@ -604,200 +705,7 @@ export default function MapScreen({ route }) {
   };
 
   // Updated handleSavePin function - Hybrid approach
-  const handleSavePin = async () => {
-    if (!selectedCategory.trim()) {
-      Alert.alert("Category required", "Please select a category.");
-      return;
-    }
-    if (!description.trim()) {
-      Alert.alert("Description required", "Please enter a description.");
-      return;
-    }
 
-    try {
-      let mediaUrls = [];
-
-      // 1. Upload image files to SUPABASE STORAGE
-      if (media && media.length > 0) {
-        Alert.alert("Uploading", "Uploading image files...", []);
-
-
-        // Scan all images first
-        const results = await Promise.all(
-          media.map((img) => scanImageWithSightengine(img))
-        );
-
-        // Check if all images are safe
-        const allSafe = results.every(
-          (result) =>
-            result.nudity?.safe > 0.8 &&
-            (result.weapon === undefined || result.weapon < 0.2) &&
-            (result.offensive?.prob === undefined || result.offensive.prob < 0.1)
-        );
-
-        if (!allSafe) {
-          // Find the first unsafe image and show an alert
-          const firstUnsafe = results.find(
-            (result) =>
-              !(
-                result.nudity?.safe > 0.8 &&
-                (result.weapon === undefined || result.weapon < 0.1) &&
-                (result.violence === undefined || result.violence < 0.1) &&
-                (result.offensive?.prob === undefined || result.offensive.prob < 0.1)
-              )
-          );
-          Alert.alert(
-            "Content Blocked",
-            "One or more of your images contain prohibited content and cannot be uploaded.",
-            [{ text: "OK", onPress: () => setDescModalVisible(false) }]
-          );
-          console.log("Sightengine scan results:", JSON.stringify(results, null, 2));
-          console.log("allSafe:", allSafe);
-          return; // Stop the upload process
-        }
-
-        for (let i = 0; i < media.length; i++) {
-          const mediaItem = media[i];
-
-          // Only allow images
-          if (!mediaItem.type || !mediaItem.type.startsWith("image")) {
-            Alert.alert(
-              "Invalid File",
-              "Only image files are allowed. Please remove any non-image files."
-            );
-            return;
-          }
-
-          // Upload image to Supabase
-          const fileName = `pins/${Date.now()}_${i}_${mediaItem.fileName || "media"}`;
-
-          let uploadData;
-          try {
-            // Try FormData upload
-            const formData = new FormData();
-            formData.append("file", {
-              uri: mediaItem.uri,
-              type: mediaItem.type,
-              name: mediaItem.fileName || `media_${i}.jpg`,
-            });
-
-            const { data, error } = await supabase.storage
-              .from("pin-media")
-              .upload(fileName, formData, {
-                contentType: mediaItem.type,
-                cacheControl: "3600",
-                upsert: true,
-              });
-
-            if (error) {
-              // Fallback to blob method
-              const response = await fetch(mediaItem.uri);
-              if (!response.ok)
-                throw new Error(`Failed to fetch media: ${response.status}`);
-              const blob = await response.blob();
-
-              const { data: blobData, error: blobError } = await supabase.storage
-                .from("pin-media")
-                .upload(fileName, blob, {
-                  contentType: mediaItem.type,
-                  cacheControl: "3600",
-                  upsert: true,
-                });
-
-              if (blobError) throw blobError;
-              uploadData = blobData;
-            } else {
-              uploadData = data;
-            }
-          } catch (uploadError) {
-            Alert.alert(
-              "Upload Warning",
-              `Failed to upload image file ${i + 1}: ${uploadError.message}. Continuing with other files...`
-            );
-            continue; // Skip this file
-          }
-
-          // Get public URL from Supabase
-          const { data: urlData } = supabase.storage
-            .from("pin-media")
-            .getPublicUrl(uploadData.path);
-
-          mediaUrls.push({
-            url: urlData.publicUrl,
-            type: mediaItem.type,
-            fileName: mediaItem.fileName,
-            path: uploadData.path,
-          });
-        }
-      }
-
-      // 2. Save pin data (including Supabase URLs) to FIRESTORE
-      // Auto-detect Barangay using coordinates
-      let barangayName = await getBarangayFromCoords(
-        pendingPin.latitude,
-        pendingPin.longitude
-      );
-
-      // Save pin data to FIRESTORE, now with Barangay field
-      await addDoc(collection(db, "pins"), {
-        latitude: pendingPin.latitude,
-        longitude: pendingPin.longitude,
-        userId: userInfo || "anonymous",
-        userFirstName: userFirstName || "anonymous",
-        description: description.trim(),
-        category: selectedCategory.trim(),
-        media: mediaUrls, // URLs from Supabase Storage
-        createdAt: serverTimestamp(),
-        upvotes: 0,
-        downvotes: 0,
-        Barangay: barangayName, // <-- Auto-detected Barangay
-      });
-
-      // Reset states
-      setDescModalVisible(false);
-      setDescription("");
-      setSelectedCategory("");
-      setMedia(null);
-      setPinMode(false);
-      setPendingPin(null);
-
-      const successMessage =
-        mediaUrls.length > 0
-          ? `Your location has been pinned successfully with ${mediaUrls.length} image(s).`
-          : "Your location has been pinned successfully (some image uploads may have failed).";
-
-      Alert.alert("Location pinned!", successMessage);
-
-      // 3. Refresh pins from FIRESTORE
-      const querySnapshot = await getDocs(collection(db, "pins"));
-      const pins = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.latitude && data.longitude) {
-          pins.push({
-            id: doc.id,
-            latitude: data.latitude,
-            longitude: data.longitude,
-            userId: data.userId,
-            userFirstName: data.userFirstName || "anonymous",
-            description: data.description,
-            category: data.category || "Unknown",
-            media: data.media || [],
-            createdAt: data.createdAt,
-            upvotes: data.upvotes || 0,
-            downvotes: data.downvotes || 0,
-          });
-        }
-      });
-      setAllPins(pins);
-    } catch (error) {
-      console.error("Error saving pin:", error);
-      Alert.alert(
-        "Error",
-        `There was an error pinning your location: ${error.message}. Please try again.`
-      );
-    }
-  };
 
   // --- Add this function inside your component ---
   const fetchRoute = async (startLoc, destLoc) => {
@@ -897,359 +805,30 @@ export default function MapScreen({ route }) {
     setRouteCoords([]);
   };
 
-  const evacPinsWithIcons = evacPins.map((p) => {
-    const categoryKey = (p.category || "Evacuation Center").trim();
+  const evacPinsWithIcons = (evacPins || []).map((p) => {
+    const categoryKey = (p.category || "Evacuation Center").trim().toLowerCase();
     const category =
       evacCategoryStyles[categoryKey] ||
-      { color: "#1976D2", icon: "home" }; // fallback
+      evacCategoryStyles["others"] || // fallback if category missing
+      { color: "#1976D2", icon: "home" }; // final fallback
 
     return {
       ...p,
       iconClass: `fas fa-${category.icon}`,
       color: category.color,
-      size: 46, // Make evacuation pins bigger (default regular pin is 36)
-      isEvacuation: true, // For further highlighting if needed
+      size: 46,
+      isEvacuation: true,
     };
   });
 
-  // Place this inside your MapScreen component, before the return statement
-  const handleEvacPinButton = () => {
-    setEvacPinMode(true); // Set evacuation mode ON
-    if (userInfo) {
-      setPinMode(true);
-      if (webviewRef.current) {
-        webviewRef.current.postMessage(
-          JSON.stringify({ type: "setPinMode", enabled: true })
-        );
-      }
-      Alert.alert(
-        "Evacuation Pin Mode",
-        "Tap or long-press on the map to place an evacuation pin. Tap Cancel to exit pin mode."
-      );
-    } else {
-      Alert.alert(
-        "Sign in required",
-        "You need to sign in to add an evacuation pin.",
-        [
-          { text: "No thanks!", style: "cancel" },
-          {
-            text: "Sign in",
-            onPress: () => navigation.navigate("LoginScreen"),
-          },
-        ]
-      );
-    }
-  };
-  // ...existing code...
-
-  const handleMedicalPinButton = () => {
-    setEvacPinMode(false); // Make sure evacuation mode is off
-    if (userInfo) {
-      setPinMode(true);
-      if (webviewRef.current) {
-        webviewRef.current.postMessage(
-          JSON.stringify({ type: "setPinMode", enabled: true })
-        );
-      }
-      Alert.alert(
-        "Medical Support Pin Mode",
-        "Tap or long-press on the map to place a medical support pin. Tap Cancel to exit pin mode."
-      );
-      // Set a state to indicate medical pin mode, then show your MedicalPinModal when pin is placed
-      setMedicalPinMode(true); // You need to declare this state: const [medicalPinMode, setMedicalPinMode] = useState(false);
-    } else {
-      Alert.alert(
-        "Sign in required",
-        "You need to sign in to add a medical support pin.",
-        [
-          { text: "No thanks!", style: "cancel" },
-          {
-            text: "Sign in",
-            onPress: () => navigation.navigate("LoginScreen"),
-          },
-        ]
-      );
-    }
-  };
-
-
-  const handleSaveEvacPin = async () => {
-   
-    if (!evacDescription.trim()) {
-      Alert.alert("Description required", "Please enter a description.");
-      return;
-    }
-    if (!evacCapacity.trim() || isNaN(Number(evacCapacity))) {
-      Alert.alert("Capacity required", "Please enter a valid capacity.");
-      return;
-    }
-    if (!evacContactPerson.trim()) {
-      Alert.alert("Contact Person required", "Please enter a contact person.");
-      return;
-    }
-
-    try {
-      let mediaUrls = [];
-
-      // --- Upload evacuation media to Supabase ---
-      if (evacMedia && evacMedia.length > 0) {
-        Alert.alert("Uploading", "Uploading image files...", []);
-        for (let i = 0; i < evacMedia.length; i++) {
-          const mediaItem = evacMedia[i];
-          if (!mediaItem.type || !mediaItem.type.startsWith("image")) {
-            Alert.alert(
-              "Invalid File",
-              "Only image files are allowed. Please remove any non-image files."
-            );
-            return;
-          }
-          const fileName = `evacuation_pins/${Date.now()}_${i}_${mediaItem.fileName || "media"}`;
-          let uploadData;
-          try {
-            const formData = new FormData();
-            formData.append("file", {
-              uri: mediaItem.uri,
-              type: mediaItem.type,
-              name: mediaItem.fileName || `media_${i}.jpg`,
-            });
-            const { data, error } = await supabase.storage
-              .from("pin-media")
-              .upload(fileName, formData, {
-                contentType: mediaItem.type,
-                cacheControl: "3600",
-                upsert: true,
-              });
-            if (error) {
-              const response = await fetch(mediaItem.uri);
-              if (!response.ok)
-                throw new Error(`Failed to fetch media: ${response.status}`);
-              const blob = await response.blob();
-              const { data: blobData, error: blobError } = await supabase.storage
-                .from("pin-media")
-                .upload(fileName, blob, {
-                  contentType: mediaItem.type,
-                  cacheControl: "3600",
-                  upsert: true,
-                });
-              if (blobError) throw blobError;
-              uploadData = blobData;
-            } else {
-              uploadData = data;
-            }
-          } catch (uploadError) {
-            Alert.alert(
-              "Upload Warning",
-              `Failed to upload image file ${i + 1}: ${uploadError.message}. Continuing with other files...`
-            );
-            continue;
-          }
-          const { data: urlData } = supabase.storage
-            .from("pin-media")
-            .getPublicUrl(uploadData.path);
-          mediaUrls.push({
-            url: urlData.publicUrl,
-            type: mediaItem.type,
-            fileName: mediaItem.fileName,
-            path: uploadData.path,
-          });
-        }
-      }
-
-      // --- Save evacuation pin to Firestore with Supabase URLs and Barangay ---
-      let barangayName = await getBarangayFromCoords(
-        pendingEvacPin.latitude,
-        pendingEvacPin.longitude
-      );
-      // --- Save evacuation pin to Firestore with Supabase URLs and Barangay ---
-   await addDoc(collection(db, "evacuation_pins"), {
-  latitude: pendingEvacPin.latitude,
-  longitude: pendingEvacPin.longitude,
-  userId: userInfo || "anonymous",
-  userFirstName: userFirstName || "anonymous",
-  description: evacDescription.trim(),
-  category: "Evacuation Center", // <-- Set automatically
-  capacity: evacCapacity.trim(),
-  contactPerson: evacContactPerson.trim(),
-  media: mediaUrls,
-  createdAt: serverTimestamp(),
-  barangay: barangayName,
-});
-
-
-      setEvacModalVisible(false);
-      setEvacDescription("");
-      setEvacSelectedCategory("");
-      setEvacMedia(null);
-      setEvacCapacity("");
-      setEvacContactPerson("");
-      setPinMode(false);
-      setPendingEvacPin(null);
-
-      Alert.alert("Evacuation Pin Added!", "The evacuation pin has been added successfully.");
-
-      // --- Refetch all evacuation pins after saving ---
-      try {
-        const snap = await getDocs(collection(db, "evacuation_pins"));
-        const pins = [];
-        snap.forEach((doc) => {
-          const data = doc.data();
-          if (data.latitude && data.longitude) {
-            pins.push({
-              id: doc.id,
-              latitude: data.latitude,
-              longitude: data.longitude,
-              userId: data.userId,
-              userFirstName: data.userFirstName || "anonymous",
-              description: data.description,
-              category: data.category || "Evacuation",
-              media: data.media || [],
-              createdAt: data.createdAt,
-              capacity: data.capacity || "",
-              contactPerson: data.contactPerson || "",
-            });
-          }
-        });
-        setEvacPins(pins);
-      } catch (error) {
-        setEvacPins([]);
-      }
-      // --- Refetch all regular pins after saving ---
-      try {
-        const querySnapshot = await getDocs(collection(db, "pins"));
-        const pins = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data.latitude && data.longitude) {
-            pins.push({
-              id: doc.id,
-              latitude: data.latitude,
-              longitude: data.longitude,
-              userId: data.userId,
-              userFirstName: data.userFirstName || "anonymous",
-              description: data.description,
-              category: data.category || "Unknown",
-              media: data.media || [],
-              createdAt: data.createdAt,
-              upvotes: data.upvotes || 0,
-              downvotes: data.downvotes || 0,
-            });
-          }
-        });
-        setAllPins(pins);
-      } catch (error) {
-        setAllPins([]);
-      }
-    } catch (error) {
-      console.error("Error saving evacuation pin:", error);
-      Alert.alert(
-        "Error",
-        `There was an error adding the evacuation pin: ${error.message}. Please try again.`
-      );
-    }
-  };
 
   // Add this handler
   const handleAddPinButton = () => {
     setPinTypeModalVisible(true);
   };
-  const handleSaveMedicalPin = async () => {
-    if (!medicalSelectedCategory.trim()) {
-      Alert.alert("Category required", "Please select a category.");
-      return;
-    }
-    if (!medicalDescription.trim()) {
-      Alert.alert("Description required", "Please enter a description.");
-      return;
-    }
-    // Default openTime to "24/7" if empty
-    const timeOpenToSave = medicalOpenTime && medicalOpenTime.trim() ? medicalOpenTime.trim() : "24/7";
-    try {
-      let mediaUrls = [];
-      if (medicalMedia && medicalMedia.length > 0) {
-        for (let i = 0; i < medicalMedia.length; i++) {
-          const mediaItem = medicalMedia[i];
-          if (!mediaItem.type || !mediaItem.type.startsWith("image")) {
-            Alert.alert("Invalid File", "Only image files are allowed.");
-            return;
-          }
-          const fileName = `medical_pins/${Date.now()}_${i}_${mediaItem.fileName || "media"}`;
-          let uploadData;
-          try {
-            const formData = new FormData();
-            formData.append("file", {
-              uri: mediaItem.uri,
-              type: mediaItem.type,
-              name: mediaItem.fileName || `media_${i}.jpg`,
-            });
-            const { data, error } = await supabase.storage
-              .from("pin-media")
-              .upload(fileName, formData, {
-                contentType: mediaItem.type,
-                cacheControl: "3600",
-                upsert: true,
-              });
-            if (error) {
-              const response = await fetch(mediaItem.uri);
-              if (!response.ok) throw new Error(`Failed to fetch media: ${response.status}`);
-              const blob = await response.blob();
-              const { data: blobData, error: blobError } = await supabase.storage
-                .from("pin-media")
-                .upload(fileName, blob, {
-                  contentType: mediaItem.type,
-                  cacheControl: "3600",
-                  upsert: true,
-                });
-              if (blobError) throw blobError;
-              uploadData = blobData;
-            } else {
-              uploadData = data;
-            }
-          } catch (uploadError) {
-            Alert.alert("Upload Warning", `Failed to upload image file ${i + 1}: ${uploadError.message}.`);
-            continue;
-          }
-          const { data: urlData } = supabase.storage
-            .from("pin-media")
-            .getPublicUrl(uploadData.path);
-          mediaUrls.push({
-            url: urlData.publicUrl,
-            type: mediaItem.type,
-            fileName: mediaItem.fileName,
-            path: uploadData.path,
-          });
-        }
-      }
-      let barangayName = await getBarangayFromCoords(
-        pendingMedicalPin.latitude,
-        pendingMedicalPin.longitude
-      );
-      await addDoc(collection(db, "evacuation_pins"), {
-        latitude: pendingMedicalPin.latitude,
-        longitude: pendingMedicalPin.longitude,
-        userId: userInfo || "anonymous",
-        userFirstName: userFirstName || "anonymous",
-        description: medicalDescription.trim(),
-        category: medicalSelectedCategory.trim(),
-        openTime: timeOpenToSave,
-        media: mediaUrls,
-        createdAt: serverTimestamp(),
-        barangay: barangayName,
-      });
-      setMedicalModalVisible(false);
-      setMedicalDescription("");
-      setMedicalSelectedCategory("Medical Support");
-      setMedicalMedia(null);
-      setMedicalOpenTime("");
-      setPendingMedicalPin(null);
-      Alert.alert("Medical Support Pin Added!", "The medical support pin has been added successfully.");
-      // Optionally refetch pins here
-    } catch (error) {
-      console.error("Error saving medical pin:", error);
-      Alert.alert("Error", `There was an error adding the medical support pin: ${error.message}.`);
-    }
-  };
- 
-  const pinsWithIcons = allPins.map((p) => {
+
+
+  const pinsWithIcons = (allPins || []).map((p) => {
     const categoryKey = (p.category || "Others").trim();
     const category =
       categoryStyles[categoryKey] ||
@@ -1262,8 +841,24 @@ export default function MapScreen({ route }) {
     };
   });
 
+  const medicalPinsWithIcons = (medicalPins || []).map((p) => {
+    const categoryKey = (p.category || "Medical Support").trim().toLowerCase();
+    const category =
+      evacCategoryStyles[categoryKey] ||
+      evacCategoryStyles["others"] ||
+      { color: "#43a047", icon: "medkit" }; // final fallback
+
+    return {
+      ...p,
+      iconClass: `fas fa-${category.icon}`,
+      color: category.color,
+      size: 46, // Make medical pins bigger if you want
+      isMedical: true,
+    };
+  });
+
   // Add current location as a special pin so the WebView map shows it
-  let allPinsForMap = [...pinsWithIcons, ...evacPinsWithIcons];
+  let allPinsForMap = [...pinsWithIcons, ...evacPinsWithIcons, ...medicalPinsWithIcons];
   if (location) {
     allPinsForMap = [
       {
@@ -1296,7 +891,6 @@ export default function MapScreen({ route }) {
         onMessage={(event) => {
           try {
             const msg = JSON.parse(event.nativeEvent.data);
-            console.log("WebView -> RN message:", msg);
 
             // Only create pin on long-press or mapPin and when pinMode active
             if (msg.type === "mapLongPress" || msg.type === "mapPin") {
@@ -1335,7 +929,7 @@ export default function MapScreen({ route }) {
               }
             }
 
-            // Keep marker clicks as before
+            // Handle marker clicks
             if (msg.type === "markerClick") {
               if (msg.id === "__current_location") return;
               // Try to find in regular pins first
@@ -1344,6 +938,11 @@ export default function MapScreen({ route }) {
               if (!pin) {
                 pin = evacPins.find((p) => p.id === msg.id);
               }
+              // If not found, try medical pins
+              if (!pin) {
+                pin = medicalPins.find((p) => p.id === msg.id);
+              }
+              // If found, show details modal
               if (pin) handlePinMarkerPress(pin);
             }
           } catch (e) {
@@ -1382,7 +981,29 @@ export default function MapScreen({ route }) {
           }
         }}
         onSave={async () => {
-          await handleSavePin();
+          await handleSavePin({
+            selectedCategory,
+            description,
+            media,
+            pendingPin,
+            userInfo,
+            userFirstName,
+            db,
+            supabase,
+            setDescModalVisible,
+            setDescription,
+            setSelectedCategory,
+            setMedia,
+            setPinMode,
+            setPendingPin,
+            setAllPins,
+            Alert,
+            getDocs,
+            collection,
+            addDoc,
+            serverTimestamp,
+            getBarangayFromCoords,
+          });
           setPinMode(false);
           if (webviewRef.current) {
             webviewRef.current.postMessage(
@@ -1395,43 +1016,68 @@ export default function MapScreen({ route }) {
       />
 
       {/* EVACUATION PIN MODAL */}
-    <EvacuationPinModal
-  visible={evacModalVisible}
-  openTime={openTime}
-  onChangeOpenTime={setOpenTime}
-  description={evacDescription}
-  onChangeDescription={setEvacDescription}
-  onCancel={() => {
-    setEvacModalVisible(false);
-    setEvacDescription("");
-    setEvacMedia(null);
-    setEvacCapacity("");
-    setEvacContactPerson("");
-    setPinMode(false);
-    setPendingEvacPin(null);
-    if (webviewRef.current) {
-      webviewRef.current.postMessage(
-        JSON.stringify({ type: "setPinMode", enabled: false })
-      );
-    }
-  }}
-  onSave={async () => {
-    await handleSaveEvacPin();
-    setPinMode(false);
-    if (webviewRef.current) {
-      webviewRef.current.postMessage(
-        JSON.stringify({ type: "setPinMode", enabled: false })
-      );
-    }
-  }}
-  media={evacMedia}
-  setMedia={setEvacMedia}
-  capacity={evacCapacity}
-  onChangeCapacity={setEvacCapacity}
-  contactPerson={evacContactPerson}
-  onChangeContactPerson={setEvacContactPerson}
-  // No category prop needed
-/>
+      <EvacuationPinModal
+        visible={evacModalVisible}
+        openTime={openTime}
+        onChangeOpenTime={setOpenTime}
+        description={evacDescription}
+        onChangeDescription={setEvacDescription}
+        onCancel={() => {
+          setEvacModalVisible(false);
+          setEvacDescription("");
+          setEvacMedia(null);
+          setEvacCapacity("");
+          setEvacContactPerson("");
+          setPinMode(false);
+          setPendingEvacPin(null);
+          if (webviewRef.current) {
+            webviewRef.current.postMessage(
+              JSON.stringify({ type: "setPinMode", enabled: false })
+            );
+          }
+        }}
+        onSave={async () => {
+          await handleSaveEvacPin({
+            evacDescription,
+            evacCapacity,
+            evacContactPerson,
+            evacMedia,
+            pendingEvacPin,
+            userInfo,
+            userFirstName,
+            db,
+            supabase,
+            setEvacModalVisible,
+            setEvacDescription,
+            setEvacMedia,
+            setEvacCapacity,
+            setEvacContactPerson,
+            setPinMode,
+            setPendingEvacPin,
+            setEvacPins,
+            setAllPins,
+            Alert,
+            getDocs,
+            collection,
+            addDoc,
+            serverTimestamp,
+            getBarangayFromCoords,
+          });
+          setPinMode(false);
+          if (webviewRef.current) {
+            webviewRef.current.postMessage(
+              JSON.stringify({ type: "setPinMode", enabled: false })
+            );
+          }
+        }}
+        media={evacMedia}
+        setMedia={setEvacMedia}
+        capacity={evacCapacity}
+        onChangeCapacity={setEvacCapacity}
+        contactPerson={evacContactPerson}
+        onChangeContactPerson={setEvacContactPerson}
+      // No category prop needed
+      />
       {/* MEDICAL SUPPORT PIN MODAL */}
       <Modal
         visible={voteMessageModalVisible}
@@ -1854,7 +1500,28 @@ export default function MapScreen({ route }) {
           }
         }}
         onSave={async () => {
-          await handleSaveMedicalPin();
+          await handleSaveMedicalPin({
+            medicalDescription,
+            medicalMedia,
+            medicalOpenTime,
+            pendingMedicalPin,
+            userInfo,
+            userFirstName,
+            db,
+            supabase,
+            setMedicalModalVisible,
+            setMedicalDescription,
+            setMedicalMedia,
+            setMedicalOpenTime,
+            setPendingMedicalPin,
+            setPinMode,
+            setMedicalPinMode,
+            Alert,
+            collection,
+            addDoc,
+            serverTimestamp,
+            getBarangayFromCoords,
+          });
           setPinMode(false);
           setMedicalPinMode(false);
           if (webviewRef.current) {
@@ -1863,9 +1530,9 @@ export default function MapScreen({ route }) {
             );
           }
         }}
-        
+
         media={medicalMedia}
-        
+
         setMedia={setMedicalMedia}
         openTime={medicalOpenTime}
         onChangeOpenTime={setMedicalOpenTime}
@@ -2250,3 +1917,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
+

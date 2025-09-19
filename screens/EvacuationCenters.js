@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  Image,
   TouchableOpacity,
   StatusBar,
   ActivityIndicator,
@@ -14,7 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import { db } from "../firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import * as Location from "expo-location"; // Add this import
 
 export default function EvacuationCenters() {
@@ -68,7 +67,12 @@ export default function EvacuationCenters() {
   const fetchCenters = async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, "evacuation_pins"));
+      // Only fetch evacuation centers with category "Evacuation Center"
+      const q = query(
+        collection(db, "evacuation_pins"),
+        where("category", "==", "Evacuation Center")
+      );
+      const snap = await getDocs(q);
       const list = snap.docs.map((docu) => {
         const data = docu.data();
         let distance = null;
@@ -92,11 +96,9 @@ export default function EvacuationCenters() {
             : "Unknown Address",
           capacity: data.capacity ? `${data.capacity} people` : "N/A",
           status: data.status || "Open",
-          image:
-            data.media && data.media.length > 0
-              ? { uri: data.media[0].url }
-              : null,
           distance: distance !== null ? `${distance.toFixed(2)} km` : "N/A",
+          latitude: data.latitude,
+          longitude: data.longitude,
         };
       });
       setCenters(list);
@@ -161,9 +163,6 @@ export default function EvacuationCenters() {
                       <Icon name="walk-outline" size={16} color="#1976D2" /> {item.distance}
                     </Text>
                   </View>
-                  {item.image && (
-                    <Image source={item.image} style={styles.cardImage} />
-                  )}
                 </View>
               </TouchableOpacity>
             )}
@@ -297,12 +296,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#333",
     marginBottom: 2,
-  },
-  cardImage: {
-    width: 70,
-    height: 70,
-    borderRadius: 10,
-    backgroundColor: "#fff",
   },
   modalOverlay: {
     flex: 1,

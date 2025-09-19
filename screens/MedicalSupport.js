@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  Image,
   TouchableOpacity,
   StatusBar,
   ActivityIndicator,
@@ -14,7 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import { db } from "../firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import * as Location from "expo-location";
 
 export default function MedicalSupport() {
@@ -67,7 +66,11 @@ export default function MedicalSupport() {
   const fetchMedicalSupport = async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, "evacuation_pins"));
+      const q = query(
+        collection(db, "medical_pins"),
+        where("category", "==", "Medical Support")
+      );
+      const snap = await getDocs(q);
       const list = snap.docs
         .map((docu) => {
           const data = docu.data();
@@ -88,12 +91,7 @@ export default function MedicalSupport() {
             id: docu.id,
             name: data.name || "Medical Support",
             address: data.barangay || "Unknown Address",
-            hours: data.hours || "N/A",
-            contact: data.contact || "N/A",
-            image:
-              data.media && data.media.length > 0
-                ? { uri: data.media[0].url }
-                : null,
+            openTime: data.openTime || "N/A",
             distance: distance !== null ? `${distance.toFixed(2)} km` : "N/A",
             category: data.category || "",
             latitude: data.latitude,
@@ -145,15 +143,11 @@ export default function MedicalSupport() {
                   <View style={styles.cardInfo}>
                     <Text style={styles.cardTitle}>{item.name}</Text>
                     <Text style={styles.cardText}>📍 {item.address}</Text>
-                    <Text style={styles.cardText}>🕒 {item.hours}</Text>
-                    <Text style={styles.cardText}>📞 {item.contact}</Text>
+                    <Text style={styles.cardText}>🕒 {item.openTime}</Text>
                     <Text style={styles.cardText}>
                       <Icon name="walk-outline" size={16} color="#1976D2" /> {item.distance}
                     </Text>
                   </View>
-                  {item.image && (
-                    <Image source={item.image} style={styles.cardImage} />
-                  )}
                 </View>
               </TouchableOpacity>
             )}
@@ -184,8 +178,7 @@ export default function MedicalSupport() {
               <>
                 <Text style={styles.modalTitle}>{selectedLocation.name}</Text>
                 <Text style={styles.modalDescription}>{selectedLocation.address}</Text>
-                <Text style={styles.modalCategory}>{selectedLocation.hours}</Text>
-                <Text style={styles.modalMeta}>{selectedLocation.contact}</Text>
+                <Text style={styles.modalCategory}>{selectedLocation.openTime}</Text>
                 <Text style={styles.modalDistance}>
                   <Icon name="walk-outline" size={16} color="#1976D2" /> {selectedLocation.distance}
                 </Text>
@@ -287,12 +280,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#333",
     marginBottom: 2,
-  },
-  cardImage: {
-    width: 70,
-    height: 70,
-    borderRadius: 10,
-    backgroundColor: "#fff",
   },
   modalOverlay: {
     flex: 1,
