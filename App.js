@@ -20,7 +20,7 @@ import BarangayScreen from "./screens/ManageBarangay";
 import ManageSchedule from "./screens/ManageSchedule";
 import AccountInfoScreen from "./screens/AccountInfoScreen";
 import ManageUsers from "./screens/ManageUsers";
-import UsersActivity from "./screens/UsersActivity";
+import UsersActivity from "./screens/UserActivity";
 import PinLogs from "./screens/PinLogs";
 import ManagePinCategory from "./screens/ManagePinCategory";
 import { LogBox } from "react-native";
@@ -31,6 +31,12 @@ import ManageEvacuationPins from "./screens/ManageEvacuationPins";
 import ManagePins from "./screens/ManagePins";
 import MapScreen from "./screens/MapScreen";
 import PinMessages from "./screens/PinMessages";
+import AdminActivity from "./screens/AdminActivity";
+import ActivitySelector from "./screens/ActivitySelector";
+import ManageLandmark from "./screens/ManageLandmark";
+import DeletedPins from "./screens/DeletedPins";
+import UserSelector from "./screens/UserSelector";
+import ManagePurokLeaders from "./screens/ManagePurokLeaders";
 
 const Stack = createStackNavigator();
 
@@ -74,7 +80,7 @@ export default function App() {
             <Stack.Screen name="ManageBarangay" component={BarangayScreen} />
             <Stack.Screen name="ManageSchedule" component={ManageSchedule} />
             <Stack.Screen name="ManageUsers" component={ManageUsers} />
-            <Stack.Screen name="UsersActivity" component={UsersActivity} />
+            <Stack.Screen name="UserActivity" component={UsersActivity} />
             <Stack.Screen name="PinLogs" component={PinLogs} />
             <Stack.Screen name="ManagePinCategory" component={ManagePinCategory} />
             <Stack.Screen name="ManageCategory" component={ManageCategory} />
@@ -83,6 +89,12 @@ export default function App() {
             <Stack.Screen name="ManagePins" component={ManagePins} />
             <Stack.Screen name="MapScreen" component={MapScreen} />
             <Stack.Screen name="PinMessages" component={PinMessages} />
+            <Stack.Screen name="AdminActivity" component={AdminActivity} />
+            <Stack.Screen name="ActivitySelector" component={ActivitySelector} />
+            <Stack.Screen name="ManageLandmark" component={ManageLandmark} />
+            <Stack.Screen name="DeletedPins" component={DeletedPins} />
+            <Stack.Screen name="UserSelector" component={UserSelector} />
+            <Stack.Screen name="ManagePurokLeaders" component={ManagePurokLeaders} />
           </Stack.Navigator>
         </NavigationContainer>
       </ThemeProvider>

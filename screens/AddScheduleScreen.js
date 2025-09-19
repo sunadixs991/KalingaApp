@@ -29,10 +29,12 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { db } from "../firebase";
 
+
+
 // Helper to log user activity
 async function logUserActivity({ title, description, userFirstName }) {
   try {
-    await addDoc(collection(db, "user_activities"), {
+    await addDoc(collection(db, "admin_activities"), {
       title,
       description,
       userFirstName,
@@ -71,13 +73,14 @@ export default function AddScheduleScreen({ navigation, route }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [barangayList, setBarangayList] = useState([]);
   const [barangayModalVisible, setBarangayModalVisible] = useState(false);
-
-  // NEW: purok state
-  const [purokList, setPurokList] = useState([]);
   const [purokModalVisible, setPurokModalVisible] = useState(false);
-
+  const [landmarkList, setLandmarkList] = useState([]);
+  const [landmarkModalVisible, setLandmarkModalVisible] = useState(false);
+  const [isOtherLandmark, setIsOtherLandmark] = useState(false);
+  const [otherLandmark, setOtherLandmark] = useState("");
+  const [purokList, setPurokList] = useState([]);
+  // Fetch barangay list from Firestore
   useEffect(() => {
-    // Fetch barangay list from Firestore
     const fetchBarangays = async () => {
       try {
         const snap = await getDocs(collection(db, "barangays"));
@@ -136,6 +139,26 @@ export default function AddScheduleScreen({ navigation, route }) {
     };
     fetchPuroks();
   }, [newSchedule.title]);
+
+  // Fetch landmarks from Firebase
+  useEffect(() => {
+    const fetchLandmarks = async () => {
+      try {
+        const snap = await getDocs(collection(db, "landmarks"));
+        const list = [];
+        snap.forEach((doc) => {
+          const data = doc.data();
+          if (data.name) list.push(data.name);
+        });
+        list.sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+        list.push("Others"); // Add "Others" option
+        setLandmarkList(list);
+      } catch (error) {
+        console.log("Failed to fetch landmarks:", error);
+      }
+    };
+    fetchLandmarks();
+  }, []);
 
   // Pick file (allow Excel .xlsx / .xls and CSV). Handles different DocumentPicker return shapes.
   const pickDocument = async () => {
@@ -213,12 +236,23 @@ export default function AddScheduleScreen({ navigation, route }) {
 
   // New: upload file (if any) and insert schedule into Supabase
   const handleAddSchedule = async () => {
-    if (!newSchedule.title || !newSchedule.location) {
+    // If "Others" is selected, check otherLandmark; otherwise, check newSchedule.location
+    const landmarkToSave = isOtherLandmark ? otherLandmark.trim() : newSchedule.location.trim();
+
+    if (!newSchedule.title || !landmarkToSave) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
 
     try {
+      // If "Others" is chosen and otherLandmark is filled, save to landmarks collection
+      if (isOtherLandmark && otherLandmark.trim()) {
+        await addDoc(collection(db, "landmarks"), {
+          name: otherLandmark.trim(),
+          createdAt: Timestamp.now(),
+        });
+      }
+
       let fileUrl = null;
       let fileName = null;
 
@@ -295,8 +329,8 @@ export default function AddScheduleScreen({ navigation, route }) {
             title: newSchedule.title,
             date: newSchedule.date.toISOString().split("T")[0],
             time: formattedTime,
-            location: newSchedule.location,
-            purok: newSchedule.purok, // <-- ADD THIS LINE
+            location: landmarkToSave,
+            purok: newSchedule.purok,
             file_url: fileUrl,
             file_name: fileName,
           },
@@ -535,6 +569,77 @@ export default function AddScheduleScreen({ navigation, route }) {
             </View>
           </Modal>
 
+          {/* Landmark Selector */}
+          <View style={styles.input}>
+            <Text style={{ marginBottom: 5, color: "#333" }}>Select Landmark</Text>
+            <TouchableOpacity
+              style={styles.selectorButton}
+              onPress={() => setLandmarkModalVisible(true)}
+            >
+              <Text style={{ color: newSchedule.location ? "#333" : "#aaa" }}>
+                {newSchedule.location || "Select Landmark"}
+              </Text>
+              <Icon
+                name="chevron-down"
+                size={20}
+                color="#333"
+                style={{ marginLeft: 8 }}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Landmark Modal */}
+          <Modal
+            visible={landmarkModalVisible}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setLandmarkModalVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Choose Landmark</Text>
+                <FlatList
+                  data={landmarkList}
+                  keyExtractor={(item) => item}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.modalItem}
+                      onPress={() => {
+                        if (item === "Others") {
+                          setIsOtherLandmark(true);
+                          setOtherLandmark("");
+                          setNewSchedule({ ...newSchedule, location: "" });
+                        } else {
+                          setIsOtherLandmark(false);
+                          setNewSchedule({ ...newSchedule, location: item });
+                        }
+                        setLandmarkModalVisible(false);
+                      }}
+                    >
+                      <Text style={styles.modalItemText}>{item}</Text>
+                    </TouchableOpacity>
+                  )}
+                />
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => setLandmarkModalVisible(false)}
+                >
+                  <Text style={styles.closeButtonText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+
+          {/* If "Others" is chosen, show input */}
+          {isOtherLandmark && (
+            <TextInput
+              style={styles.input}
+              placeholder="Type your landmark here..."
+              value={otherLandmark}
+              onChangeText={setOtherLandmark}
+            />
+          )}
+
           <TouchableOpacity
             style={styles.dateButton}
             onPress={() => setShowDatePicker(true)}
@@ -579,14 +684,7 @@ export default function AddScheduleScreen({ navigation, route }) {
             />
           )}
 
-          <TextInput
-            style={styles.input}
-            placeholder="Landmark"
-            value={newSchedule.location}
-            onChangeText={(text) =>
-              setNewSchedule({ ...newSchedule, location: text })
-            }
-          />
+        
 
           <View style={styles.fileSection}>
             <Text style={styles.fileLabel}>List of Names (Excel File)</Text>

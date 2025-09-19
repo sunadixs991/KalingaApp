@@ -54,6 +54,7 @@ import { Image } from "react-native";
 import EvacuationPinModal from "../components/EvacuationPinModal"; // <-- Import your new modal
 import useEvacuationPins from "../hooks/useEvacuationPins";
 import getMapHtml from "../utils/getMapHtml";
+import MedicalPinModal from "../components/MedicalPinModal";
 
 // Debug: Log the imports immediately
 // console.log("=== IMPORT DEBUG ===");
@@ -84,6 +85,14 @@ export default function MapScreen({ route }) {
   const [evacPinMode, setEvacPinMode] = useState(false);
   const [evacPins, setEvacPins] = useState([]);
   const [evacCategoryStyles, setEvacCategoryStyles] = useState({});
+  const [openTime, setOpenTime] = useState("");
+  const [medicalModalVisible, setMedicalModalVisible] = useState(false);
+  const [medicalDescription, setMedicalDescription] = useState("");
+  const [medicalSelectedCategory, setMedicalSelectedCategory] = useState("Medical Support");
+  const [medicalMedia, setMedicalMedia] = useState(null);
+  const [medicalOpenTime, setMedicalOpenTime] = useState("");
+  const [pendingMedicalPin, setPendingMedicalPin] = useState(null);
+  const [medicalPinMode, setMedicalPinMode] = useState(false);
 
   useEffect(() => {
     const fetchEvacCategories = async () => {
@@ -148,7 +157,7 @@ export default function MapScreen({ route }) {
   const [voteMessageModalVisible, setVoteMessageModalVisible] = useState(false);
   const [pendingVoteType, setPendingVoteType] = useState(null);
   const [voteMessage, setVoteMessage] = useState("");
-
+  const [pinTypeModalVisible, setPinTypeModalVisible] = useState(false); // <-- New state
 
   const isFocused = useIsFocused();
 
@@ -889,7 +898,7 @@ export default function MapScreen({ route }) {
   };
 
   const evacPinsWithIcons = evacPins.map((p) => {
-    const categoryKey = (p.category || "Evacuation").trim();
+    const categoryKey = (p.category || "Evacuation Center").trim();
     const category =
       evacCategoryStyles[categoryKey] ||
       { color: "#1976D2", icon: "home" }; // fallback
@@ -933,11 +942,39 @@ export default function MapScreen({ route }) {
   };
   // ...existing code...
 
-  const handleSaveEvacPin = async () => {
-    if (!evacSelectedCategory.trim()) {
-      Alert.alert("Category required", "Please select a category.");
-      return;
+  const handleMedicalPinButton = () => {
+    setEvacPinMode(false); // Make sure evacuation mode is off
+    if (userInfo) {
+      setPinMode(true);
+      if (webviewRef.current) {
+        webviewRef.current.postMessage(
+          JSON.stringify({ type: "setPinMode", enabled: true })
+        );
+      }
+      Alert.alert(
+        "Medical Support Pin Mode",
+        "Tap or long-press on the map to place a medical support pin. Tap Cancel to exit pin mode."
+      );
+      // Set a state to indicate medical pin mode, then show your MedicalPinModal when pin is placed
+      setMedicalPinMode(true); // You need to declare this state: const [medicalPinMode, setMedicalPinMode] = useState(false);
+    } else {
+      Alert.alert(
+        "Sign in required",
+        "You need to sign in to add a medical support pin.",
+        [
+          { text: "No thanks!", style: "cancel" },
+          {
+            text: "Sign in",
+            onPress: () => navigation.navigate("LoginScreen"),
+          },
+        ]
+      );
     }
+  };
+
+
+  const handleSaveEvacPin = async () => {
+   
     if (!evacDescription.trim()) {
       Alert.alert("Description required", "Please enter a description.");
       return;
@@ -1024,19 +1061,20 @@ export default function MapScreen({ route }) {
         pendingEvacPin.longitude
       );
       // --- Save evacuation pin to Firestore with Supabase URLs and Barangay ---
-      await addDoc(collection(db, "evacuation_pins"), {
-        latitude: pendingEvacPin.latitude,
-        longitude: pendingEvacPin.longitude,
-        userId: userInfo || "anonymous",
-        userFirstName: userFirstName || "anonymous",
-        description: evacDescription.trim(),
-        category: evacSelectedCategory.trim(),
-        capacity: evacCapacity.trim(),
-        contactPerson: evacContactPerson.trim(),
-        media: mediaUrls,
-        createdAt: serverTimestamp(),
-        barangay: barangayName, // <-- Added barangay field
-      });
+   await addDoc(collection(db, "evacuation_pins"), {
+  latitude: pendingEvacPin.latitude,
+  longitude: pendingEvacPin.longitude,
+  userId: userInfo || "anonymous",
+  userFirstName: userFirstName || "anonymous",
+  description: evacDescription.trim(),
+  category: "Evacuation Center", // <-- Set automatically
+  capacity: evacCapacity.trim(),
+  contactPerson: evacContactPerson.trim(),
+  media: mediaUrls,
+  createdAt: serverTimestamp(),
+  barangay: barangayName,
+});
+
 
       setEvacModalVisible(false);
       setEvacDescription("");
@@ -1110,9 +1148,107 @@ export default function MapScreen({ route }) {
     }
   };
 
-
-  // ...existing code...
-  // before return(...)
+  // Add this handler
+  const handleAddPinButton = () => {
+    setPinTypeModalVisible(true);
+  };
+  const handleSaveMedicalPin = async () => {
+    if (!medicalSelectedCategory.trim()) {
+      Alert.alert("Category required", "Please select a category.");
+      return;
+    }
+    if (!medicalDescription.trim()) {
+      Alert.alert("Description required", "Please enter a description.");
+      return;
+    }
+    // Default openTime to "24/7" if empty
+    const timeOpenToSave = medicalOpenTime && medicalOpenTime.trim() ? medicalOpenTime.trim() : "24/7";
+    try {
+      let mediaUrls = [];
+      if (medicalMedia && medicalMedia.length > 0) {
+        for (let i = 0; i < medicalMedia.length; i++) {
+          const mediaItem = medicalMedia[i];
+          if (!mediaItem.type || !mediaItem.type.startsWith("image")) {
+            Alert.alert("Invalid File", "Only image files are allowed.");
+            return;
+          }
+          const fileName = `medical_pins/${Date.now()}_${i}_${mediaItem.fileName || "media"}`;
+          let uploadData;
+          try {
+            const formData = new FormData();
+            formData.append("file", {
+              uri: mediaItem.uri,
+              type: mediaItem.type,
+              name: mediaItem.fileName || `media_${i}.jpg`,
+            });
+            const { data, error } = await supabase.storage
+              .from("pin-media")
+              .upload(fileName, formData, {
+                contentType: mediaItem.type,
+                cacheControl: "3600",
+                upsert: true,
+              });
+            if (error) {
+              const response = await fetch(mediaItem.uri);
+              if (!response.ok) throw new Error(`Failed to fetch media: ${response.status}`);
+              const blob = await response.blob();
+              const { data: blobData, error: blobError } = await supabase.storage
+                .from("pin-media")
+                .upload(fileName, blob, {
+                  contentType: mediaItem.type,
+                  cacheControl: "3600",
+                  upsert: true,
+                });
+              if (blobError) throw blobError;
+              uploadData = blobData;
+            } else {
+              uploadData = data;
+            }
+          } catch (uploadError) {
+            Alert.alert("Upload Warning", `Failed to upload image file ${i + 1}: ${uploadError.message}.`);
+            continue;
+          }
+          const { data: urlData } = supabase.storage
+            .from("pin-media")
+            .getPublicUrl(uploadData.path);
+          mediaUrls.push({
+            url: urlData.publicUrl,
+            type: mediaItem.type,
+            fileName: mediaItem.fileName,
+            path: uploadData.path,
+          });
+        }
+      }
+      let barangayName = await getBarangayFromCoords(
+        pendingMedicalPin.latitude,
+        pendingMedicalPin.longitude
+      );
+      await addDoc(collection(db, "evacuation_pins"), {
+        latitude: pendingMedicalPin.latitude,
+        longitude: pendingMedicalPin.longitude,
+        userId: userInfo || "anonymous",
+        userFirstName: userFirstName || "anonymous",
+        description: medicalDescription.trim(),
+        category: medicalSelectedCategory.trim(),
+        openTime: timeOpenToSave,
+        media: mediaUrls,
+        createdAt: serverTimestamp(),
+        barangay: barangayName,
+      });
+      setMedicalModalVisible(false);
+      setMedicalDescription("");
+      setMedicalSelectedCategory("Medical Support");
+      setMedicalMedia(null);
+      setMedicalOpenTime("");
+      setPendingMedicalPin(null);
+      Alert.alert("Medical Support Pin Added!", "The medical support pin has been added successfully.");
+      // Optionally refetch pins here
+    } catch (error) {
+      console.error("Error saving medical pin:", error);
+      Alert.alert("Error", `There was an error adding the medical support pin: ${error.message}.`);
+    }
+  };
+ 
   const pinsWithIcons = allPins.map((p) => {
     const categoryKey = (p.category || "Others").trim();
     const category =
@@ -1185,17 +1321,15 @@ export default function MapScreen({ route }) {
               }
               // If admin and evacuation pin mode, open evacuation modal
               if (evacPinMode) {
-                setPendingEvacPin({
-                  latitude: msg.latitude,
-                  longitude: msg.longitude,
-                });
+                setPendingEvacPin({ latitude: msg.latitude, longitude: msg.longitude });
                 setEvacModalVisible(true);
                 return;
+              } else if (medicalPinMode) {
+                setPendingMedicalPin({ latitude: msg.latitude, longitude: msg.longitude });
+                setMedicalModalVisible(true); // <-- This opens MedicalPinModal
+                return;
               } else {
-                setPendingPin({
-                  latitude: msg.latitude,
-                  longitude: msg.longitude,
-                });
+                setPendingPin({ latitude: msg.latitude, longitude: msg.longitude });
                 setDescModalVisible(true);
                 return;
               }
@@ -1223,11 +1357,7 @@ export default function MapScreen({ route }) {
         onPin={handlePinButton}
         onLocate={goToMyLocation}
         hasRoute={routeCoords.length > 0}
-        onAdd={
-          isAdmin && userInfo
-            ? handleEvacPinButton
-            : undefined
-        }
+        onAdd={isAdmin && userInfo ? handleAddPinButton : undefined}
         isAdmin={isAdmin && !!userInfo}
       />
 
@@ -1265,43 +1395,44 @@ export default function MapScreen({ route }) {
       />
 
       {/* EVACUATION PIN MODAL */}
-      <EvacuationPinModal
-        visible={evacModalVisible}
-        description={evacDescription}
-        onChangeDescription={setEvacDescription}
-        selectedCategory={evacSelectedCategory}
-        onCategoryChange={setEvacSelectedCategory}
-        onCancel={() => {
-          setEvacModalVisible(false);
-          setEvacDescription("");
-          setEvacSelectedCategory("");
-          setEvacMedia(null);
-          setEvacCapacity("");
-          setEvacContactPerson("");
-          setPinMode(false);
-          setPendingEvacPin(null);
-          if (webviewRef.current) {
-            webviewRef.current.postMessage(
-              JSON.stringify({ type: "setPinMode", enabled: false })
-            );
-          }
-        }}
-        onSave={async () => {
-          await handleSaveEvacPin();
-          setPinMode(false);
-          if (webviewRef.current) {
-            webviewRef.current.postMessage(
-              JSON.stringify({ type: "setPinMode", enabled: false })
-            );
-          }
-        }}
-        media={evacMedia}
-        setMedia={setEvacMedia}
-        capacity={evacCapacity}
-        onChangeCapacity={setEvacCapacity}
-        contactPerson={evacContactPerson}
-        onChangeContactPerson={setEvacContactPerson}
-      />
+    <EvacuationPinModal
+  visible={evacModalVisible}
+  openTime={openTime}
+  onChangeOpenTime={setOpenTime}
+  description={evacDescription}
+  onChangeDescription={setEvacDescription}
+  onCancel={() => {
+    setEvacModalVisible(false);
+    setEvacDescription("");
+    setEvacMedia(null);
+    setEvacCapacity("");
+    setEvacContactPerson("");
+    setPinMode(false);
+    setPendingEvacPin(null);
+    if (webviewRef.current) {
+      webviewRef.current.postMessage(
+        JSON.stringify({ type: "setPinMode", enabled: false })
+      );
+    }
+  }}
+  onSave={async () => {
+    await handleSaveEvacPin();
+    setPinMode(false);
+    if (webviewRef.current) {
+      webviewRef.current.postMessage(
+        JSON.stringify({ type: "setPinMode", enabled: false })
+      );
+    }
+  }}
+  media={evacMedia}
+  setMedia={setEvacMedia}
+  capacity={evacCapacity}
+  onChangeCapacity={setEvacCapacity}
+  contactPerson={evacContactPerson}
+  onChangeContactPerson={setEvacContactPerson}
+  // No category prop needed
+/>
+      {/* MEDICAL SUPPORT PIN MODAL */}
       <Modal
         visible={voteMessageModalVisible}
         transparent
@@ -1625,6 +1756,120 @@ export default function MapScreen({ route }) {
           </View>
         </View>
       </Modal>
+
+      {/* PIN TYPE SELECTION MODAL */}
+      <Modal
+        visible={pinTypeModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPinTypeModalVisible(false)}
+      >
+        <View style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "rgba(0,0,0,0.3)"
+        }}>
+          <View style={{
+            backgroundColor: "#fff",
+            borderRadius: 16,
+            padding: 24,
+            width: "80%",
+            alignItems: "center"
+          }}>
+            <Text style={{ fontSize: 18, fontWeight: "bold", marginBottom: 18 }}>
+              Choose Pin Type
+            </Text>
+            <TouchableOpacity
+              style={{
+                backgroundColor: "#1976D2",
+                borderRadius: 8,
+                paddingVertical: 12,
+                paddingHorizontal: 24,
+                marginBottom: 16,
+                width: "100%",
+                alignItems: "center"
+              }}
+              onPress={() => {
+                setPinTypeModalVisible(false);
+                handleEvacPinButton();
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
+                Evacuation Center
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{
+                backgroundColor: "#43a047",
+                borderRadius: 8,
+                paddingVertical: 12,
+                paddingHorizontal: 24,
+                width: "100%",
+                alignItems: "center"
+              }}
+              onPress={() => {
+                setPinTypeModalVisible(false);
+                // Call your Medical Support pin handler here
+                handleMedicalPinButton();
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
+                Medical Support
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{
+                marginTop: 18,
+                padding: 8,
+              }}
+              onPress={() => setPinTypeModalVisible(false)}
+            >
+              <Text style={{ color: "#1976D2", fontWeight: "bold" }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MEDICAL PIN MODAL */}
+      <MedicalPinModal
+        visible={medicalModalVisible}
+        description={medicalDescription}
+        onChangeDescription={setMedicalDescription}
+        selectedCategory={medicalSelectedCategory}
+        onCategoryChange={setMedicalSelectedCategory}
+        onCancel={() => {
+          setMedicalModalVisible(false);
+          setMedicalDescription("");
+          setMedicalSelectedCategory("Medical Support");
+          setMedicalMedia(null);
+          setMedicalOpenTime("");
+          setPendingMedicalPin(null);
+          setPinMode(false);
+          setMedicalPinMode(false);
+          if (webviewRef.current) {
+            webviewRef.current.postMessage(
+              JSON.stringify({ type: "setPinMode", enabled: false })
+            );
+          }
+        }}
+        onSave={async () => {
+          await handleSaveMedicalPin();
+          setPinMode(false);
+          setMedicalPinMode(false);
+          if (webviewRef.current) {
+            webviewRef.current.postMessage(
+              JSON.stringify({ type: "setPinMode", enabled: false })
+            );
+          }
+        }}
+        
+        media={medicalMedia}
+        
+        setMedia={setMedicalMedia}
+        openTime={medicalOpenTime}
+        onChangeOpenTime={setMedicalOpenTime}
+      />
     </View>
   );
 }
@@ -1969,5 +2214,39 @@ const styles = StyleSheet.create({
   mediaToggleDisabled: {
     backgroundColor: "#e0e0e0",
     opacity: 0.7,
+  },
+  // New styles for pin type modal
+  pinTypeOption: {
+    backgroundColor: "#f9f9f9",
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    width: "100%",
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    elevation: 2,
+  },
+  pinTypeText: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#333",
+  },
+  cancelButton: {
+    marginTop: 12,
+    backgroundColor: "#1976D2",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    width: "100%",
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
   },
 });

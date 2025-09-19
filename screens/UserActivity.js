@@ -40,7 +40,7 @@ export default function UsersActivity() {
         >
           <Icon name="chevron-back" size={26} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.topBarTitle}>Users Activity</Text>
+        <Text style={styles.topBarTitle}>Admin Activity</Text>
         <View style={styles.backButton} />
       </View>
       <View style={styles.container}>

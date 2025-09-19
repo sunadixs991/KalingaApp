@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
+  ScrollView,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
@@ -29,8 +30,8 @@ export default function AdminUtils() {
         <View style={styles.backButton} />
       </View>
 
-      {/* Options Section */}
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.container}>
+        {/* Options Section */}
         <TouchableOpacity
           style={styles.option}
           onPress={() => navigation.navigate("ManageContact")}
@@ -63,22 +64,22 @@ export default function AdminUtils() {
           <Text style={styles.optionText}>Analytics</Text>
         </TouchableOpacity>
 
-        {/* NEW: Manage Users */}
+        {/* UPDATED: Users Option */}
         <TouchableOpacity
           style={styles.option}
-          onPress={() => navigation.navigate("ManageUsers")}
+          onPress={() => navigation.navigate("UserSelector")}
         >
           <Icon name="people-outline" size={28} color="#2d98da" style={styles.icon} />
-          <Text style={styles.optionText}>Manage Users</Text>
+          <Text style={styles.optionText}>Users</Text>
         </TouchableOpacity>
 
         {/* NEW: Users Activity */}
         <TouchableOpacity
           style={styles.option}
-          onPress={() => navigation.navigate("UsersActivity")}
+          onPress={() => navigation.navigate("ActivitySelector")}
         >
           <Icon name="pulse-outline" size={28} color="#e67e22" style={styles.icon} />
-          <Text style={styles.optionText}>Users Activity</Text>
+          <Text style={styles.optionText}>Activity</Text>
         </TouchableOpacity>
 
         {/* NEW: Manage Category */}
@@ -106,7 +107,16 @@ export default function AdminUtils() {
           <Text style={styles.optionText}>Manage Pins</Text>
         </TouchableOpacity>
 
-      </View>
+        {/* NEW: Deleted Pins */}
+        <TouchableOpacity
+          style={styles.option}
+          onPress={() => navigation.navigate("DeletedPins")}
+        >
+          <Icon name="trash-outline" size={28} color="#888" style={styles.icon} />
+          <Text style={styles.optionText}>Deleted Pins</Text>
+        </TouchableOpacity>
+
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -143,7 +153,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   container: {
-    flex: 1,
     backgroundColor: "#fff",
     padding: 24,
     justifyContent: "flex-start",

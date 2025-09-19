@@ -1,19 +1,28 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, StatusBar, TouchableOpacity, TextInput, Modal } from "react-native";
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  ActivityIndicator,
+  StatusBar,
+  TouchableOpacity,
+  Modal,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
 import { db } from "../firebase";
-import { collection, getDocs, updateDoc, doc } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { useNavigation } from "@react-navigation/native";
+import { TextInput } from "react-native";
 
 export default function ManageUsers() {
   const [users, setUsers] = useState([]);
-  const [filteredUsers, setFilteredUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [userType, setUserType] = useState("user");
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -42,33 +51,15 @@ export default function ManageUsers() {
         users.filter(
           u =>
             (u.firstName && u.firstName.toLowerCase().includes(search.toLowerCase())) ||
-            (u.lastName && u.lastName.toLowerCase().includes(search.toLowerCase())) ||
-            (u.username && u.username.toLowerCase().includes(search.toLowerCase())) ||
-            (u.email && u.email.toLowerCase().includes(search.toLowerCase())) ||
-            (u.barangay && u.barangay.toLowerCase().includes(search.toLowerCase())) || // <-- Added
-            (u.purok && u.purok.toLowerCase().includes(search.toLowerCase()))           // <-- Added
+            (u.lastName && u.lastName.toLowerCase().includes(search.toLowerCase()))
         )
       );
     }
   }, [search, users]);
 
-  const handleEditUser = (user) => {
+  const handleShowDetails = (user) => {
     setSelectedUser(user);
-    setUserType(user.userType || "user");
-    setEditModalVisible(true);
-  };
-
-  const handleSaveUserType = async () => {
-    if (!selectedUser) return;
-    try {
-      await updateDoc(doc(db, "users", selectedUser.id), { userType });
-      setUsers(prev =>
-        prev.map(u => (u.id === selectedUser.id ? { ...u, userType } : u))
-      );
-      setEditModalVisible(false);
-    } catch (error) {
-      console.log("Failed to update user type:", error);
-    }
+    setDetailsModalVisible(true);
   };
 
   return (
@@ -101,76 +92,97 @@ export default function ManageUsers() {
           <FlatList
             data={filteredUsers}
             keyExtractor={item => item.id}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.userCard}
-                onPress={() => handleEditUser(item)}
-              >
-                <Text style={styles.userName}>
-                  {item.firstName} {item.lastName}
-                </Text>
-                <Text style={styles.userInfo}>
-                  Barangay: {item.barangay || "N/A"}
-                </Text>
-                <Text style={styles.userInfo}>
-                  Purok: {item.purok || "N/A"}
-                </Text>
-                <Text style={styles.userInfo}>
-                  User Type: {item.userType || "user"}
-                </Text>
-                <Text style={styles.editText}>Tap to edit</Text>
-              </TouchableOpacity>
-            )}
+            renderItem={({ item }) => {
+              let bgColor = "#d4edda"; // green for 0 or undefined
+              if (item.strike === 1) bgColor = "#fff9b4"; // orange for 1
+              if (item.strike === 2) bgColor = "#ffe5b4"; // yellow for 2
+              if (item.strike >= 3) bgColor = "#f8d7da"; // red for 3 or more
+      return (
+                <TouchableOpacity
+                  style={[styles.userCard, { backgroundColor: bgColor }]}
+                  onPress={() => handleShowDetails(item)}
+                >
+                  <Text style={styles.userName}>
+                    {item.firstName} {item.lastName}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
           />
         )}
       </View>
-      {/* Edit Modal */}
+      {/* Details Modal */}
       <Modal
-        visible={editModalVisible}
+        visible={detailsModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setEditModalVisible(false)}
+        onRequestClose={() => setDetailsModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Edit User Type</Text>
-            <Text style={styles.modalLabel}>
-              {selectedUser?.firstName} {selectedUser?.lastName}
-            </Text>
-            <View style={styles.userTypeOptions}>
-              <TouchableOpacity
-                style={[
-                  styles.userTypeButton,
-                  userType === "user" && styles.userTypeSelected,
-                ]}
-                onPress={() => setUserType("user")}
-              >
-                <Text style={styles.userTypeText}>User</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.userTypeButton,
-                  userType === "Purok Admin" && styles.userTypeSelected,
-                ]}
-                onPress={() => setUserType("Purok Admin")}
-              >
-                <Text style={styles.userTypeText}>Purok Admin</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.saveButton}
-                onPress={handleSaveUserType}
-              >
-                <Text style={styles.saveButtonText}>Save</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setEditModalVisible(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.modalTitle}>Account Details</Text>
+            {selectedUser && (
+              <View>
+                <Text style={styles.detailText}>
+                  <Text style={styles.detailLabel}>Full Name: </Text>
+                  {selectedUser.firstName} {selectedUser.lastName}
+                </Text>
+                <Text style={styles.detailText}>
+                  <Text style={styles.detailLabel}>Username: </Text>
+                  {selectedUser.username}
+                </Text>
+                <Text style={styles.detailText}>
+                  <Text style={styles.detailLabel}>Email: </Text>
+                  {selectedUser.email}
+                </Text>
+                <Text style={styles.detailText}>
+                  <Text style={styles.detailLabel}>Barangay: </Text>
+                  {selectedUser.barangay}
+                </Text>
+                <Text style={styles.detailText}>
+                  <Text style={styles.detailLabel}>Purok: </Text>
+                  {selectedUser.purok || "N/A"}
+                </Text>
+                <Text style={styles.detailText}>
+                  <Text style={styles.detailLabel}>User Type: </Text>
+                  {selectedUser.userType}
+                </Text>
+                <Text style={styles.detailText}>
+                  <Text style={styles.detailLabel}>Strike: </Text>
+                  {selectedUser.strike !== undefined ? selectedUser.strike : "0"}
+                </Text>
+                <Text style={styles.detailText}>
+                  <Text style={styles.detailLabel}>Status: </Text>
+                  {selectedUser.accountStatus}
+                </Text>
+                <Text style={styles.detailText}>
+                  <Text style={styles.detailLabel}>Gender: </Text>
+                  {selectedUser.gender}
+                </Text>
+                <Text style={styles.detailText}>
+                  <Text style={styles.detailLabel}>Date of Birth: </Text>
+                  {selectedUser.dob}
+                </Text>
+                <Text style={styles.detailText}>
+                  <Text style={styles.detailLabel}>Phone: </Text>
+                  {selectedUser.phone}
+                </Text>
+                <Text style={styles.detailText}>
+                  <Text style={styles.detailLabel}>Province: </Text>
+                  {selectedUser.province}
+                </Text>
+                <Text style={styles.detailText}>
+                  <Text style={styles.detailLabel}>City: </Text>
+                  {selectedUser.city}
+                </Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setDetailsModalVisible(false)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -239,17 +251,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "bold",
     color: "#333",
-  },
-  userInfo: {
-    fontSize: 15,
-    color: "#555",
-    marginTop: 2,
-  },
-  editText: {
-    fontSize: 13,
-    color: "#e75e33",
-    marginTop: 8,
-    fontStyle: "italic",
+    textAlign: "center",
   },
   modalOverlay: {
     flex: 1,
@@ -271,57 +273,25 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     textAlign: "center",
   },
-  modalLabel: {
-    fontSize: 16,
-    color: "#333",
-    marginBottom: 18,
-    textAlign: "center",
-  },
-  userTypeOptions: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 18,
-  },
-  userTypeButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 8,
-    backgroundColor: "#f0f0f0",
-    marginHorizontal: 8,
-  },
-  userTypeSelected: {
-    backgroundColor: "#e75e33",
-  },
-  userTypeText: {
-    fontSize: 16,
-    color: "#333",
-    fontWeight: "bold",
-  },
-  modalActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: 10,
-  },
-  saveButton: {
-    backgroundColor: "#49A5A2",
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginRight: 10,
-  },
-  saveButtonText: {
-    color: "#fff",
-    fontWeight: "bold",
+  detailText: {
     fontSize: 15,
+    color: "#333",
+    marginBottom: 6,
   },
-  cancelButton: {
-    backgroundColor: "#ccc",
+  detailLabel: {
+    fontWeight: "bold",
+    color: "#e75e33",
+  },
+  closeButton: {
+    backgroundColor: "#e75e33",
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 8,
+    marginTop: 18,
+    alignSelf: "center",
   },
-  cancelButtonText: {
-    color: "#333",
+  closeButtonText: {
+    color: "#fff",
     fontWeight: "bold",
     fontSize: 15,
   },

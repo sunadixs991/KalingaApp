@@ -11,20 +11,12 @@ import {
   Image
 } from "react-native";
 import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { db } from "../firebase";
 import { collection, getDocs } from "firebase/firestore";
-
-const EVACUATION_CATEGORIES = [
-  "Evacuation Center",
-  "Temporary Shelter",
-  "Medical Station",
-  "Food Distribution",
-  "Others"
-];
+import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 
 const MAX_MEDIA_COUNT = 3;
+const DEFAULT_CATEGORY = "Evacuation Center";
 
 const EvacuationPinModal = ({
   visible,
@@ -32,46 +24,17 @@ const EvacuationPinModal = ({
   onChangeDescription,
   onCancel,
   onSave,
-  selectedCategory,
-  onCategoryChange,
   media,
   setMedia,
   capacity,
   onChangeCapacity,
   contactPerson,
-  onChangeContactPerson
+  onChangeContactPerson,
 }) => {
-  const [showCategories, setShowCategories] = useState(false);
-  const [categories, setCategories] = useState(["Others"]);
-
-  // Fetch categories from Firestore on mount
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const snap = await getDocs(collection(db, "evacuation_categories"));
-        const list = [];
-        snap.forEach(doc => {
-          const data = doc.data();
-          if (data.name && data.name !== "Others") list.push(data.name);
-        });
-        setCategories([...list, "Others"]);
-      } catch (error) {
-        setCategories(["Others"]);
-      }
-    };
-    fetchCategories();
-  }, []);
-
-  const handleCategorySelect = (category) => {
-    onCategoryChange(category);
-    setShowCategories(false);
-  };
-
   const handleSave = () => {
-    if (!selectedCategory) {
-      Alert.alert("Category Required", "Please select a category for this pin.");
-      return;
-    }
+    // Category is always set automatically
+    const selectedCategory = DEFAULT_CATEGORY;
+
     if (!description.trim()) {
       Alert.alert("Description Required", "Please enter a description for this pin.");
       return;
@@ -84,11 +47,11 @@ const EvacuationPinModal = ({
       Alert.alert("Contact Person Required", "Please enter a contact person.");
       return;
     }
-    onSave();
+    // Pass selectedCategory to onSave if needed
+    onSave(selectedCategory);
   };
 
   const handleCancel = () => {
-    setShowCategories(false);
     onCancel();
   };
 
@@ -189,47 +152,7 @@ const EvacuationPinModal = ({
             contentContainerStyle={{ paddingBottom: 20 }}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Category Selection */}
-            <View style={styles.categorySection}>
-              <Text style={styles.sectionLabel}>Category</Text>
-              <TouchableOpacity 
-                style={styles.categorySelector}
-                onPress={() => setShowCategories(!showCategories)}
-              >
-                <Text style={[
-                  styles.categorySelectorText,
-                  selectedCategory ? styles.selectedCategoryText : styles.placeholderText
-                ]}>
-                  {selectedCategory || "Select a category..."}
-                </Text>
-                <Text style={styles.dropdownArrow}>
-                  {showCategories ? "▲" : "▼"}
-                </Text>
-              </TouchableOpacity>
-              {showCategories && (
-                <View style={styles.categoryDropdown}>
-                  <ScrollView style={styles.categoryScrollView} nestedScrollEnabled>
-                    {categories.map((category, index) => (
-                      <TouchableOpacity
-                        key={index}
-                        style={[
-                          styles.categoryOption,
-                          selectedCategory === category && styles.selectedCategoryOption
-                        ]}
-                        onPress={() => handleCategorySelect(category)}
-                      >
-                        <Text style={[
-                          styles.categoryOptionText,
-                          selectedCategory === category && styles.selectedCategoryOptionText
-                        ]}>
-                          {category}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-            </View>
+            {/* Category is set automatically and not shown */}
 
             {/* Capacity Input */}
             <View style={styles.descriptionSection}>
