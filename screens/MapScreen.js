@@ -104,6 +104,7 @@ export default function MapScreen({ route }) {
   const [evacPurok, setEvacPurok] = useState("");
   const [evacSitio, setEvacSitio] = useState("");
   const [facilityName, setFacilityName] = useState("");
+  
 
   useEffect(() => {
     pinModeRef.current = pinMode;
@@ -149,6 +150,9 @@ export default function MapScreen({ route }) {
   const [pendingVoteType, setPendingVoteType] = useState(null);
   const [voteMessage, setVoteMessage] = useState("");
   const [pinTypeModalVisible, setPinTypeModalVisible] = useState(false); // <-- New state
+  const [crosshairMode, setCrosshairMode] = useState(false);
+  const [crosshairPinType, setCrosshairPinType] = useState(null); // 'regular', 'evacuation', 'medical'
+  const [mapCenter, setMapCenter] = useState(null);
 
   const isFocused = useIsFocused();
 
@@ -214,6 +218,8 @@ export default function MapScreen({ route }) {
     })();
   }, []);
 
+
+  
   // Fetch evacuation categories on mount
   useEffect(() => {
     const fetchEvacCategories = async () => {
@@ -362,18 +368,21 @@ export default function MapScreen({ route }) {
     );
   };
 
+  // Updated pin button handlers
   const handlePinButton = () => {
-    setEvacPinMode(false); // Make sure evacuation mode is off
+    setEvacPinMode(false);
     if (userInfo) {
-      setPinMode(true);
+      setCrosshairMode(true);
+      setCrosshairPinType('regular');
+      setPinMode(false);
       if (webviewRef.current) {
         webviewRef.current.postMessage(
-          JSON.stringify({ type: "setPinMode", enabled: true })
+          JSON.stringify({ type: "setCrosshairMode", enabled: true })
         );
       }
       Alert.alert(
         "Pin Mode",
-        "Tap or long-press on the map to pin a location. Tap Cancel to exit pin mode."
+        "Move the map to position the crosshair where you want to place your pin, then tap the confirm button."
       );
     } else {
       Alert.alert(
@@ -390,49 +399,20 @@ export default function MapScreen({ route }) {
     }
   };
 
-
-  const handleMedicalPinButton = () => {
-    setEvacPinMode(false); // Make sure evacuation mode is off
-    if (userInfo) {
-      setPinMode(true);
-      if (webviewRef.current) {
-        webviewRef.current.postMessage(
-          JSON.stringify({ type: "setPinMode", enabled: true })
-        );
-      }
-      Alert.alert(
-        "Medical Support Pin Mode",
-        "Tap or long-press on the map to place a medical support pin. Tap Cancel to exit pin mode."
-      );
-      // Set a state to indicate medical pin mode, then show your MedicalPinModal when pin is placed
-      setMedicalPinMode(true); // You need to declare this state: const [medicalPinMode, setMedicalPinMode] = useState(false);
-    } else {
-      Alert.alert(
-        "Sign in required",
-        "You need to sign in to add a medical support pin.",
-        [
-          { text: "No thanks!", style: "cancel" },
-          {
-            text: "Sign in",
-            onPress: () => navigation.navigate("LoginScreen"),
-          },
-        ]
-      );
-    }
-  };
-
   const handleEvacPinButton = () => {
-    setEvacPinMode(true); // Set evacuation mode ON
+    setEvacPinMode(true);
     if (userInfo) {
-      setPinMode(true);
+      setCrosshairMode(true);
+      setCrosshairPinType('evacuation');
+      setPinMode(false);
       if (webviewRef.current) {
         webviewRef.current.postMessage(
-          JSON.stringify({ type: "setPinMode", enabled: true })
+          JSON.stringify({ type: "setCrosshairMode", enabled: true })
         );
       }
       Alert.alert(
         "Evacuation Pin Mode",
-        "Tap or long-press on the map to place an evacuation pin. Tap Cancel to exit pin mode."
+        "Move the map to position the crosshair where you want to place your evacuation pin, then tap the confirm button."
       );
     } else {
       Alert.alert(
@@ -449,6 +429,141 @@ export default function MapScreen({ route }) {
     }
   };
 
+  const handleMedicalPinButton = () => {
+    setEvacPinMode(false);
+    if (userInfo) {
+      setCrosshairMode(true);
+      setCrosshairPinType('medical');
+      setMedicalPinMode(true);
+      setPinMode(false);
+      if (webviewRef.current) {
+        webviewRef.current.postMessage(
+          JSON.stringify({ type: "setCrosshairMode", enabled: true })
+        );
+      }
+      Alert.alert(
+        "Medical Support Pin Mode",
+        "Move the map to position the crosshair where you want to place your medical support pin, then tap the confirm button."
+      );
+    } else {
+      Alert.alert(
+        "Sign in required",
+        "You need to sign in to add a medical support pin.",
+        [
+          { text: "No thanks!", style: "cancel" },
+          {
+            text: "Sign in",
+            onPress: () => navigation.navigate("LoginScreen"),
+          },
+        ]
+      );
+    }
+  };
+
+  // Confirm pin placement at crosshair position
+  // State to track if we're waiting for center response
+const [waitingForCenter, setWaitingForCenter] = useState(false);
+const [pendingPinPlacement, setPendingPinPlacement] = useState(null);
+
+const confirmPinPlacement = () => {
+  if (!webviewRef.current) {
+    Alert.alert("Error", "Map not ready");
+    return;
+  }
+  
+  setWaitingForCenter(true);
+  setPendingPinPlacement({
+    crosshairPinType,
+    crosshairMode: true
+  });
+  
+  // Request current map center from webview (only once)
+  webviewRef.current.postMessage(
+    JSON.stringify({ type: "getCenter" })
+  );
+};
+
+// Handle the center response and complete pin placement
+const handleCenterResponse = (center) => {
+  if (!waitingForCenter || !pendingPinPlacement) return;
+
+  const pinCoordinate = {
+    latitude: center.latitude,
+    longitude: center.longitude
+  };
+
+  if (pendingPinPlacement.crosshairPinType === 'evacuation') {
+    setPendingEvacPin(pinCoordinate);
+    setEvacModalVisible(true);
+  } else if (pendingPinPlacement.crosshairPinType === 'medical') {
+    setPendingMedicalPin(pinCoordinate);
+    setMedicalModalVisible(true);
+  } else {
+    setPendingPin(pinCoordinate);
+    setDescModalVisible(true);
+  }
+
+  setCrosshairMode(false);
+  setCrosshairPinType(null);
+  setWaitingForCenter(false);
+  setPendingPinPlacement(null);
+
+  if (webviewRef.current) {
+    webviewRef.current.postMessage(
+      JSON.stringify({ type: "setCrosshairMode", enabled: false })
+    );
+  }
+};
+
+// Update your existing message handler to include this case
+const handleMessage = (event) => {
+  try {
+    const message = JSON.parse(event.nativeEvent.data);
+    
+    switch (message.type) {
+      case 'mapCenterResponse':
+        handleCenterResponse({
+          latitude: message.latitude,
+          longitude: message.longitude
+        });
+        break;
+      case 'mapCenterChanged':
+        // Optional: track center changes for other purposes
+        setMapCenter({
+          latitude: message.latitude,
+          longitude: message.longitude
+        });
+        break;
+      // ... your other existing cases like 'markerClick', 'mapClick', etc.
+      default:
+        // Handle other message types
+        break;
+    }
+  } catch (error) {
+    console.log('Error parsing message:', error);
+  }
+};
+
+// Cancel crosshair mode (your existing function, no changes needed)
+const cancelCrosshairMode = () => {
+  setCrosshairMode(false);
+  setCrosshairPinType(null);
+  setEvacPinMode(false);
+  setMedicalPinMode(false);
+  setPinMode(false);
+  
+  // Clear any pending pin placement
+  setWaitingForCenter(false);
+  setPendingPinPlacement(null);
+  
+  if (webviewRef.current) {
+    webviewRef.current.postMessage(
+      JSON.stringify({ type: "setCrosshairMode", enabled: false })
+    );
+  }
+};
+
+  // HANDLE LONG PRESS ON MAP
   const handleLongPress = (e) => {
     if (pinMode && userInfo) {
       setPendingPin(e.nativeEvent.coordinate);
@@ -893,6 +1008,7 @@ export default function MapScreen({ route }) {
     <View style={styles.container}>
       <WebView
         ref={webviewRef}
+        
         originWhitelist={["*"]}
         source={{
           html: getMapHtml(
@@ -902,68 +1018,114 @@ export default function MapScreen({ route }) {
           ),
         }}
         style={{ flex: 1, backgroundColor: "transparent" }}
-        onMessage={(event) => {
-          try {
-            const msg = JSON.parse(event.nativeEvent.data);
+       onMessage={(event) => {
+  try {
+    const msg = JSON.parse(event.nativeEvent.data);
 
-            // Only create pin on long-press or mapPin and when pinMode active
-            if (msg.type === "mapLongPress" || msg.type === "mapPin") {
-              // use ref to avoid stale closure
-              if (!pinModeRef.current) {
-                console.log("Pin mode not active — ignoring pin event");
-                return;
-              }
-              if (!userInfo) {
-                Alert.alert(
-                  "Sign in required",
-                  "You need to sign in to pin a location.",
-                  [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Sign in",
-                      onPress: () => navigation.navigate("LoginScreen"),
-                    },
-                  ]
-                );
-                return;
-              }
-              // If admin and evacuation pin mode, open evacuation modal
-              if (evacPinMode) {
-                setPendingEvacPin({ latitude: msg.latitude, longitude: msg.longitude });
-                setEvacModalVisible(true);
-                return;
-              } else if (medicalPinMode) {
-                setPendingMedicalPin({ latitude: msg.latitude, longitude: msg.longitude });
-                setMedicalModalVisible(true); // <-- This opens MedicalPinModal
-                return;
-              } else {
-                setPendingPin({ latitude: msg.latitude, longitude: msg.longitude });
-                setDescModalVisible(true);
-                return;
-              }
-            }
+    // Handle center response for crosshair mode
+    if (msg.type === "mapCenterResponse") {
+      handleCenterResponse({
+        latitude: msg.latitude,
+        longitude: msg.longitude
+      });
+      return;
+    }
 
-            // Handle marker clicks
-            if (msg.type === "markerClick") {
-              if (msg.id === "__current_location") return;
-              // Try to find in regular pins first
-              let pin = allPins.find((p) => p.id === msg.id);
-              // If not found, try evacuation pins
-              if (!pin) {
-                pin = evacPins.find((p) => p.id === msg.id);
-              }
-              // If not found, try medical pins
-              if (!pin) {
-                pin = medicalPins.find((p) => p.id === msg.id);
-              }
-              // If found, show details modal
-              if (pin) handlePinMarkerPress(pin);
-            }
-          } catch (e) {
-            console.log("WebView message parse error", e);
-          }
-        }}
+    // Handle map center updates for crosshair mode
+    if (msg.type === "mapCenterChanged") {
+      setMapCenter({
+        latitude: msg.latitude,
+        longitude: msg.longitude
+      });
+      return;
+    }
+
+    // Handle map center updates (legacy)
+    if (msg.type === "mapCenter") {
+      setMapCenter({
+        latitude: msg.latitude,
+        longitude: msg.longitude
+      });
+      return;
+    }
+
+    // Only create pin on long-press or mapPin when NOT in crosshair mode
+    if (msg.type === "mapLongPress" || msg.type === "mapPin") {
+      if (crosshairMode) return;
+      if (!pinModeRef.current) {
+        console.log("Pin mode not active — ignoring pin event");
+        return;
+      }
+      // If admin and evacuation pin mode, open evacuation modal
+      if (evacPinMode) {
+        setPendingEvacPin({ latitude: msg.latitude, longitude: msg.longitude });
+        setEvacModalVisible(true);
+        return;
+      } else if (medicalPinMode) {
+        setPendingMedicalPin({ latitude: msg.latitude, longitude: msg.longitude });
+        setMedicalModalVisible(true);
+        return;
+      } else {
+        setPendingPin({ latitude: msg.latitude, longitude: msg.longitude });
+        setDescModalVisible(true);
+        return;
+      }
+    }
+
+    // Handle marker clicks
+    if (msg.type === "markerClick") {
+      if (msg.id === "__current_location") return;
+      // Try to find in regular pins first
+      let pin = allPins.find((p) => p.id === msg.id);
+      // If not found, try evacuation pins
+      if (!pin) {
+        pin = evacPins.find((p) => p.id === msg.id);
+      }
+      // If not found, try medical pins
+      if (!pin) {
+        pin = medicalPins.find((p) => p.id === msg.id);
+      }
+      // If found, show details modal
+      if (pin) handlePinMarkerPress(pin);
+    }
+  } catch (e) {
+    console.log("WebView message parse error", e);
+  }
+}}
       />
+
+      {/* Crosshair overlay when in crosshair mode */}
+      {crosshairMode && (
+        <View style={styles.crosshairContainer}>
+          <View style={styles.crosshair}>
+            <Icon 
+              name={crosshairPinType === 'location' ? 'location' : 
+                    crosshairPinType === 'location' ? 'location' : 'location'} 
+              size={52} 
+              color="#EC6135" 
+            />
+          </View>
+          <View style={styles.crosshairDot} />
+        </View>
+      )}
+
+      {/* Crosshair control buttons */}
+      {crosshairMode && (
+        <View style={styles.crosshairControls}>
+          <TouchableOpacity
+            style={[styles.controlButton, styles.cancelButton]}
+            onPress={cancelCrosshairMode}
+          >
+            <Text style={styles.buttonText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.controlButton, styles.confirmButton]}
+            onPress={confirmPinPlacement}
+          >
+            <Text style={styles.buttonText}>Confirm Pin</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <FloatingButtons
         onClear={clearRoute}
@@ -987,10 +1149,12 @@ export default function MapScreen({ route }) {
           setSelectedCategory("");
           setPendingPin(null);
           setMedia(null);
+          setCrosshairMode(false);
+          setCrosshairPinType(null);
           setPinMode(false);
           if (webviewRef.current) {
             webviewRef.current.postMessage(
-              JSON.stringify({ type: "setPinMode", enabled: false })
+              JSON.stringify({ type: "setCrosshairMode", enabled: false })
             );
           }
         }}
@@ -1018,10 +1182,11 @@ export default function MapScreen({ route }) {
             serverTimestamp,
             getBarangayFromCoords,
           });
-          setPinMode(false);
+          setCrosshairMode(false);
+          setCrosshairPinType(null);
           if (webviewRef.current) {
             webviewRef.current.postMessage(
-              JSON.stringify({ type: "setPinMode", enabled: false })
+              JSON.stringify({ type: "setCrosshairMode", enabled: false })
             );
           }
         }}
@@ -1435,7 +1600,82 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: "#fff",
     fontWeight: "bold",
-    fontSize: 16,
+    fontSize: 12,
+  },
+  crosshairContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    pointerEvents: 'none',
+  },
+crosshair: {
+  width: 50,
+  height: 50,
+  justifyContent: 'center',
+  alignItems: 'center',
+  backgroundColor: 'transparent', // no background
+  borderWidth: 0,                 // no border
+  shadowOpacity: 0,               // no shadow
+  elevation: 0,                   // no shadow (Android)
+  marginBottom: 76,            // move up more (try 6, 8, or 10)
+},
+
+ crosshairDot: {
+  position: 'absolute',
+  width: 4,
+  height: 4,
+  backgroundColor: '#EC6135',
+  borderRadius: 2,
+  top: '50%',
+  left: '50%',
+  marginTop: -8,  // move down more (try 6, 8, or 10)
+  marginLeft: -1,},
+
+  crosshairControls: {
+    position: 'absolute',
+    bottom: 100,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+  },
+
+controlButton: {
+  marginTop: 6,          // less space above
+  marginHorizontal: 10,  // less space left & right
+  paddingVertical: 6,    // less vertical padding
+  paddingHorizontal: 12, // less horizontal padding
+  borderRadius: 16,      // smaller radius
+  minWidth: 80,          // smaller button
+  alignItems: 'center',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.25,
+  shadowRadius: 4,
+  elevation: 5,
+},
+// ...existing styles...
+
+
+  
+  cancelButton: {
+    backgroundColor: '#757575',
+    marginLeft: 40,
+  },
+  confirmButton: {
+    backgroundColor: '#EC6135',
+    
+    marginRight: 40,
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 12,
   },
 });
 

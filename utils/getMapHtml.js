@@ -92,6 +92,24 @@ function getMapHtml(
           addPins(pins);
           drawRoute(route);
 
+          // Track map center changes
+          map.on('moveend', function(e) {
+            const center = map.getCenter();
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'mapCenterChanged',
+              latitude: center.lat,
+              longitude: center.lng
+            }));
+          });
+
+          // Send initial center
+          const initialCenter = map.getCenter();
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'mapCenterChanged',
+            latitude: initialCenter.lat,
+            longitude: initialCenter.lng
+          }));
+
           (function() {
             let timer = null;
             let startPoint = null;
@@ -170,6 +188,14 @@ function getMapHtml(
               if(msg?.type === 'setPinMode'){
                 _pinMode = !!msg.enabled;
                 if(_pinMode) pinHintEl.classList.add('show'); else pinHintEl.classList.remove('show');
+              }
+              if(msg?.type === 'getCenter'){
+                const center = map.getCenter();
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                  type: 'mapCenterResponse',
+                  latitude: center.lat,
+                  longitude: center.lng
+                }));
               }
             }catch(e){}
           }
