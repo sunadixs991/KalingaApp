@@ -43,7 +43,7 @@ import {
   castVote,
   getUserVoteStatus,
   getUpdatedPinData,
-} from "../services/VotesHandler";
+} from "../utils/voteHandlers";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { FontAwesome5 } from "@expo/vector-icons"; // Expo
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -52,10 +52,13 @@ import { WebView } from "react-native-webview";
 
 import { Image } from "react-native";
 import EvacuationPinModal from "../components/EvacuationPinModal"; // <-- Import your new modal
-import useEvacuationPins from "../hooks/useEvacuationPins";
 import getMapHtml from "../utils/getMapHtml";
 import MedicalPinModal from "../components/MedicalPinModal";
 import { handleSaveEvacPin, handleSavePin, handleSaveMedicalPin } from "../utils/pinHandlers";
+import PinInfoModal from "../components/PinInfoModal";
+import EvacuationInfoModal from "../components/EvacuationInfoModal";
+import MedicalInfoModal from "../components/MedicalInfoModal";
+
 
 // Debug: Log the imports immediately
 // console.log("=== IMPORT DEBUG ===");
@@ -96,6 +99,11 @@ export default function MapScreen({ route }) {
   const [medicalPinMode, setMedicalPinMode] = useState(false);
   const [medicalPins, setMedicalPins] = useState([]);
 
+  // Add new state for facilityName, purok, and sitio
+  const [evacFacilityName, setEvacFacilityName] = useState("");
+  const [evacPurok, setEvacPurok] = useState("");
+  const [evacSitio, setEvacSitio] = useState("");
+  const [facilityName, setFacilityName] = useState("");
 
   useEffect(() => {
     pinModeRef.current = pinMode;
@@ -118,6 +126,8 @@ export default function MapScreen({ route }) {
 
   // PIN INFO MODAL STATES
   const [pinInfoModalVisible, setPinInfoModalVisible] = useState(false);
+  const [EvacuationInfoModalVisible, setEvacuationInfoModalVisible] = useState(false);
+  const [MedicalInfoModalVisible, setMedicalInfoModalVisible] = useState(false);
   const [selectedPin, setSelectedPin] = useState(null);
   const [userVoteStatus, setUserVoteStatus] = useState({
     hasVoted: false,
@@ -450,28 +460,22 @@ export default function MapScreen({ route }) {
   const handlePinMarkerPress = async (pin) => {
     console.log("Pin marker pressed:", pin.id);
     setSelectedPin(pin);
-    setPinInfoModalVisible(true);
 
-    // Get user's vote status for this pin
-    if (userInfo) {
+    // Show the correct info modal based on pin type
+    if (pin.category === "Evacuation Center" || pin.category === "Evacuation") {
+      setEvacuationInfoModalVisible(true);
+    } else if (pin.category === "Medical Support") {
+      setMedicalInfoModalVisible(true);
+    } else {
+      setPinInfoModalVisible(true);
+    }
+
+    // Get user's vote status for this pin (for PinInfoModal only)
+    if (userInfo && (pin.category !== "Evacuation Center" && pin.category !== "Evacuation" && pin.category !== "Medical Support")) {
       try {
-        console.log("Getting vote status for pin:", pin.id, "user:", userInfo);
-        console.log(
-          "getUserVoteStatus function check:",
-          typeof getUserVoteStatus
-        );
-
-        if (typeof getUserVoteStatus !== "function") {
-          console.error("getUserVoteStatus is not a function!");
-          setUserVoteStatus({ hasVoted: false, voteType: null });
-          return;
-        }
-
         const voteStatus = await getUserVoteStatus(pin.id, userInfo);
-        // console.log('Vote status result:', voteStatus);
         setUserVoteStatus(voteStatus);
       } catch (error) {
-        console.error("Error getting vote status:", error);
         setUserVoteStatus({ hasVoted: false, voteType: null });
       }
     } else {
@@ -479,11 +483,21 @@ export default function MapScreen({ route }) {
     }
   };
 
-  // CLOSE PIN INFO MODAL
+  // CLOSE MODALS
   const closePinInfoModal = () => {
     setPinInfoModalVisible(false);
     setSelectedPin(null);
     setUserVoteStatus({ hasVoted: false, voteType: null });
+  };
+
+  const closeEvacuationInfoModal = () => {
+    setEvacuationInfoModalVisible(false);
+    setSelectedPin(null);
+  };
+
+  const closeMedicalInfoModal = () => {
+    setMedicalInfoModalVisible(false);
+    setSelectedPin(null);
   };
 
   // HANDLE VOTING
@@ -1027,7 +1041,9 @@ export default function MapScreen({ route }) {
           setEvacDescription("");
           setEvacMedia(null);
           setEvacCapacity("");
-          setEvacContactPerson("");
+          setEvacFacilityName("");
+          setEvacPurok("");
+          setEvacSitio("");
           setPinMode(false);
           setPendingEvacPin(null);
           if (webviewRef.current) {
@@ -1040,8 +1056,10 @@ export default function MapScreen({ route }) {
           await handleSaveEvacPin({
             evacDescription,
             evacCapacity,
-            evacContactPerson,
             evacMedia,
+            evacFacilityName,
+            evacPurok,
+            evacSitio,
             pendingEvacPin,
             userInfo,
             userFirstName,
@@ -1051,7 +1069,9 @@ export default function MapScreen({ route }) {
             setEvacDescription,
             setEvacMedia,
             setEvacCapacity,
-            setEvacContactPerson,
+            setEvacFacilityName,
+            setEvacPurok,
+            setEvacSitio,
             setPinMode,
             setPendingEvacPin,
             setEvacPins,
@@ -1074,10 +1094,14 @@ export default function MapScreen({ route }) {
         setMedia={setEvacMedia}
         capacity={evacCapacity}
         onChangeCapacity={setEvacCapacity}
-        contactPerson={evacContactPerson}
-        onChangeContactPerson={setEvacContactPerson}
-      // No category prop needed
+        facilityName={evacFacilityName}
+        onChangeFacilityName={setEvacFacilityName}
+        purok={evacPurok}
+        onChangePurok={setEvacPurok}
+        sitio={evacSitio}
+        onChangeSitio={setEvacSitio}
       />
+
       {/* MEDICAL SUPPORT PIN MODAL */}
       <Modal
         visible={voteMessageModalVisible}
@@ -1136,272 +1160,47 @@ export default function MapScreen({ route }) {
         </View>
       </Modal>
 
-      {/* PIN INFO MODAL WITH VOTING */}
-      <Modal
+      {/* PIN INFO MODAL WITH VOTING (for regular pins only) */}
+      <PinInfoModal
         visible={pinInfoModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={closePinInfoModal}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            {/* Fixed Close Button - Always at top right */}
-            <TouchableOpacity
-              onPress={closePinInfoModal}
-              style={styles.closeButton}
-            >
-              <Icon name="close" size={24} color="#666" />
-            </TouchableOpacity>
+        onClose={closePinInfoModal}
+        selectedPin={selectedPin}
+        userVoteStatus={userVoteStatus}
+        isVoting={isVoting}
+        handleVote={handleVote}
+        setPendingVoteType={setPendingVoteType}
+        setVoteMessage={setVoteMessage}
+        setVoteMessageModalVisible={setVoteMessageModalVisible}
+        fetchRoute={fetchRoute}
+        location={location}
+        showMedia={showMedia}
+        setShowMedia={setShowMedia}
+        getHoursAgo={getHoursAgo}
+      />
 
-            {selectedPin && (
-              <>
-                {/* Title */}
-                <Text style={styles.modalUser} numberOfLines={0}>
-                  {selectedPin.userFirstName}
-                </Text>
+      {/* EVACUATION INFO MODAL */}
+      <EvacuationInfoModal
+        visible={EvacuationInfoModalVisible}
+        onClose={closeEvacuationInfoModal}
+        selectedPin={selectedPin}
+        fetchRoute={fetchRoute}
+        location={location}
+        showMedia={showMedia}
+        setShowMedia={setShowMedia}
+        getHoursAgo={getHoursAgo}
+      />
 
-                {/* Category */}
-                <Text style={styles.modalCategory} numberOfLines={0}>
-                  {selectedPin.category}
-                </Text>
-                <Text style={styles.modalDesc} numberOfLines={0}>
-                  {selectedPin.description || "User"}
-                </Text>
-
-
-
-                {/* User */}
-                <Text style={styles.modalTime}>
-                  {getHoursAgo(selectedPin.createdAt)}
-                </Text>
-
-                {/* Vote Counts */}
-                <View
-                  style={[
-                    styles.votingContainer,
-                    userVoteStatus.voteType === "upvote" &&
-                    styles.containerUpvoted,
-                    userVoteStatus.voteType === "downvote" &&
-                    styles.containerDownvoted,
-                  ]}
-                >
-                  {/* Upvote Button */}
-                  <TouchableOpacity
-                    style={[
-                      styles.voteButton,
-                      userVoteStatus.voteType === "upvote" &&
-                      styles.activeUpvote,
-                    ]}
-                    onPress={() => {
-                      if (userVoteStatus.voteType === "upvote") {
-                        // Already upvoted, so remove vote directly (no modal)
-                        handleVote("upvote", "");
-                      } else {
-                        // Show modal for optional message
-                        setPendingVoteType("upvote");
-                        setVoteMessage("");
-                        setVoteMessageModalVisible(true);
-                      }
-                    }}
-                    disabled={isVoting}
-                  >
-                    <Text
-                      style={[
-                        styles.arrowText,
-                        userVoteStatus.voteType === "upvote" &&
-                        styles.activeUpvoteText,
-                      ]}
-                    >
-                      ⇧
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Net Score Display */}
-                  <Text
-                    style={[
-                      styles.scoreText,
-                      userVoteStatus.voteType === "upvote" &&
-                      styles.upvotedScore,
-                      userVoteStatus.voteType === "downvote" &&
-                      styles.downvotedScore,
-                    ]}
-                  >
-                    {(selectedPin.upvotes || 0) - (selectedPin.downvotes || 0)}
-                  </Text>
-
-                  {/* Downvote Button */}
-                  <TouchableOpacity
-                    style={[
-                      styles.voteButton,
-                      userVoteStatus.voteType === "downvote" &&
-                      styles.activeDownvote,
-                    ]}
-                    onPress={() => {
-                      if (userVoteStatus.voteType === "downvote") {
-                        // Already downvoted, so remove vote directly (no modal)
-                        handleVote("downvote", "");
-                      } else {
-                        // Show modal for optional message
-                        setPendingVoteType("downvote");
-                        setVoteMessage("");
-                        setVoteMessageModalVisible(true);
-                      }
-                    }}
-                    disabled={isVoting}
-                  >
-                    <Text
-                      style={[
-                        styles.arrowText,
-                        userVoteStatus.voteType === "downvote" &&
-                        styles.activeDownvoteText,
-                      ]}
-                    >
-                      ⇩
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* New "Go To" button */}
-                <View style={{ alignItems: "center", marginTop: 10 }}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      fetchRoute(location, {
-                        latitude: selectedPin.latitude,
-                        longitude: selectedPin.longitude,
-                      });
-                      setPinInfoModalVisible(false);
-                    }}
-                  >
-                    <MaterialCommunityIcons
-                      name="navigation"
-                      size={28}
-                      color="#1976D2"
-                    />
-                    <Text style={{ fontSize: 12, color: "#1976D2" }}>
-                      Go To
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Media Preview - New Section */}
-                {selectedPin && (
-                  <View style={styles.mediaSection}>
-                    <TouchableOpacity
-                      style={[
-                        styles.mediaToggle,
-                        (!selectedPin.media ||
-                          selectedPin.media.length === 0) &&
-                        styles.mediaToggleDisabled,
-                      ]}
-                      onPress={() => setShowMedia(!showMedia)}
-                      disabled={
-                        !selectedPin.media || selectedPin.media.length === 0
-                      }
-                    >
-                      <Text style={styles.mediaToggleText}>
-                        {!selectedPin.media || selectedPin.media.length === 0
-                          ? "No Media Attached"
-                          : showMedia
-                            ? "Hide Media"
-                            : `Show Media (${selectedPin.media.length})`}
-                      </Text>
-                    </TouchableOpacity>
-
-                    {showMedia &&
-                      selectedPin.media &&
-                      selectedPin.media.length > 0 && (
-                        <View style={styles.mediaContainer}>
-                          <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={styles.mediaScrollContent}
-                            style={styles.mediaScroller}
-                          >
-                            {selectedPin.media.map((mediaItem, index) => {
-                              console.log(
-                                `Media ${index}:`,
-                                mediaItem.type,
-                                mediaItem.url
-                              ); // Debug log
-
-                              return (
-                                <View key={index} style={styles.mediaWrapper}>
-                                  {mediaItem.type &&
-                                    mediaItem.type.startsWith("image") ? (
-                                    // Render Image
-                                    <Image
-                                      source={{ uri: mediaItem.url }}
-                                      style={styles.mediaPreview}
-                                      resizeMode="cover"
-                                      onError={(e) => {
-                                        console.log(
-                                          `Image ${index} failed to load:`,
-                                          e.nativeEvent.error
-                                        );
-                                      }}
-                                      onLoad={() => {
-                                        console.log(
-                                          `Image ${index} loaded successfully`
-                                        );
-                                      }}
-                                    />
-                                  ) : mediaItem.type &&
-                                    mediaItem.type.startsWith("video") ? (
-                                    // Render Video
-                                    <Video
-                                      source={{ uri: mediaItem.url }}
-                                      style={styles.mediaPreview}
-                                      useNativeControls={true}
-                                      resizeMode="contain"
-                                      shouldPlay={false}
-                                      isMuted={false}
-                                      onError={(error) => {
-                                        console.log(
-                                          `Video ${index} error:`,
-                                          error
-                                        );
-                                      }}
-                                      onPlaybackStatusUpdate={(status) => {
-                                        if (status.error) {
-                                          console.log(
-                                            `Video ${index} playback error:`,
-                                            status.error
-                                          );
-                                        }
-                                      }}
-                                    />
-                                  ) : (
-                                    // Fallback for unknown media types
-                                    <View
-                                      style={[
-                                        styles.mediaPreview,
-                                        styles.mediaError,
-                                      ]}
-                                    >
-                                      <FontAwesome5
-                                        name="exclamation-triangle"
-                                        size={20}
-                                        color="#666"
-                                      />
-                                      <Text style={styles.mediaErrorText}>
-                                        Unsupported media type:{" "}
-                                        {mediaItem.type || "unknown"}
-                                      </Text>
-                                    </View>
-                                  )}
-                                </View>
-                              );
-                            })}
-                          </ScrollView>
-                        </View>
-                      )}
-                  </View>
-                )}
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
+      {/* MEDICAL INFO MODAL */}
+      <MedicalInfoModal
+        visible={MedicalInfoModalVisible}
+        onClose={closeMedicalInfoModal}
+        selectedPin={selectedPin}
+        fetchRoute={fetchRoute}
+        location={location}
+        showMedia={showMedia}
+        setShowMedia={setShowMedia}
+        getHoursAgo={getHoursAgo}
+      />
 
       {/* PIN TYPE SELECTION MODAL */}
       <Modal
@@ -1484,6 +1283,8 @@ export default function MapScreen({ route }) {
         onChangeDescription={setMedicalDescription}
         selectedCategory={medicalSelectedCategory}
         onCategoryChange={setMedicalSelectedCategory}
+        facilityName={facilityName}
+        onChangeFacilityName={setFacilityName}
         onCancel={() => {
           setMedicalModalVisible(false);
           setMedicalDescription("");
@@ -1521,6 +1322,9 @@ export default function MapScreen({ route }) {
             addDoc,
             serverTimestamp,
             getBarangayFromCoords,
+            getDocs,
+            setAllPins, // <-- ADD THIS LINE
+            setMedicalPins,
           });
           setPinMode(false);
           setMedicalPinMode(false);
@@ -1536,6 +1340,7 @@ export default function MapScreen({ route }) {
         setMedia={setMedicalMedia}
         openTime={medicalOpenTime}
         onChangeOpenTime={setMedicalOpenTime}
+      
       />
     </View>
   );
@@ -1626,290 +1431,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 8,
     position: "relative",
-  },
-  closeButton: {
-    position: "absolute",
-    top: 15,
-    right: 15,
-    zIndex: 10,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    borderRadius: 8,
-    padding: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  modalUser: {
-    fontSize: 18,
-    marginBottom: 8,
-    textAlign: "center",
-    color: "#333",
-    fontWeight: "bold",
-  },
-  modalDesc: {
-    fontSize: 16,
-    marginBottom: 10,
-    textAlign: "center",
-    color: "#333",
-  },
-  modalCategory: {
-    fontSize: 14,
-    marginBottom: 8,
-    textAlign: "center",
-    color: "#EC6135",
-    fontWeight: "600",
-    backgroundColor: "#FFF3F0",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  modalTime: {
-    fontSize: 13,
-    color: "#999",
-    marginBottom: 15,
-    textAlign: "center",
-  },
-  modalVotes: {
-    fontSize: 16,
-    textAlign: "center",
-    color: "#888",
-  },
-  focusedPinBadge: {
-    backgroundColor: "#E3F2FD",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#2196F3",
-  },
-  focusedPinText: {
-    fontSize: 12,
-    color: "#1976D2",
-    fontWeight: "600",
-  },
-  votesContainer: {
-    marginBottom: 20,
-  },
-
-  votingButtons: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
-    marginBottom: 20,
-  },
-  voteButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 2,
-    marginHorizontal: 10,
-    minWidth: 100,
-  },
-  upvoteButton: {
-    borderColor: "#4CAF50",
-    backgroundColor: "transparent",
-  },
-  downvoteButton: {
-    borderColor: "#F44336",
-    backgroundColor: "transparent",
-  },
-  activeVoteButton: {
-    opacity: 0.8,
-  },
-  voteButtonText: {
-    textAlign: "center",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  activeVoteButtonText: {
-    fontWeight: "bold",
-  },
-  loadingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 15,
-  },
-  loadingText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: "#666",
-  },
-
-  votingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-    minWidth: 120,
-    borderRadius: 90,
-    borderWidth: 1,
-    borderColor: "transparent",
-    borderColor: "rgba(14, 14, 14, 0.3)",
-  },
-  containerUpvoted: {
-    backgroundColor: "rgba(255, 139, 96, 0.15)", // Transparent orange
-    borderColor: "rgba(255, 139, 96, 0.3)",
-  },
-  containerDownvoted: {
-    backgroundColor: "rgba(148, 148, 255, 0.15)", // Transparent blue
-    borderColor: "rgba(148, 148, 255, 0.3)",
-  },
-  voteButton: {
-    paddingVertical: 0,
-    paddingHorizontal: 12,
-    borderRadius: 90,
-    marginHorizontal: 0,
-    paddingBottom: 5,
-  },
-  activeUpvote: {
-    backgroundColor: "#FF8B60", // Reddit's upvote orange
-  },
-  activeDownvote: {
-    backgroundColor: "#9494FF", // Reddit's downvote blue
-  },
-  arrowText: {
-    fontSize: 25,
-    fontWeight: "bold",
-    color: "#878A8C", // Default gray
-  },
-  activeUpvoteText: {
-    color: "#FFFFFF",
-  },
-  activeDownvoteText: {
-    color: "#FFFFFF",
-  },
-  scoreText: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#1A1A1B", // Default dark text
-    marginHorizontal: 8,
-    minWidth: 30,
-    textAlign: "center",
-  },
-  upvotedScore: {
-    color: "#FF8B60", // Orange when upvoted
-  },
-  downvotedScore: {
-    color: "#9494FF", // Blue when downvoted
-  },
-  mediaContainer: {
-    width: "100%",
-    maxHeight: 200,
-    marginTop: 10,
-    borderRadius: 12,
-    overflow: "hidden",
-    backgroundColor: "#f9f9f9",
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-  mediaScroller: {
-    paddingVertical: 10,
-  },
-  mediaWrapper: {
-    width: 120,
-    height: 120,
-    borderRadius: 10,
-    overflow: "hidden",
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: "#ccc",
-    backgroundColor: "#fff",
-  },
-  mediaError: {
-    color: "#666",
-    textAlign: "center",
-    padding: 10,
-  },
-  mediaPreview: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: "#f0f0f0",
-  },
-  // Add to your existing styles
-  mediaSection: {
-    width: "100%",
-    alignItems: "center",
-    marginVertical: 15,
-  },
-  mediaToggle: {
-    backgroundColor: "#f0f0f0",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginBottom: 10,
-  },
-  mediaToggleText: {
-    color: "#666",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  mediaContainer: {
-    width: "100%",
-  },
-  mediaScroller: {
-    width: "100%",
-  },
-  mediaScrollContent: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-  },
-  mediaWrapper: {
-    marginHorizontal: 5,
-    borderRadius: 8,
-    overflow: "hidden",
-    backgroundColor: "#f0f0f0",
-    width: 250, // Made larger
-    height: 250, // Made larger
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  mediaPreview: {
-    width: "100%",
-    height: "100%",
-  },
-  mediaToggleDisabled: {
-    backgroundColor: "#e0e0e0",
-    opacity: 0.7,
-  },
-  // New styles for pin type modal
-  pinTypeOption: {
-    backgroundColor: "#f9f9f9",
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    width: "100%",
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    elevation: 2,
-  },
-  pinTypeText: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#333",
-  },
-  cancelButton: {
-    marginTop: 12,
-    backgroundColor: "#1976D2",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    width: "100%",
-    alignItems: "center",
   },
   cancelButtonText: {
     color: "#fff",

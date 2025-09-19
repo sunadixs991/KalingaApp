@@ -28,13 +28,20 @@ const EvacuationPinModal = ({
   setMedia,
   capacity,
   onChangeCapacity,
-  contactPerson,
-  onChangeContactPerson,
+  facilityName,
+  onChangeFacilityName,
+  purok,
+  onChangePurok,
+  sitio,
+  onChangeSitio,
 }) => {
   const handleSave = () => {
-    // Category is always set automatically
     const selectedCategory = DEFAULT_CATEGORY;
 
+    if (!facilityName || !facilityName.trim()) {
+      Alert.alert("Facility Name Required", "Please enter the name of the facility.");
+      return;
+    }
     if (!description.trim()) {
       Alert.alert("Description Required", "Please enter a description for this pin.");
       return;
@@ -43,12 +50,15 @@ const EvacuationPinModal = ({
       Alert.alert("Capacity Required", "Please enter a valid capacity.");
       return;
     }
-    if (!contactPerson.trim()) {
-      Alert.alert("Contact Person Required", "Please enter a contact person.");
-      return;
-    }
-    // Pass selectedCategory to onSave if needed
-    onSave(selectedCategory);
+    // Pass selectedCategory and new fields to onSave if needed
+    onSave(selectedCategory, {
+      facilityName,
+      purok,
+      sitio,
+      description,
+      capacity,
+      media,
+    });
   };
 
   const handleCancel = () => {
@@ -152,7 +162,38 @@ const EvacuationPinModal = ({
             contentContainerStyle={{ paddingBottom: 20 }}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Category is set automatically and not shown */}
+            {/* Facility Name Input */}
+            <View style={styles.descriptionSection}>
+              <Text style={styles.sectionLabel}>Name of Facility</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter facility name"
+                value={facilityName}
+                onChangeText={onChangeFacilityName}
+              />
+            </View>
+
+            {/* Purok Input */}
+            <View style={styles.descriptionSection}>
+              <Text style={styles.sectionLabel}>Purok</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter Purok (optional)"
+                value={purok}
+                onChangeText={onChangePurok}
+              />
+            </View>
+
+            {/* Sitio Input */}
+            <View style={styles.descriptionSection}>
+              <Text style={styles.sectionLabel}>Sitio (optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter Sitio (optional)"
+                value={sitio}
+                onChangeText={onChangeSitio}
+              />
+            </View>
 
             {/* Capacity Input */}
             <View style={styles.descriptionSection}>
@@ -163,17 +204,6 @@ const EvacuationPinModal = ({
                 value={capacity}
                 onChangeText={onChangeCapacity}
                 keyboardType="numeric"
-              />
-            </View>
-
-            {/* Contact Person Input */}
-            <View style={styles.descriptionSection}>
-              <Text style={styles.sectionLabel}>Contact Person</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter contact person"
-                value={contactPerson}
-                onChangeText={onChangeContactPerson}
               />
             </View>
 

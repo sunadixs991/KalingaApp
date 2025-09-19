@@ -18,6 +18,8 @@ const MedicalPinModal = ({
   visible,
   description,
   onChangeDescription,
+  facilityName,
+  onChangeFacilityName,
   onCancel,
   onSave,
   media,
@@ -29,6 +31,10 @@ const MedicalPinModal = ({
   const selectedCategory = "Medical Support";
 
   const handleSave = () => {
+    if (!facilityName || !facilityName.trim()) {
+      Alert.alert("Facility Name Required", "Please enter the facility name.");
+      return;
+    }
     if (!description.trim()) {
       Alert.alert("Description Required", "Please enter a description for this pin.");
       return;
@@ -134,6 +140,17 @@ const MedicalPinModal = ({
             contentContainerStyle={{ paddingBottom: 20 }}
             keyboardShouldPersistTaps="handled"
           >
+            {/* Facility Name */}
+            <View style={styles.descriptionSection}>
+              <Text style={styles.sectionLabel}>Facility Name</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter facility name"
+                value={facilityName}
+                onChangeText={onChangeFacilityName}
+              />
+            </View>
+
             {/* Time Open field */}
             <View style={styles.descriptionSection}>
               <Text style={styles.sectionLabel}>Time Open</Text>
@@ -228,17 +245,19 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   title: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#1976D2",
-    marginBottom: 12,
+    marginBottom: 16,
     textAlign: "center",
+    letterSpacing: 0.5,
   },
   sectionLabel: {
     fontWeight: "bold",
     color: "#1976D2",
     marginBottom: 6,
     fontSize: 15,
+    letterSpacing: 0.2,
   },
   descriptionSection: {
     marginBottom: 16,

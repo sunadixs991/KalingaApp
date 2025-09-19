@@ -90,15 +90,17 @@ export default function EvacuationCenters() {
         }
         return {
           id: docu.id,
-          name: data.description || "Evacuation Center",
+          name: data.facilityName || data.description || "Evacuation Center", // <-- updated
           address: data.barangay
-            ? `${data.barangay}${data.purok ? ", Purok " + data.purok : ""}`
-            : "Unknown Address",
+            ? `${data.barangay}${data.purok ? ", Purok " + data.purok : ""}${data.sitio ? ", Sitio " + data.sitio : ""}`
+            : "Unknown Address", // <-- updated to include Sitio
           capacity: data.capacity ? `${data.capacity} people` : "N/A",
           status: data.status || "Open",
           distance: distance !== null ? `${distance.toFixed(2)} km` : "N/A",
           latitude: data.latitude,
           longitude: data.longitude,
+          purok: data.purok || "",   // <-- added for modal
+          sitio: data.sitio || "",   // <-- added for modal
         };
       });
       setCenters(list);
@@ -193,6 +195,13 @@ export default function EvacuationCenters() {
               <>
                 <Text style={styles.modalTitle}>{selectedCenter.name}</Text>
                 <Text style={styles.modalDescription}>{selectedCenter.address}</Text>
+                {/* Show Purok and Sitio if available */}
+                {selectedCenter.purok ? (
+                  <Text style={styles.modalCategory}>Purok: {selectedCenter.purok}</Text>
+                ) : null}
+                {selectedCenter.sitio ? (
+                  <Text style={styles.modalCategory}>Sitio: {selectedCenter.sitio}</Text>
+                ) : null}
                 <Text style={styles.modalCategory}>{selectedCenter.capacity}</Text>
                 <Text style={styles.modalMeta}>{selectedCenter.status}</Text>
                 <Text style={styles.modalDistance}>

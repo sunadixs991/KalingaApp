@@ -4,8 +4,10 @@ import { scanImageWithSightengine } from "../services/sightengine";
 export async function handleSaveEvacPin({
   evacDescription,
   evacCapacity,
-  evacContactPerson,
   evacMedia,
+  evacFacilityName,
+  evacPurok,
+  evacSitio,
   pendingEvacPin,
   userInfo,
   userFirstName,
@@ -15,7 +17,9 @@ export async function handleSaveEvacPin({
   setEvacDescription,
   setEvacMedia,
   setEvacCapacity,
-  setEvacContactPerson,
+  setEvacFacilityName,
+  setEvacPurok,
+  setEvacSitio,
   setPinMode,
   setPendingEvacPin,
   setEvacPins,
@@ -27,16 +31,16 @@ export async function handleSaveEvacPin({
   serverTimestamp,
   getBarangayFromCoords,
 }) {
+  if (!evacFacilityName || !evacFacilityName.trim()) {
+    Alert.alert("Facility Name required", "Please enter the name of the facility.");
+    return;
+  }
   if (!evacDescription.trim()) {
     Alert.alert("Description required", "Please enter a description.");
     return;
   }
   if (!evacCapacity.trim() || isNaN(Number(evacCapacity))) {
     Alert.alert("Capacity required", "Please enter a valid capacity.");
-    return;
-  }
-  if (!evacContactPerson.trim()) {
-    Alert.alert("Contact Person required", "Please enter a contact person.");
     return;
   }
 
@@ -116,10 +120,12 @@ export async function handleSaveEvacPin({
       longitude: pendingEvacPin.longitude,
       userId: userInfo || "anonymous",
       userFirstName: userFirstName || "anonymous",
+      facilityName: evacFacilityName.trim(),
+      purok: evacPurok ? evacPurok.trim() : "",
+      sitio: evacSitio ? evacSitio.trim() : "",
       description: evacDescription.trim(),
       category: "Evacuation Center",
       capacity: evacCapacity.trim(),
-      contactPerson: evacContactPerson.trim(),
       media: mediaUrls,
       createdAt: serverTimestamp(),
       barangay: barangayName,
@@ -129,13 +135,15 @@ export async function handleSaveEvacPin({
     setEvacDescription("");
     setEvacMedia(null);
     setEvacCapacity("");
-    setEvacContactPerson("");
+    setEvacFacilityName("");
+    setEvacPurok("");
+    setEvacSitio("");
     setPinMode(false);
     setPendingEvacPin(null);
 
     Alert.alert("Evacuation Pin Added!", "The evacuation pin has been added successfully.");
 
-    // --- Refetch all evacuation pins after saving ---
+    // --- Refetch all evacuation pins nnnnter saving ---
     try {
       const snap = await getDocs(collection(db, "evacuation_pins"));
       const pins = [];
@@ -148,12 +156,14 @@ export async function handleSaveEvacPin({
             longitude: data.longitude,
             userId: data.userId,
             userFirstName: data.userFirstName || "anonymous",
+            facilityName: data.facilityName || "",
+            purok: data.purok || "",
+            sitio: data.sitio || "",
             description: data.description,
             category: data.category || "Evacuation",
             media: data.media || [],
             createdAt: data.createdAt,
             capacity: data.capacity || "",
-            contactPerson: data.contactPerson || "",
           });
         }
       });
@@ -195,7 +205,6 @@ export async function handleSaveEvacPin({
     );
   }
 }
-
 
 export async function handleSavePin({
   selectedCategory,
@@ -414,6 +423,9 @@ export async function handleSaveMedicalPin({
   addDoc,
   serverTimestamp,
   getBarangayFromCoords,
+  getDocs,
+  setAllPins,
+  setMedicalPins, // <-- ADD THIS LINE
 }) {
   if (!medicalDescription.trim()) {
     Alert.alert("Description required", "Please enter a description.");
@@ -427,7 +439,7 @@ export async function handleSaveMedicalPin({
   try {
     let mediaUrls = [];
     if (medicalMedia && medicalMedia.length > 0) {
-      Alert.alert("Uploading", "Uploading image files...", []); // <-- Added here
+      Alert.alert("Uploading", "Uploading image files...", []);
       for (let i = 0; i < medicalMedia.length; i++) {
         const mediaItem = medicalMedia[i];
         if (!mediaItem.type || !mediaItem.type.startsWith("image")) {
@@ -491,7 +503,7 @@ export async function handleSaveMedicalPin({
       userId: userInfo || "anonymous",
       userFirstName: userFirstName || "anonymous",
       description: medicalDescription.trim(),
-      category: "Medical Support", // Set automatically
+      category: "Medical Support",
       openTime: timeOpenToSave,
       media: mediaUrls,
       createdAt: serverTimestamp(),
@@ -505,7 +517,60 @@ export async function handleSaveMedicalPin({
     setPinMode(false);
     setMedicalPinMode(false);
     Alert.alert("Medical Support Pin Added!", "The medical support pin has been added successfully.");
-    // Optionally refetch pins here
+
+    // --- Refetch all pins after saving ---
+    try {
+      const querySnapshot = await getDocs(collection(db, "pins"));
+      const pins = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.latitude && data.longitude) {
+          pins.push({
+            id: doc.id,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            userId: data.userId,
+            userFirstName: data.userFirstName || "anonymous",
+            description: data.description,
+            category: data.category || "Unknown",
+            media: data.media || [],
+            createdAt: data.createdAt,
+            upvotes: data.upvotes || 0,
+            downvotes: data.downvotes || 0,
+          });
+        }
+      });
+      setAllPins(pins);
+    } catch (error) {
+      setAllPins([]);
+    }
+    // --- Refetch medical pins after saving ---
+    try {
+      const querySnapshot = await getDocs(collection(db, "medical_pins"));
+      const pins = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.latitude && data.longitude) {
+          pins.push({
+            id: doc.id,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            userId: data.userId,
+            userFirstName: data.userFirstName || "anonymous",
+            description: data.description,
+            category: data.category || "Medical Support",
+            media: data.media || [],
+            createdAt: data.createdAt,
+            openTime: data.openTime || "",
+            barangay: data.barangay || "",
+          });
+        }
+      });
+      setMedicalPins(pins);
+    } catch (error) {
+      setMedicalPins([]);
+    }
+    // Optionally, refetch medical pins separately if needed
   } catch (error) {
     console.error("Error saving medical pin:", error);
     Alert.alert("Error", `There was an error adding the medical support pin: ${error.message}.`);
