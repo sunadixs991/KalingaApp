@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
   topBar: {
     width: "100%",
     backgroundColor: "#e75e33",
-    paddingVertical: hp("1.5%"),
+    paddingVertical: hp("2%"),
     alignItems: "center",
     justifyContent: "center",
     elevation: 5,
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   topBarTitle: {
-    fontSize: wp("5%"),
+    fontSize: wp("4.5%"),
     fontWeight: "bold",
     color: "#fff",
     letterSpacing: 0.5,

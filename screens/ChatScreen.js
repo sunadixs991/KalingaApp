@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: hp("1.8%"),
+    paddingVertical: hp("2%"),
     paddingHorizontal: wp("4%"),
   },
   headerRow: {

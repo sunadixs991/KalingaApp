@@ -5,6 +5,7 @@ import {
   Text,
   TextInput,
   Image,
+  Dimensions,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
@@ -13,6 +14,7 @@ import {
   Alert,
   RefreshControl,
 } from "react-native";
+import Swiper from "react-native-swiper";
 import { useTheme } from "../context/ThemeContext";
 import Icon from "react-native-vector-icons/Ionicons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -29,6 +31,8 @@ import { fetchNearbyPins } from "../services/PinService";
 import boyProfile from "../assets/boy.png";
 import womanProfile from "../assets/woman.png";
 import userProfile from "../assets/user.png";
+
+const { width } = Dimensions.get("window");
 
 // Simple PinCard component defined inline to avoid import issues
 const SimplePinCard = ({ pin, onPress }) => (
@@ -257,9 +261,48 @@ export default function HomeScreen({ route, navigation }) {
               {placeName ? placeName : "Getting your location..."}
             </Text>
           </View>
-          <TouchableOpacity>
-            <Icon name="notifications-outline" size={25} color="#fff" />
+
+          {/*Notification Button */}
+          <TouchableOpacity
+            style={styles.notificationButton}
+            onPress={() => setNotificationModalVisible(true)}
+          >
+            <Icon name="notifications-outline" size={24} color="#000" />
+            {/* Red Badge for new notifications */}
+            <View style={styles.notificationBadge} />
           </TouchableOpacity>
+
+          <Modal
+            visible={notificationModalVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setNotificationModalVisible(false)}
+          >
+            <TouchableOpacity
+              style={styles.bubbleOverlay}
+              activeOpacity={1}
+              onPressOut={() => setNotificationModalVisible(false)}
+            >
+              <View style={styles.bubbleWrapper}>
+                {/* Pointer / Arrow */}
+                <View style={styles.bubblePointer} />
+
+                {/* Bubble Body */}
+                <View style={styles.bubbleContainer}>
+                  <Text style={styles.bubbleTitle}>Notifications</Text>
+                  <View style={styles.bubbleContent}>
+                    <Text style={styles.bubbleItem}>📌 New pin near you</Text>
+                    <Text style={styles.bubbleItem}>
+                      ✅ Your request was approved
+                    </Text>
+                    <Text style={styles.bubbleItem}>
+                      ⚠️ Emergency alert in your area
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </Modal>
         </View>
 
         <ScrollView
@@ -297,16 +340,53 @@ export default function HomeScreen({ route, navigation }) {
             </View>
           </View>
 
-          {/* Search Bar */}
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search"
-              placeholderTextColor="#999"
-            />
-            <TouchableOpacity style={styles.searchIcon}>
-              <Icon name="search" size={20} color="#000" />
-            </TouchableOpacity>
+          {/* Carousel */}
+          <View style={styles.carouselContainer}>
+            <Swiper
+              autoplay
+              autoplayTimeout={3}
+              showsPagination={true}
+              dotStyle={{
+                backgroundColor: "#fff",
+                width: 5,
+                height: 5,
+                borderRadius: 5,
+                marginHorizontal: 5, // more spacing between dots
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.3,
+                shadowRadius: 2,
+                elevation: 2,
+              }}
+              activeDotStyle={{
+                backgroundColor: "#e75e33",
+                width: 8, // slightly bigger
+                height: 8,
+                borderRadius: 7,
+                marginHorizontal: 5,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.4,
+                shadowRadius: 3,
+                elevation: 3,
+              }}
+              paginationStyle={{
+                bottom: 5, // moves dots a bit above the bottom edge
+              }}
+            >
+              <Image
+                source={require("../assets/Emergency.jpg")}
+                style={styles.carouselImage}
+              />
+              <Image
+                source={require("../assets/poster2.jpg")}
+                style={styles.carouselImage}
+              />
+              <Image
+                source={require("../assets/food3.png")}
+                style={styles.carouselImage}
+              />
+            </Swiper>
           </View>
 
           {/* Services */}
@@ -462,6 +542,80 @@ const styles = StyleSheet.create({
     paddingBottom: hp("2%"),
     paddingHorizontal: wp("4%"),
   },
+  notificationButton: {
+    marginRight: 9,
+    backgroundColor: "#fff", // matches bubble
+    padding: 4,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: 8,
+    right: 7,
+    width: 7,
+    height: 7,
+    borderRadius: 5,
+    backgroundColor: "red",
+  },
+  bubbleOverlay: {
+    flex: 1,
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+    paddingTop: 48, // push down under top bar
+    paddingRight: 10,
+    backgroundColor: "rgba(0,0,0,0.2)",
+  },
+  bubbleContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 12,
+    width: wp("80%"),
+    maxWidth: 300,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
+  },
+  bubbleTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 8,
+    color: "#333",
+  },
+  bubbleContent: {
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    paddingTop: 8,
+  },
+  bubbleItem: {
+    fontSize: 14,
+    paddingVertical: 6,
+    color: "#555",
+  },
+  bubbleWrapper: {
+    alignItems: "flex-end",
+  },
+
+  bubblePointer: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 12,
+    borderRightWidth: 12,
+    borderBottomWidth: 14,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderBottomColor: "#fff", // same as bubble background
+    marginRight: 20, // adjust so it lines up under bell icon
+    marginBottom: -2, // overlap slightly with bubbleContainer
+    zIndex: 2,
+  },
+
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -476,6 +630,19 @@ const styles = StyleSheet.create({
     fontSize: wp("4%"),
     flexShrink: 1,
   },
+  carouselContainer: {
+    width: "100%",
+    height: hp("20%"), // adjust height as needed
+    borderRadius: 12,
+    overflow: "hidden",
+    marginBottom: 20,
+  },
+  carouselImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover", // ✅ ensures the whole image is visible
+  },
+
   scrollContainer: {
     flexGrow: 1,
     padding: wp("4%"),

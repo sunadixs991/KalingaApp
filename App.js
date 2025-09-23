@@ -2,6 +2,10 @@
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
+import { ThemeProvider } from "./context/ThemeContext";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { LogBox } from "react-native";
+
 import SplashScreen from "./screens/SplashScreen";
 import TabNavigator from "./navigation/TabNavigator";
 import LoginScreen from "./screens/LoginScreen";
@@ -13,7 +17,6 @@ import MedicalSupport from "./screens/MedicalSupport";
 import AddScheduleScreen from "./screens/AddScheduleScreen";
 import PrivacyScreen from "./screens/PrivacyScreen";
 import SettingsScreen from "./screens/SettingsScreen";
-import { ThemeProvider } from "./context/ThemeContext";
 import AdminUtils from "./screens/AdminUtils";
 import ContactScreen from "./screens/ManageContact";
 import BarangayScreen from "./screens/ManageBarangay";
@@ -23,8 +26,6 @@ import ManageUsers from "./screens/ManageUsers";
 import UsersActivity from "./screens/UserActivity";
 import PinLogs from "./screens/PinLogs";
 import ManagePinCategory from "./screens/ManagePinCategory";
-import { LogBox } from "react-native";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 import ManageCategory from "./screens/ManageCategory";
 import ManageEvacuationCategory from "./screens/ManageEvacuationCategory";
 import ManageEvacuationPins from "./screens/ManageEvacuationPins";
@@ -37,12 +38,14 @@ import ManageLandmark from "./screens/ManageLandmark";
 import DeletedPins from "./screens/DeletedPins";
 import UserSelector from "./screens/UserSelector";
 import ManagePurokLeaders from "./screens/ManagePurokLeaders";
+import InstructionScreen from "./screens/InstructionScreen";
+
+// ✅ Import Feedback Modal
+import FeedbackModal from "./components/FeedbackModal";
 
 const Stack = createStackNavigator();
 
-LogBox.ignoreLogs([
-  "shared value's .value inside reanimated inline style",
-]);
+LogBox.ignoreLogs(["shared value's .value inside reanimated inline style"]);
 
 export default function App() {
   return (
@@ -64,11 +67,7 @@ export default function App() {
               component={EvacuationCenters}
             />
             <Stack.Screen name="MedicalSupport" component={MedicalSupport} />
-            <Stack.Screen
-              name="AddSchedule"
-              component={AddScheduleScreen}
-              options={{ headerShown: false }}
-            />
+            <Stack.Screen name="AddSchedule" component={AddScheduleScreen} />
             <Stack.Screen name="PrivacyScreen" component={PrivacyScreen} />
             <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
             <Stack.Screen
@@ -82,20 +81,42 @@ export default function App() {
             <Stack.Screen name="ManageUsers" component={ManageUsers} />
             <Stack.Screen name="UserActivity" component={UsersActivity} />
             <Stack.Screen name="PinLogs" component={PinLogs} />
-            <Stack.Screen name="ManagePinCategory" component={ManagePinCategory} />
+            <Stack.Screen
+              name="ManagePinCategory"
+              component={ManagePinCategory}
+            />
             <Stack.Screen name="ManageCategory" component={ManageCategory} />
-            <Stack.Screen name="ManageEvacuationCategory" component={ManageEvacuationCategory} />
-            <Stack.Screen name="ManageEvacuationPins" component={ManageEvacuationPins} />
+            <Stack.Screen
+              name="ManageEvacuationCategory"
+              component={ManageEvacuationCategory}
+            />
+            <Stack.Screen
+              name="ManageEvacuationPins"
+              component={ManageEvacuationPins}
+            />
             <Stack.Screen name="ManagePins" component={ManagePins} />
             <Stack.Screen name="MapScreen" component={MapScreen} />
             <Stack.Screen name="PinMessages" component={PinMessages} />
             <Stack.Screen name="AdminActivity" component={AdminActivity} />
-            <Stack.Screen name="ActivitySelector" component={ActivitySelector} />
+            <Stack.Screen
+              name="ActivitySelector"
+              component={ActivitySelector}
+            />
             <Stack.Screen name="ManageLandmark" component={ManageLandmark} />
             <Stack.Screen name="DeletedPins" component={DeletedPins} />
             <Stack.Screen name="UserSelector" component={UserSelector} />
-            <Stack.Screen name="ManagePurokLeaders" component={ManagePurokLeaders} />
+            <Stack.Screen
+              name="ManagePurokLeaders"
+              component={ManagePurokLeaders}
+            />
+            <Stack.Screen
+              name="InstructionScreen"
+              component={InstructionScreen}
+            />
           </Stack.Navigator>
+
+          {/* ✅ Global Feedback Modal */}
+          <FeedbackModal />
         </NavigationContainer>
       </ThemeProvider>
     </GestureHandlerRootView>

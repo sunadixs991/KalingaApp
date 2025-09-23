@@ -1,32 +1,67 @@
-import React from 'react';
-import { TouchableOpacity, StyleSheet } from 'react-native';
-import Icon from 'react-native-vector-icons/Ionicons';
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import React from "react";
+import { TouchableOpacity, StyleSheet } from "react-native";
+import Icon from "react-native-vector-icons/Ionicons";
+import {
+  widthPercentageToDP as wp,
+  heightPercentageToDP as hp,
+} from "react-native-responsive-screen";
 
-const FloatingButtons = ({ onPin, onLocate, onClear, hasRoute, onAdd, isAdmin }) => {
+const FloatingButtons = ({
+  onPin,
+  onLocate,
+  onClear,
+  hasRoute,
+  onAdd,
+  isAdmin,
+  shiftUp,
+}) => {
+  // Dynamic offset (if bottom sheet visible, move up ~200px)
+  const offset = shiftUp ? hp("28%") : hp("3.5%");
+
   return (
     <>
-      {/* Clear Route Button - only visible if hasRoute is true */}
       {hasRoute && (
-        <TouchableOpacity style={[styles.circleButton, styles.clearButton]} onPress={onClear}>
+        <TouchableOpacity
+          style={[
+            styles.circleButton,
+            styles.clearButton,
+            { bottom: offset + hp("22.5%") },
+          ]}
+          onPress={onClear}
+        >
           <Icon name="close-circle" size={24} color="#fff" />
         </TouchableOpacity>
       )}
 
-      {/* Pin Button */}
-      <TouchableOpacity style={[styles.circleButton, styles.pinButton]} onPress={onPin}>
-        <Icon name="pin-sharp" size={24} color="#fff" />
+      <TouchableOpacity
+        style={[
+          styles.circleButton,
+          styles.addButton,
+
+          { bottom: offset + hp("15%") },
+        ]}
+        onPress={onAdd}
+      >
+        <Icon name="create-outline" size={24} color="#fff" />
       </TouchableOpacity>
 
-      {/* Show the new add button only if admin and signed in */}
       {isAdmin && (
-        <TouchableOpacity style={[styles.circleButton, styles.addButton]} onPress={onAdd}>
-          <Icon name="create-outline" size={24} color="#fff" />
+        <TouchableOpacity
+          style={[
+            styles.circleButton,
+            styles.pinButton,
+            { bottom: offset + hp("7.5%") },
+          ]}
+          onPress={onPin}
+        >
+          <Icon name="pin-sharp" size={24} color="#fff" />
         </TouchableOpacity>
       )}
 
-      {/* Locate Button */}
-      <TouchableOpacity style={styles.circleButton} onPress={onLocate}>
+      <TouchableOpacity
+        style={[styles.circleButton, { bottom: offset }]}
+        onPress={onLocate}
+      >
         <Icon name="navigate" size={24} color="#fff" />
       </TouchableOpacity>
     </>
@@ -37,27 +72,27 @@ export default FloatingButtons;
 
 const styles = StyleSheet.create({
   circleButton: {
-    position: 'absolute',
-    bottom: hp('3.5%'),
-    right: wp('5%'),
-    backgroundColor: '#EC6135',
-    width: wp('13%'),
-    height: wp('13%'),
-    borderRadius: wp('6.5%'),
-    justifyContent: 'center',
-    alignItems: 'center',
+    position: "absolute",
+    // bottom: hp("3.5%"),
+    right: wp("5%"),
+    backgroundColor: "#EC6135",
+    width: wp("13%"),
+    height: wp("13%"),
+    borderRadius: wp("6.5%"),
+    justifyContent: "center",
+    alignItems: "center",
     elevation: 2,
   },
   pinButton: {
-    bottom: hp('11%'),
-    backgroundColor: '#49A5A2',
+    // bottom: hp("11%"),
+    backgroundColor: "#49A5A2",
   },
   addButton: {
-    bottom: hp('18.5%'),
-    backgroundColor: '#1976D2',
+    // bottom: hp("18.5%"),
+    backgroundColor: "#1976D2",
   },
   clearButton: {
-    bottom: hp('26%'),
-    backgroundColor: '#EC6135',
+    // bottom: hp("26%"),
+    backgroundColor: "#EC6135",
   },
 });

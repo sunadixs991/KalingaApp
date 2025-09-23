@@ -1,6 +1,7 @@
 // ../screens/MapScreen.js
 import React, { useEffect, useState, useRef } from "react";
 import {
+  Animated,
   View,
   StyleSheet,
   ActivityIndicator,
@@ -9,7 +10,7 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  TextInput
+  TextInput,
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps"; // <-- Add Polyline
 import * as Location from "expo-location";
@@ -27,7 +28,7 @@ import {
   doc,
   deleteDoc,
   updateDoc,
-  deleteField
+  deleteField,
 } from "firebase/firestore";
 
 import {
@@ -54,11 +55,14 @@ import { Image } from "react-native";
 import EvacuationPinModal from "../components/EvacuationPinModal"; // <-- Import your new modal
 import getMapHtml from "../utils/getMapHtml";
 import MedicalPinModal from "../components/MedicalPinModal";
-import { handleSaveEvacPin, handleSavePin, handleSaveMedicalPin } from "../utils/pinHandlers";
+import {
+  handleSaveEvacPin,
+  handleSavePin,
+  handleSaveMedicalPin,
+} from "../utils/pinHandlers";
 import PinInfoModal from "../components/PinInfoModal";
 import EvacuationInfoModal from "../components/EvacuationInfoModal";
 import MedicalInfoModal from "../components/MedicalInfoModal";
-
 
 // Debug: Log the imports immediately
 // console.log("=== IMPORT DEBUG ===");
@@ -92,7 +96,8 @@ export default function MapScreen({ route }) {
   const [openTime, setOpenTime] = useState("");
   const [medicalModalVisible, setMedicalModalVisible] = useState(false);
   const [medicalDescription, setMedicalDescription] = useState("");
-  const [medicalSelectedCategory, setMedicalSelectedCategory] = useState("Medical Support");
+  const [medicalSelectedCategory, setMedicalSelectedCategory] =
+    useState("Medical Support");
   const [medicalMedia, setMedicalMedia] = useState(null);
   const [medicalOpenTime, setMedicalOpenTime] = useState("");
   const [pendingMedicalPin, setPendingMedicalPin] = useState(null);
@@ -104,7 +109,6 @@ export default function MapScreen({ route }) {
   const [evacPurok, setEvacPurok] = useState("");
   const [evacSitio, setEvacSitio] = useState("");
   const [facilityName, setFacilityName] = useState("");
-  
 
   useEffect(() => {
     pinModeRef.current = pinMode;
@@ -120,14 +124,13 @@ export default function MapScreen({ route }) {
     }
   }, [pinMode]);
 
-
-
   const navigation = useNavigation();
   const [pinModalVisible, setPinModalVisible] = useState(false);
 
   // PIN INFO MODAL STATES
   const [pinInfoModalVisible, setPinInfoModalVisible] = useState(false);
-  const [EvacuationInfoModalVisible, setEvacuationInfoModalVisible] = useState(false);
+  const [EvacuationInfoModalVisible, setEvacuationInfoModalVisible] =
+    useState(false);
   const [MedicalInfoModalVisible, setMedicalInfoModalVisible] = useState(false);
   const [selectedPin, setSelectedPin] = useState(null);
   const [userVoteStatus, setUserVoteStatus] = useState({
@@ -155,6 +158,24 @@ export default function MapScreen({ route }) {
   const [mapCenter, setMapCenter] = useState(null);
 
   const isFocused = useIsFocused();
+  const [showCrosshairSheet, setShowCrosshairSheet] = useState(false);
+  const slideAnim = useRef(new Animated.Value(300)).current;
+
+  useEffect(() => {
+    if (showCrosshairSheet) {
+      Animated.timing(slideAnim, {
+        toValue: 0, // slide to visible
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: 300, // slide down off-screen
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showCrosshairSheet]);
 
   useEffect(() => {
     (async () => {
@@ -218,15 +239,13 @@ export default function MapScreen({ route }) {
     })();
   }, []);
 
-
-  
   // Fetch evacuation categories on mount
   useEffect(() => {
     const fetchEvacCategories = async () => {
       try {
         const snap = await getDocs(collection(db, "evacuation_categories"));
         const styles = {};
-        snap.forEach(doc => {
+        snap.forEach((doc) => {
           const data = doc.data();
           if (data.name) {
             // Lowercase and trim the key for consistency
@@ -236,11 +255,14 @@ export default function MapScreen({ route }) {
             };
           }
         });
-        styles["others"] = styles["others"] || { color: "#1976D2", icon: "home" };
+        styles["others"] = styles["others"] || {
+          color: "#1976D2",
+          icon: "home",
+        };
         setEvacCategoryStyles(styles);
       } catch (error) {
         setEvacCategoryStyles({
-          "others": { color: "#1976D2", icon: "home" }
+          others: { color: "#1976D2", icon: "home" },
         });
       }
     };
@@ -252,7 +274,7 @@ export default function MapScreen({ route }) {
       try {
         const snap = await getDocs(collection(db, "categories"));
         const styles = {};
-        snap.forEach(doc => {
+        snap.forEach((doc) => {
           const data = doc.data();
           if (data.name) {
             styles[data.name.trim()] = {
@@ -262,11 +284,14 @@ export default function MapScreen({ route }) {
           }
         });
         // Always include Others fallback
-        styles["Others"] = styles["Others"] || { color: "#2c352a", icon: "list" };
+        styles["Others"] = styles["Others"] || {
+          color: "#2c352a",
+          icon: "list",
+        };
         setCategoryStyles(styles);
       } catch (error) {
         setCategoryStyles({
-          "Others": { color: "#2c352a", icon: "list" }
+          Others: { color: "#2c352a", icon: "list" },
         });
       }
     };
@@ -305,7 +330,6 @@ export default function MapScreen({ route }) {
     fetchEvacPins();
   }, []);
 
-
   useEffect(() => {
     const fetchMedicalPins = async () => {
       try {
@@ -336,7 +360,6 @@ export default function MapScreen({ route }) {
     };
     fetchMedicalPins();
   }, []);
-
 
   // Handle focusPin when map is ready and pins are loaded
   useEffect(() => {
@@ -373,16 +396,26 @@ export default function MapScreen({ route }) {
     setEvacPinMode(false);
     if (userInfo) {
       setCrosshairMode(true);
-      setCrosshairPinType('regular');
+      setCrosshairPinType("regular");
       setPinMode(false);
+
       if (webviewRef.current) {
         webviewRef.current.postMessage(
           JSON.stringify({ type: "setCrosshairMode", enabled: true })
         );
       }
+
       Alert.alert(
         "Pin Mode",
-        "Move the map to position the crosshair where you want to place your pin, then tap the confirm button."
+        "Move the map to position the crosshair where you want to place your pin.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              setShowCrosshairSheet(true); // 👈 show modal after OK
+            },
+          },
+        ]
       );
     } else {
       Alert.alert(
@@ -403,16 +436,27 @@ export default function MapScreen({ route }) {
     setEvacPinMode(true);
     if (userInfo) {
       setCrosshairMode(true);
-      setCrosshairPinType('evacuation');
+      setCrosshairPinType("evacuation");
       setPinMode(false);
+
       if (webviewRef.current) {
         webviewRef.current.postMessage(
           JSON.stringify({ type: "setCrosshairMode", enabled: true })
         );
       }
+
       Alert.alert(
         "Evacuation Pin Mode",
-        "Move the map to position the crosshair where you want to place your evacuation pin, then tap the confirm button."
+        "Move the map to position the crosshair where you want to place your evacuation pin, then tap the confirm button.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              // 👉 Show confirm/cancel modal after pressing OK
+              setShowCrosshairSheet(true);
+            },
+          },
+        ]
       );
     } else {
       Alert.alert(
@@ -433,17 +477,28 @@ export default function MapScreen({ route }) {
     setEvacPinMode(false);
     if (userInfo) {
       setCrosshairMode(true);
-      setCrosshairPinType('medical');
+      setCrosshairPinType("medical");
       setMedicalPinMode(true);
       setPinMode(false);
+
       if (webviewRef.current) {
         webviewRef.current.postMessage(
           JSON.stringify({ type: "setCrosshairMode", enabled: true })
         );
       }
+
       Alert.alert(
         "Medical Support Pin Mode",
-        "Move the map to position the crosshair where you want to place your medical support pin, then tap the confirm button."
+        "Move the map to position the crosshair where you want to place your medical support pin, then tap the confirm button.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              // 👉 Show confirm/cancel modal after pressing OK
+              setShowCrosshairSheet(true);
+            },
+          },
+        ]
       );
     } else {
       Alert.alert(
@@ -462,106 +517,104 @@ export default function MapScreen({ route }) {
 
   // Confirm pin placement at crosshair position
   // State to track if we're waiting for center response
-const [waitingForCenter, setWaitingForCenter] = useState(false);
-const [pendingPinPlacement, setPendingPinPlacement] = useState(null);
+  const [waitingForCenter, setWaitingForCenter] = useState(false);
+  const [pendingPinPlacement, setPendingPinPlacement] = useState(null);
 
-const confirmPinPlacement = () => {
-  if (!webviewRef.current) {
-    Alert.alert("Error", "Map not ready");
-    return;
-  }
-  
-  setWaitingForCenter(true);
-  setPendingPinPlacement({
-    crosshairPinType,
-    crosshairMode: true
-  });
-  
-  // Request current map center from webview (only once)
-  webviewRef.current.postMessage(
-    JSON.stringify({ type: "getCenter" })
-  );
-};
+  const confirmPinPlacement = () => {
+    if (!webviewRef.current) {
+      Alert.alert("Error", "Map not ready");
+      return;
+    }
 
-// Handle the center response and complete pin placement
-const handleCenterResponse = (center) => {
-  if (!waitingForCenter || !pendingPinPlacement) return;
+    setWaitingForCenter(true);
+    setPendingPinPlacement({
+      crosshairPinType,
+      crosshairMode: true,
+    });
 
-  const pinCoordinate = {
-    latitude: center.latitude,
-    longitude: center.longitude
+    // Request current map center from webview (only once)
+    webviewRef.current.postMessage(JSON.stringify({ type: "getCenter" }));
   };
 
-  if (pendingPinPlacement.crosshairPinType === 'evacuation') {
-    setPendingEvacPin(pinCoordinate);
-    setEvacModalVisible(true);
-  } else if (pendingPinPlacement.crosshairPinType === 'medical') {
-    setPendingMedicalPin(pinCoordinate);
-    setMedicalModalVisible(true);
-  } else {
-    setPendingPin(pinCoordinate);
-    setDescModalVisible(true);
-  }
+  // Handle the center response and complete pin placement
+  const handleCenterResponse = (center) => {
+    if (!waitingForCenter || !pendingPinPlacement) return;
 
-  setCrosshairMode(false);
-  setCrosshairPinType(null);
-  setWaitingForCenter(false);
-  setPendingPinPlacement(null);
+    const pinCoordinate = {
+      latitude: center.latitude,
+      longitude: center.longitude,
+    };
 
-  if (webviewRef.current) {
-    webviewRef.current.postMessage(
-      JSON.stringify({ type: "setCrosshairMode", enabled: false })
-    );
-  }
-};
-
-// Update your existing message handler to include this case
-const handleMessage = (event) => {
-  try {
-    const message = JSON.parse(event.nativeEvent.data);
-    
-    switch (message.type) {
-      case 'mapCenterResponse':
-        handleCenterResponse({
-          latitude: message.latitude,
-          longitude: message.longitude
-        });
-        break;
-      case 'mapCenterChanged':
-        // Optional: track center changes for other purposes
-        setMapCenter({
-          latitude: message.latitude,
-          longitude: message.longitude
-        });
-        break;
-      // ... your other existing cases like 'markerClick', 'mapClick', etc.
-      default:
-        // Handle other message types
-        break;
+    if (pendingPinPlacement.crosshairPinType === "evacuation") {
+      setPendingEvacPin(pinCoordinate);
+      setEvacModalVisible(true);
+    } else if (pendingPinPlacement.crosshairPinType === "medical") {
+      setPendingMedicalPin(pinCoordinate);
+      setMedicalModalVisible(true);
+    } else {
+      setPendingPin(pinCoordinate);
+      setDescModalVisible(true);
     }
-  } catch (error) {
-    console.log('Error parsing message:', error);
-  }
-};
 
-// Cancel crosshair mode (your existing function, no changes needed)
-const cancelCrosshairMode = () => {
-  setCrosshairMode(false);
-  setCrosshairPinType(null);
-  setEvacPinMode(false);
-  setMedicalPinMode(false);
-  setPinMode(false);
-  
-  // Clear any pending pin placement
-  setWaitingForCenter(false);
-  setPendingPinPlacement(null);
-  
-  if (webviewRef.current) {
-    webviewRef.current.postMessage(
-      JSON.stringify({ type: "setCrosshairMode", enabled: false })
-    );
-  }
-};
+    setCrosshairMode(false);
+    setCrosshairPinType(null);
+    setWaitingForCenter(false);
+    setPendingPinPlacement(null);
+
+    if (webviewRef.current) {
+      webviewRef.current.postMessage(
+        JSON.stringify({ type: "setCrosshairMode", enabled: false })
+      );
+    }
+  };
+
+  // Update your existing message handler to include this case
+  const handleMessage = (event) => {
+    try {
+      const message = JSON.parse(event.nativeEvent.data);
+
+      switch (message.type) {
+        case "mapCenterResponse":
+          handleCenterResponse({
+            latitude: message.latitude,
+            longitude: message.longitude,
+          });
+          break;
+        case "mapCenterChanged":
+          // Optional: track center changes for other purposes
+          setMapCenter({
+            latitude: message.latitude,
+            longitude: message.longitude,
+          });
+          break;
+        // ... your other existing cases like 'markerClick', 'mapClick', etc.
+        default:
+          // Handle other message types
+          break;
+      }
+    } catch (error) {
+      console.log("Error parsing message:", error);
+    }
+  };
+
+  // Cancel crosshair mode (your existing function, no changes needed)
+  const cancelCrosshairMode = () => {
+    setCrosshairMode(false);
+    setCrosshairPinType(null);
+    setEvacPinMode(false);
+    setMedicalPinMode(false);
+    setPinMode(false);
+
+    // Clear any pending pin placement
+    setWaitingForCenter(false);
+    setPendingPinPlacement(null);
+
+    if (webviewRef.current) {
+      webviewRef.current.postMessage(
+        JSON.stringify({ type: "setCrosshairMode", enabled: false })
+      );
+    }
+  };
 
   // HANDLE LONG PRESS ON MAP
   const handleLongPress = (e) => {
@@ -586,7 +639,12 @@ const cancelCrosshairMode = () => {
     }
 
     // Get user's vote status for this pin (for PinInfoModal only)
-    if (userInfo && (pin.category !== "Evacuation Center" && pin.category !== "Evacuation" && pin.category !== "Medical Support")) {
+    if (
+      userInfo &&
+      pin.category !== "Evacuation Center" &&
+      pin.category !== "Evacuation" &&
+      pin.category !== "Medical Support"
+    ) {
       try {
         const voteStatus = await getUserVoteStatus(pin.id, userInfo);
         setUserVoteStatus(voteStatus);
@@ -733,8 +791,20 @@ const cancelCrosshairMode = () => {
     // --- OPTIMISTIC UPDATE END ---
 
     try {
-      console.log("Calling castVote with:", selectedPin.id, userInfo, voteType, voteMessage);
-      await castVote(selectedPin.id, userInfo, voteType, voteMessage, closePinInfoModal);
+      console.log(
+        "Calling castVote with:",
+        selectedPin.id,
+        userInfo,
+        voteType,
+        voteMessage
+      );
+      await castVote(
+        selectedPin.id,
+        userInfo,
+        voteType,
+        voteMessage,
+        closePinInfoModal
+      );
 
       // Save vote to top-level votes collection (not subcollection)
       if (selectedPin && userInfo) {
@@ -746,9 +816,10 @@ const cancelCrosshairMode = () => {
             pinId: selectedPin.id,
             userId: userInfo,
             userFirstName: userFirstName || "",
-            userLastName: (typeof getUserInfo === "function" && userInfo)
-              ? (await getUserInfo(userInfo))?.lastName || ""
-              : "",
+            userLastName:
+              typeof getUserInfo === "function" && userInfo
+                ? (await getUserInfo(userInfo))?.lastName || ""
+                : "",
             voteType,
             voteMessage: voteMessage ? voteMessage.trim() : "",
             createdAt: serverTimestamp(),
@@ -759,9 +830,10 @@ const cancelCrosshairMode = () => {
           pinId: selectedPin.id,
           userId: userInfo,
           userFirstName: userFirstName || "",
-          userLastName: (typeof getUserInfo === "function" && userInfo)
-            ? (await getUserInfo(userInfo))?.lastName || ""
-            : "",
+          userLastName:
+            typeof getUserInfo === "function" && userInfo
+              ? (await getUserInfo(userInfo))?.lastName || ""
+              : "",
           voteType,
           voteMessage: voteMessage ? voteMessage.trim() : "",
         });
@@ -784,10 +856,10 @@ const cancelCrosshairMode = () => {
             prevPins.map((pin) =>
               pin.id === selectedPin.id
                 ? {
-                  ...pin,
-                  upvotes: updatedPin.upvotes,
-                  downvotes: updatedPin.downvotes,
-                }
+                    ...pin,
+                    upvotes: updatedPin.upvotes,
+                    downvotes: updatedPin.downvotes,
+                  }
                 : pin
             )
           );
@@ -834,7 +906,6 @@ const cancelCrosshairMode = () => {
   };
 
   // Updated handleSavePin function - Hybrid approach
-
 
   // --- Add this function inside your component ---
   const fetchRoute = async (startLoc, destLoc) => {
@@ -935,11 +1006,11 @@ const cancelCrosshairMode = () => {
   };
 
   const evacPinsWithIcons = (evacPins || []).map((p) => {
-    const categoryKey = (p.category || "Evacuation Center").trim().toLowerCase();
-    const category =
-      evacCategoryStyles[categoryKey] ||
-      evacCategoryStyles["others"] || // fallback if category missing
-      { color: "#1976D2", icon: "home" }; // final fallback
+    const categoryKey = (p.category || "Evacuation Center")
+      .trim()
+      .toLowerCase();
+    const category = evacCategoryStyles[categoryKey] ||
+      evacCategoryStyles["others"] || { color: "#1976D2", icon: "home" }; // fallback if category missing // final fallback
 
     return {
       ...p,
@@ -950,19 +1021,15 @@ const cancelCrosshairMode = () => {
     };
   });
 
-
   // Add this handler
   const handleAddPinButton = () => {
     setPinTypeModalVisible(true);
   };
 
-
   const pinsWithIcons = (allPins || []).map((p) => {
     const categoryKey = (p.category || "Others").trim();
-    const category =
-      categoryStyles[categoryKey] ||
-      categoryStyles["Others"] || // fallback if category missing
-      { color: "#2c352a", icon: "list" }; // final fallback
+    const category = categoryStyles[categoryKey] ||
+      categoryStyles["Others"] || { color: "#2c352a", icon: "list" }; // fallback if category missing // final fallback
     return {
       ...p,
       iconClass: `fas fa-${category.icon}`,
@@ -972,10 +1039,8 @@ const cancelCrosshairMode = () => {
 
   const medicalPinsWithIcons = (medicalPins || []).map((p) => {
     const categoryKey = (p.category || "Medical Support").trim().toLowerCase();
-    const category =
-      evacCategoryStyles[categoryKey] ||
-      evacCategoryStyles["others"] ||
-      { color: "#43a047", icon: "medkit" }; // final fallback
+    const category = evacCategoryStyles[categoryKey] ||
+      evacCategoryStyles["others"] || { color: "#43a047", icon: "medkit" }; // final fallback
 
     return {
       ...p,
@@ -987,7 +1052,11 @@ const cancelCrosshairMode = () => {
   });
 
   // Add current location as a special pin so the WebView map shows it
-  let allPinsForMap = [...pinsWithIcons, ...evacPinsWithIcons, ...medicalPinsWithIcons];
+  let allPinsForMap = [
+    ...pinsWithIcons,
+    ...evacPinsWithIcons,
+    ...medicalPinsWithIcons,
+  ];
   if (location) {
     allPinsForMap = [
       {
@@ -1002,13 +1071,10 @@ const cancelCrosshairMode = () => {
     ];
   }
 
-
-
   return (
     <View style={styles.container}>
       <WebView
         ref={webviewRef}
-        
         originWhitelist={["*"]}
         source={{
           html: getMapHtml(
@@ -1018,113 +1084,155 @@ const cancelCrosshairMode = () => {
           ),
         }}
         style={{ flex: 1, backgroundColor: "transparent" }}
-       onMessage={(event) => {
-  try {
-    const msg = JSON.parse(event.nativeEvent.data);
+        onMessage={(event) => {
+          try {
+            const msg = JSON.parse(event.nativeEvent.data);
 
-    // Handle center response for crosshair mode
-    if (msg.type === "mapCenterResponse") {
-      handleCenterResponse({
-        latitude: msg.latitude,
-        longitude: msg.longitude
-      });
-      return;
-    }
+            // Handle center response for crosshair mode
+            if (msg.type === "mapCenterResponse") {
+              handleCenterResponse({
+                latitude: msg.latitude,
+                longitude: msg.longitude,
+              });
+              return;
+            }
 
-    // Handle map center updates for crosshair mode
-    if (msg.type === "mapCenterChanged") {
-      setMapCenter({
-        latitude: msg.latitude,
-        longitude: msg.longitude
-      });
-      return;
-    }
+            // Handle map center updates for crosshair mode
+            if (msg.type === "mapCenterChanged") {
+              setMapCenter({
+                latitude: msg.latitude,
+                longitude: msg.longitude,
+              });
+              return;
+            }
 
-    // Handle map center updates (legacy)
-    if (msg.type === "mapCenter") {
-      setMapCenter({
-        latitude: msg.latitude,
-        longitude: msg.longitude
-      });
-      return;
-    }
+            // Handle map center updates (legacy)
+            if (msg.type === "mapCenter") {
+              setMapCenter({
+                latitude: msg.latitude,
+                longitude: msg.longitude,
+              });
+              return;
+            }
 
-    // Only create pin on long-press or mapPin when NOT in crosshair mode
-    if (msg.type === "mapLongPress" || msg.type === "mapPin") {
-      if (crosshairMode) return;
-      if (!pinModeRef.current) {
-        console.log("Pin mode not active — ignoring pin event");
-        return;
-      }
-      // If admin and evacuation pin mode, open evacuation modal
-      if (evacPinMode) {
-        setPendingEvacPin({ latitude: msg.latitude, longitude: msg.longitude });
-        setEvacModalVisible(true);
-        return;
-      } else if (medicalPinMode) {
-        setPendingMedicalPin({ latitude: msg.latitude, longitude: msg.longitude });
-        setMedicalModalVisible(true);
-        return;
-      } else {
-        setPendingPin({ latitude: msg.latitude, longitude: msg.longitude });
-        setDescModalVisible(true);
-        return;
-      }
-    }
+            // Only create pin on long-press or mapPin when NOT in crosshair mode
+            if (msg.type === "mapLongPress" || msg.type === "mapPin") {
+              if (crosshairMode) return;
+              if (!pinModeRef.current) {
+                console.log("Pin mode not active — ignoring pin event");
+                return;
+              }
+              // If admin and evacuation pin mode, open evacuation modal
+              if (evacPinMode) {
+                setPendingEvacPin({
+                  latitude: msg.latitude,
+                  longitude: msg.longitude,
+                });
+                setEvacModalVisible(true);
+                return;
+              } else if (medicalPinMode) {
+                setPendingMedicalPin({
+                  latitude: msg.latitude,
+                  longitude: msg.longitude,
+                });
+                setMedicalModalVisible(true);
+                return;
+              } else {
+                setPendingPin({
+                  latitude: msg.latitude,
+                  longitude: msg.longitude,
+                });
+                setDescModalVisible(true);
+                return;
+              }
+            }
 
-    // Handle marker clicks
-    if (msg.type === "markerClick") {
-      if (msg.id === "__current_location") return;
-      // Try to find in regular pins first
-      let pin = allPins.find((p) => p.id === msg.id);
-      // If not found, try evacuation pins
-      if (!pin) {
-        pin = evacPins.find((p) => p.id === msg.id);
-      }
-      // If not found, try medical pins
-      if (!pin) {
-        pin = medicalPins.find((p) => p.id === msg.id);
-      }
-      // If found, show details modal
-      if (pin) handlePinMarkerPress(pin);
-    }
-  } catch (e) {
-    console.log("WebView message parse error", e);
-  }
-}}
+            // Handle marker clicks
+            if (msg.type === "markerClick") {
+              if (msg.id === "__current_location") return;
+              // Try to find in regular pins first
+              let pin = allPins.find((p) => p.id === msg.id);
+              // If not found, try evacuation pins
+              if (!pin) {
+                pin = evacPins.find((p) => p.id === msg.id);
+              }
+              // If not found, try medical pins
+              if (!pin) {
+                pin = medicalPins.find((p) => p.id === msg.id);
+              }
+              // If found, show details modal
+              if (pin) handlePinMarkerPress(pin);
+            }
+          } catch (e) {
+            console.log("WebView message parse error", e);
+          }
+        }}
       />
 
       {/* Crosshair overlay when in crosshair mode */}
       {crosshairMode && (
         <View style={styles.crosshairContainer}>
           <View style={styles.crosshair}>
-            <Icon 
-              name={crosshairPinType === 'location' ? 'location' : 
-                    crosshairPinType === 'location' ? 'location' : 'location'} 
-              size={52} 
-              color="#EC6135" 
+            <Icon
+              name={
+                crosshairPinType === "location"
+                  ? "location"
+                  : crosshairPinType === "location"
+                    ? "location"
+                    : "location"
+              }
+              size={50}
+              color="#49A5A2"
             />
           </View>
           <View style={styles.crosshairDot} />
         </View>
       )}
 
-      {/* Crosshair control buttons */}
+      {/* Bottom sheet actions (only show if crosshair mode is active) */}
       {crosshairMode && (
-        <View style={styles.crosshairControls}>
-          <TouchableOpacity
-            style={[styles.controlButton, styles.cancelButton]}
-            onPress={cancelCrosshairMode}
-          >
-            <Text style={styles.buttonText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.controlButton, styles.confirmButton]}
-            onPress={confirmPinPlacement}
-          >
-            <Text style={styles.buttonText}>Confirm Pin</Text>
-          </TouchableOpacity>
-        </View>
+        <Animated.View
+          style={[
+            styles.bottomSheet,
+            { transform: [{ translateY: slideAnim }] }, // animate up/down
+          ]}
+        >
+          <Text style={styles.sheetTitle}>Confirm Pin Placement</Text>
+
+          <View style={styles.sheetActions}>
+            <TouchableOpacity
+              style={[styles.sheetButton, styles.cancelButton]}
+              onPress={() => {
+                cancelCrosshairMode();
+                setShowCrosshairSheet(false);
+              }}
+            >
+              <Icon
+                name="close-circle"
+                size={20}
+                color="#fff"
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.buttonText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.sheetButton, styles.confirmButton]}
+              onPress={() => {
+                confirmPinPlacement();
+                setShowCrosshairSheet(false);
+              }}
+            >
+              <Icon
+                name="checkmark-circle"
+                size={20}
+                color="#fff"
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.buttonText}>Confirm</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
       )}
 
       <FloatingButtons
@@ -1134,6 +1242,7 @@ const cancelCrosshairMode = () => {
         hasRoute={routeCoords.length > 0}
         onAdd={isAdmin && userInfo ? handleAddPinButton : undefined}
         isAdmin={isAdmin && !!userInfo}
+        shiftUp={showCrosshairSheet}
       />
 
       {/* PIN CREATION MODAL WITH CATEGORY */}
@@ -1276,7 +1385,9 @@ const cancelCrosshairMode = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { padding: 24 }]}>
-            <Text style={{ fontSize: 16, fontWeight: "bold", marginBottom: 10 }}>
+            <Text
+              style={{ fontSize: 16, fontWeight: "bold", marginBottom: 10 }}
+            >
               Optional message about your vote
             </Text>
             <TextInput
@@ -1304,7 +1415,9 @@ const cancelCrosshairMode = () => {
                 }}
                 onPress={() => setVoteMessageModalVisible(false)}
               >
-                <Text style={{ color: "#fff", fontWeight: "bold" }}>Cancel</Text>
+                <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                  Cancel
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={{
@@ -1318,7 +1431,9 @@ const cancelCrosshairMode = () => {
                   await handleVote(pendingVoteType, voteMessage);
                 }}
               >
-                <Text style={{ color: "#fff", fontWeight: "bold" }}>Submit Vote</Text>
+                <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                  Submit Vote
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1374,22 +1489,43 @@ const cancelCrosshairMode = () => {
         animationType="slide"
         onRequestClose={() => setPinTypeModalVisible(false)}
       >
-        <View style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: "rgba(0,0,0,0.3)"
-        }}>
-          <View style={{
-            backgroundColor: "#fff",
-            borderRadius: 16,
-            padding: 24,
-            width: "80%",
-            alignItems: "center"
-          }}>
-            <Text style={{ fontSize: 18, fontWeight: "bold", marginBottom: 18 }}>
+        <View
+          style={{
+            flex: 1,
+            justifyContent: "center",
+            alignItems: "center",
+            backgroundColor: "rgba(0,0,0,0.3)",
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: 16,
+              padding: 24,
+              width: "80%",
+              alignItems: "center",
+              position: "relative",
+            }}
+          >
+            {/* X Button on Top Right */}
+            <TouchableOpacity
+              style={{
+                position: "absolute",
+                top: 15,
+                right: 12,
+                padding: 6,
+              }}
+              onPress={() => setPinTypeModalVisible(false)}
+            >
+              <Icon name="close" size={24} color="#333" />
+            </TouchableOpacity>
+
+            <Text
+              style={{ fontSize: 18, fontWeight: "bold", marginBottom: 20 }}
+            >
               Choose Pin Type
             </Text>
+
             <TouchableOpacity
               style={{
                 backgroundColor: "#1976D2",
@@ -1398,7 +1534,7 @@ const cancelCrosshairMode = () => {
                 paddingHorizontal: 24,
                 marginBottom: 16,
                 width: "100%",
-                alignItems: "center"
+                alignItems: "center",
               }}
               onPress={() => {
                 setPinTypeModalVisible(false);
@@ -1409,6 +1545,7 @@ const cancelCrosshairMode = () => {
                 Evacuation Center
               </Text>
             </TouchableOpacity>
+
             <TouchableOpacity
               style={{
                 backgroundColor: "#43a047",
@@ -1416,26 +1553,16 @@ const cancelCrosshairMode = () => {
                 paddingVertical: 12,
                 paddingHorizontal: 24,
                 width: "100%",
-                alignItems: "center"
+                alignItems: "center",
               }}
               onPress={() => {
                 setPinTypeModalVisible(false);
-                // Call your Medical Support pin handler here
                 handleMedicalPinButton();
               }}
             >
               <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
                 Medical Support
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={{
-                marginTop: 18,
-                padding: 8,
-              }}
-              onPress={() => setPinTypeModalVisible(false)}
-            >
-              <Text style={{ color: "#1976D2", fontWeight: "bold" }}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1499,13 +1626,10 @@ const cancelCrosshairMode = () => {
             );
           }
         }}
-
         media={medicalMedia}
-
         setMedia={setMedicalMedia}
         openTime={medicalOpenTime}
         onChangeOpenTime={setMedicalOpenTime}
-      
       />
     </View>
   );
@@ -1540,8 +1664,8 @@ async function getBarangayFromCoords(latitude, longitude) {
     const response = await fetch(url, {
       headers: {
         "User-Agent": "KalingaApp/1.0 (your-email@example.com)", // Use your app name and email
-        "Accept": "application/json"
-      }
+        Accept: "application/json",
+      },
     });
     const text = await response.text();
     // Try to parse JSON, fallback to "Unknown" if error
@@ -1603,79 +1727,133 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   crosshairContainer: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    pointerEvents: 'none',
+    justifyContent: "center",
+    alignItems: "center",
+    pointerEvents: "none",
   },
-crosshair: {
-  width: 50,
-  height: 50,
-  justifyContent: 'center',
-  alignItems: 'center',
-  backgroundColor: 'transparent', // no background
-  borderWidth: 0,                 // no border
-  shadowOpacity: 0,               // no shadow
-  elevation: 0,                   // no shadow (Android)
-  marginBottom: 76,            // move up more (try 6, 8, or 10)
-},
+  crosshair: {
+    width: 50,
+    height: 50,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "transparent", // no background
+    borderWidth: 0, // no border
+    shadowOpacity: 0, // no shadow
+    elevation: 0, // no shadow (Android)
+    marginBottom: 76, // move up more (try 6, 8, or 10)
+  },
 
- crosshairDot: {
-  position: 'absolute',
-  width: 4,
-  height: 4,
-  backgroundColor: '#EC6135',
-  borderRadius: 2,
-  top: '50%',
-  left: '50%',
-  marginTop: -8,  // move down more (try 6, 8, or 10)
-  marginLeft: -1,},
+  crosshairDot: {
+    position: "absolute",
+    width: 5,
+    height: 5,
+    backgroundColor: "#49A5A2",
+    borderRadius: 2,
+    top: "50%",
+    left: "50%",
+    marginTop: -8, // move down more (try 6, 8, or 10)
+    marginLeft: -2,
+  },
 
   crosshairControls: {
-    position: 'absolute',
-    bottom: 100,
+    position: "absolute",
+    bottom: "40%",
     left: 20,
     right: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
   },
 
-controlButton: {
-  marginTop: 6,          // less space above
-  marginHorizontal: 10,  // less space left & right
-  paddingVertical: 6,    // less vertical padding
-  paddingHorizontal: 12, // less horizontal padding
-  borderRadius: 16,      // smaller radius
-  minWidth: 80,          // smaller button
-  alignItems: 'center',
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.25,
-  shadowRadius: 4,
-  elevation: 5,
-},
-// ...existing styles...
+  // controlButton: {
+  //   justifyContent: "center",
+  //   flexDirection: "row",
+  //   backgroundColor: "#EC6135",
+  //   marginTop: 6, // less space above
+  //   marginHorizontal: 10, // less space left & right
+  //   paddingVertical: 6, // less vertical padding
+  //   paddingHorizontal: 12, // less horizontal padding
+  //   borderRadius: 16, // smaller radius
+  //   minWidth: 80, // smaller button
+  //   alignItems: "center",
+  //   shadowColor: "#000",
+  //   shadowOffset: { width: 0, height: 2 },
+  //   shadowOpacity: 0.25,
+  //   shadowRadius: 4,
+  //   elevation: 5,
+  // },
+  // // ...existing styles...
 
+  // cancelButton: {
+  //   backgroundColor: "#757575",
+  //   marginLeft: 40,
+  // },
+  // confirmButton: {
+  //   backgroundColor: "#49A5A2",
 
-  
+  //   marginRight: 40,
+  // },
+  // buttonText: {
+  //   color: "#fff",
+  //   fontWeight: "bold",
+  //   fontSize: 12,
+  // },
+  // modalOverlay: {
+  //   flex: 1,
+  //   justifyContent: "flex-end",
+  //   backgroundColor: "rgba(0,0,0,0.3)", // dim background
+  // },
+
+  bottomSheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "#fff", // keep solid
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+  },
+
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 5,
+    textAlign: "center",
+  },
+
+  sheetActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginVertical: 20,
+  },
+
+  sheetButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+    marginHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 30,
+  },
+
   cancelButton: {
-    backgroundColor: '#757575',
-    marginLeft: 40,
+    backgroundColor: "#e74c3c",
   },
+
   confirmButton: {
-    backgroundColor: '#EC6135',
-    
-    marginRight: 40,
+    backgroundColor: "#2ecc71",
   },
+
   buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 12,
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });
-

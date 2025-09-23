@@ -116,6 +116,20 @@ export default function AdminUtils() {
           <Text style={styles.optionText}>Deleted Pins</Text>
         </TouchableOpacity>
 
+        {/* NEW: Manage Feedbacks */}
+        <TouchableOpacity
+          style={styles.option}
+          onPress={() => navigation.navigate("ManageFeedbacks")}
+        >
+          <Icon
+            name="chatbox-ellipses-outline"
+            size={28}
+            color="#FF9800"
+            style={styles.icon}
+          />
+          <Text style={styles.optionText}>Manage Feedbacks</Text>
+        </TouchableOpacity>
+
       </ScrollView>
     </SafeAreaView>
   );
