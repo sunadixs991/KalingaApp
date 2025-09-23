@@ -17,6 +17,7 @@ import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Picker } from "@react-native-picker/picker";
 import Animated, { FadeIn } from "react-native-reanimated";
+import Icon from "react-native-vector-icons/Ionicons";
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -48,7 +49,7 @@ export default function SignUp({ navigation }) {
   const [stepOneErrors, setStepOneErrors] = useState({});
   const [stepTwoErrors, setStepTwoErrors] = useState({});
 
-  // Fetch barangay list from Firestore
+  // Fetch barangay list
   useEffect(() => {
     const fetchBarangays = async () => {
       try {
@@ -66,7 +67,7 @@ export default function SignUp({ navigation }) {
     fetchBarangays();
   }, []);
 
-  // Fetch purok list when barangay changes
+  // Fetch purok list
   useEffect(() => {
     const fetchPuroks = async () => {
       if (!barangay) {
@@ -75,7 +76,6 @@ export default function SignUp({ navigation }) {
         return;
       }
       try {
-        // Assuming each barangay document has a subcollection "puroks"
         const barangayQuery = query(
           collection(db, "barangays"),
           where("name", "==", barangay)
@@ -122,7 +122,6 @@ export default function SignUp({ navigation }) {
     if (!dob) errors.dob = true;
     if (!gender) errors.gender = true;
     if (!status) errors.status = true;
-
     setStepOneErrors(errors);
     if (Object.keys(errors).length > 0) {
       Alert.alert(
@@ -141,7 +140,6 @@ export default function SignUp({ navigation }) {
     if (!password.trim()) errors.password = true;
     if (!confirmPassword.trim()) errors.confirmPassword = true;
     if (password !== confirmPassword) errors.passwordMismatch = true;
-
     setStepTwoErrors(errors);
     if (errors.passwordMismatch) {
       Alert.alert("Password Error", "Passwords do not match.");
@@ -164,7 +162,6 @@ export default function SignUp({ navigation }) {
     if (!validateStepTwo()) return;
 
     try {
-      // Check if username already exists
       const usernameQuery = query(
         collection(db, "users"),
         where("username", "==", username)
@@ -176,10 +173,8 @@ export default function SignUp({ navigation }) {
         return;
       }
 
-      // Generate unique user ID
       const userId = generateUniqueId();
 
-      // Add user to Firestore with unique ID
       await addDoc(collection(db, "users"), {
         userId,
         firstName,
@@ -193,12 +188,12 @@ export default function SignUp({ navigation }) {
         province,
         city,
         barangay,
-        purok, // <-- make sure to include purok if needed
+        purok,
         password,
         is_verified: 0,
         createdAt: new Date(),
         accountStatus: "active",
-        userType: "user", // <-- add this line
+        userType: "user",
       });
 
       Alert.alert(
@@ -227,7 +222,7 @@ export default function SignUp({ navigation }) {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-          <Text style={styles.title}>SIGN UP</Text>
+          <Text style={styles.title}>Sign up</Text>
 
           <Image
             source={require("../assets/Kalinga_logo.png")}
@@ -238,52 +233,52 @@ export default function SignUp({ navigation }) {
           <Animated.View entering={FadeIn} style={styles.formContainer}>
             {step === 1 && (
               <>
-                <TextInput
-                  style={[
-                    styles.input,
-                    stepOneErrors.firstName && { borderColor: "red" },
-                  ]}
-                  placeholder="First Name"
-                  value={firstName}
-                  onChangeText={(text) => {
-                    setFirstName(text);
-                    setStepOneErrors((prev) => ({ ...prev, firstName: false }));
-                  }}
-                />
-                <TextInput
-                  style={[
-                    styles.input,
-                    stepOneErrors.lastName && { borderColor: "red" },
-                  ]}
-                  placeholder="Last Name"
-                  value={lastName}
-                  onChangeText={(text) => {
-                    setLastName(text);
-                    setStepOneErrors((prev) => ({ ...prev, lastName: false }));
-                  }}
-                />
-                <TextInput
-                  style={[
-                    styles.input,
-                    stepOneErrors.phone && { borderColor: "red" },
-                  ]}
-                  placeholder="Phone"
-                  keyboardType="phone-pad"
-                  value={phone}
-                  onChangeText={(text) => {
-                    setPhone(text);
-                    setStepOneErrors((prev) => ({ ...prev, phone: false }));
-                  }}
-                />
+                <View style={styles.inputWrapper}>
+                  <Icon name="person-outline" size={20} color="#225B64" style={styles.icon} />
+                  <TextInput
+                    style={[styles.inputField, stepOneErrors.firstName && { borderColor: "red" }]}
+                    placeholder="First Name"
+                    value={firstName}
+                    onChangeText={(text) => {
+                      setFirstName(text);
+                      setStepOneErrors((prev) => ({ ...prev, firstName: false }));
+                    }}
+                  />
+                </View>
+
+                <View style={styles.inputWrapper}>
+                  <Icon name="person-outline" size={20} color="#225B64" style={styles.icon} />
+                  <TextInput
+                    style={[styles.inputField, stepOneErrors.lastName && { borderColor: "red" }]}
+                    placeholder="Last Name"
+                    value={lastName}
+                    onChangeText={(text) => {
+                      setLastName(text);
+                      setStepOneErrors((prev) => ({ ...prev, lastName: false }));
+                    }}
+                  />
+                </View>
+
+                <View style={styles.inputWrapper}>
+                  <Icon name="call-outline" size={20} color="#225B64" style={styles.icon} />
+                  <TextInput
+                    style={[styles.inputField, stepOneErrors.phone && { borderColor: "red" }]}
+                    placeholder="Phone"
+                    keyboardType="phone-pad"
+                    value={phone}
+                    onChangeText={(text) => {
+                      setPhone(text);
+                      setStepOneErrors((prev) => ({ ...prev, phone: false }));
+                    }}
+                  />
+                </View>
+
                 <TouchableOpacity
-                  style={[
-                    styles.input,
-                    stepOneErrors.dob && { borderColor: "red" },
-                    { justifyContent: "center" },
-                  ]}
+                  style={[styles.inputWrapper, stepOneErrors.dob && { borderColor: "red" }]}
                   onPress={() => setShowDatePicker(true)}
                 >
-                  <Text style={{ color: dob ? "#000" : "#aaa" }}>
+                  <Icon name="calendar-outline" size={20} color="#225B64" style={styles.icon} />
+                  <Text style={{ color: dob ? "#000" : "#aaa", fontSize: 16 }}>
                     {dob ? dob : "Date of Birth"}
                   </Text>
                 </TouchableOpacity>
@@ -298,12 +293,8 @@ export default function SignUp({ navigation }) {
                   />
                 )}
 
-                <View
-                  style={[
-                    styles.pickerContainer,
-                    stepOneErrors.gender && { borderColor: "red" },
-                  ]}
-                >
+                <View style={[styles.pickerWrapper, stepOneErrors.gender && { borderColor: "red" }]}>
+                  <Icon name="male-female-outline" size={20} color="#225B64" style={styles.icon} />
                   <Picker
                     selectedValue={gender}
                     onValueChange={(itemValue) => {
@@ -318,12 +309,8 @@ export default function SignUp({ navigation }) {
                   </Picker>
                 </View>
 
-                <View
-                  style={[
-                    styles.pickerContainer,
-                    stepOneErrors.status && { borderColor: "red" },
-                  ]}
-                >
+                <View style={[styles.pickerWrapper, stepOneErrors.status && { borderColor: "red" }]}>
+                  <Icon name="heart-outline" size={20} color="#225B64" style={styles.icon} />
                   <Picker
                     selectedValue={status}
                     onValueChange={(itemValue) => {
@@ -338,12 +325,8 @@ export default function SignUp({ navigation }) {
                   </Picker>
                 </View>
 
-                <View
-                  style={[
-                    styles.pickerContainer,
-                    stepOneErrors.barangay && { borderColor: "red" },
-                  ]}
-                >
+                <View style={[styles.pickerWrapper, stepOneErrors.barangay && { borderColor: "red" }]}>
+                  <Icon name="home-outline" size={20} color="#225B64" style={styles.icon} />
                   <Picker
                     selectedValue={barangay}
                     onValueChange={(itemValue) => {
@@ -359,12 +342,8 @@ export default function SignUp({ navigation }) {
                   </Picker>
                 </View>
 
-                <View
-                  style={[
-                    styles.pickerContainer,
-                    stepOneErrors.purok && { borderColor: "red" },
-                  ]}
-                >
+                <View style={[styles.pickerWrapper, stepOneErrors.purok && { borderColor: "red" }]}>
+                  <Icon name="location-outline" size={20} color="#225B64" style={styles.icon} />
                   <Picker
                     selectedValue={purok}
                     onValueChange={(itemValue) => {
@@ -375,11 +354,7 @@ export default function SignUp({ navigation }) {
                     enabled={!!barangay}
                   >
                     <Picker.Item
-                      label={
-                        barangay
-                          ? "Select Purok"
-                          : "Select Barangay first"
-                      }
+                      label={barangay ? "Select Purok" : "Select Barangay first"}
                       value=""
                     />
                     {purokList.map((name, idx) => (
@@ -401,62 +376,67 @@ export default function SignUp({ navigation }) {
 
             {step === 2 && (
               <>
-                <TextInput
-                  style={[
-                    styles.input,
-                    stepTwoErrors.username && { borderColor: "red" },
-                  ]}
-                  placeholder="Username"
-                  value={username}
-                  onChangeText={(text) => {
-                    setUsername(text);
-                    setStepTwoErrors((prev) => ({ ...prev, username: false }));
-                  }}
-                />
-                <TextInput
-                  style={[
-                    styles.input,
-                    stepTwoErrors.email && { borderColor: "red" },
-                  ]}
-                  placeholder="Email"
-                  keyboardType="email-address"
-                  value={email}
-                  onChangeText={(text) => {
-                    setEmail(text);
-                    setStepTwoErrors((prev) => ({ ...prev, email: false }));
-                  }}
-                />
-                <TextInput
-                  style={[
-                    styles.input,
-                    stepTwoErrors.password && { borderColor: "red" },
-                  ]}
-                  placeholder="Password"
-                  secureTextEntry
-                  value={password}
-                  onChangeText={(text) => {
-                    setPassword(text);
-                    setStepTwoErrors((prev) => ({ ...prev, password: false }));
-                  }}
-                />
-                <TextInput
-                  style={[
-                    styles.input,
-                    (stepTwoErrors.confirmPassword || stepTwoErrors.passwordMismatch) &&
-                    { borderColor: "red" },
-                  ]}
-                  placeholder="Confirm Password"
-                  secureTextEntry
-                  value={confirmPassword}
-                  onChangeText={(text) => {
-                    setConfirmPassword(text);
-                    setStepTwoErrors((prev) => ({
-                      ...prev,
-                      confirmPassword: false,
-                      passwordMismatch: false,
-                    }));
-                  }}
-                />
+                <View style={styles.inputWrapper}>
+                  <Icon name="person-outline" size={20} color="#225B64" style={styles.icon} />
+                  <TextInput
+                    style={[styles.inputField, stepTwoErrors.username && { borderColor: "red" }]}
+                    placeholder="Username"
+                    value={username}
+                    onChangeText={(text) => {
+                      setUsername(text);
+                      setStepTwoErrors((prev) => ({ ...prev, username: false }));
+                    }}
+                  />
+                </View>
+
+                <View style={styles.inputWrapper}>
+                  <Icon name="mail-outline" size={20} color="#225B64" style={styles.icon} />
+                  <TextInput
+                    style={[styles.inputField, stepTwoErrors.email && { borderColor: "red" }]}
+                    placeholder="Email"
+                    keyboardType="email-address"
+                    value={email}
+                    onChangeText={(text) => {
+                      setEmail(text);
+                      setStepTwoErrors((prev) => ({ ...prev, email: false }));
+                    }}
+                  />
+                </View>
+
+                <View style={styles.inputWrapper}>
+                  <Icon name="lock-closed-outline" size={20} color="#225B64" style={styles.icon} />
+                  <TextInput
+                    style={[styles.inputField, stepTwoErrors.password && { borderColor: "red" }]}
+                    placeholder="Password"
+                    secureTextEntry
+                    value={password}
+                    onChangeText={(text) => {
+                      setPassword(text);
+                      setStepTwoErrors((prev) => ({ ...prev, password: false }));
+                    }}
+                  />
+                </View>
+
+                <View style={styles.inputWrapper}>
+                  <Icon name="lock-closed-outline" size={20} color="#225B64" style={styles.icon} />
+                  <TextInput
+                    style={[
+                      styles.inputField,
+                      (stepTwoErrors.confirmPassword || stepTwoErrors.passwordMismatch) && { borderColor: "red" },
+                    ]}
+                    placeholder="Confirm Password"
+                    secureTextEntry
+                    value={confirmPassword}
+                    onChangeText={(text) => {
+                      setConfirmPassword(text);
+                      setStepTwoErrors((prev) => ({
+                        ...prev,
+                        confirmPassword: false,
+                        passwordMismatch: false,
+                      }));
+                    }}
+                  />
+                </View>
 
                 <TouchableOpacity style={styles.button} onPress={handleSignUp}>
                   <Text style={styles.buttonText}>Create Account</Text>
@@ -502,30 +482,40 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-start",
   },
-  input: {
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: wp("8%"),
-    paddingVertical: hp("1.5%"),
-    paddingHorizontal: wp("5%"),
-    marginBottom: hp("2%"),
+  inputWrapper: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "#fff",
+  borderWidth: 1,
+  borderColor: "#ccc",
+  borderRadius: wp("8%"),
+  paddingHorizontal: wp("5%"), // keep original padding
+  marginBottom: hp("2%"),
+  elevation: 4,
+  height: hp("6%"), // same as original input height
+},
+  inputField: {
+    flex: 1,
     fontSize: wp("4%"),
-    elevation: 4,
+    paddingVertical: hp("1.5%"),
   },
-  pickerContainer: {
+  icon: {
+    marginRight: wp("2%"),
+    marginLeft: wp("1.5%"),
+  },
+  pickerWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#fff",
-    paddingLeft: wp("4%"),
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: wp("8%"),
+    paddingHorizontal: wp("2%"),
     marginBottom: hp("2%"),
-    minHeight: hp("7%"),
-    justifyContent: "center",
     elevation: 4,
   },
   picker: {
-    width: "100%",
+    flex: 1,
   },
   button: {
     backgroundColor: "#225B64",

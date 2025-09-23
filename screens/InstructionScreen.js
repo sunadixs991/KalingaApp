@@ -44,7 +44,7 @@ export default function InstructionScreen({ navigation, route }) {
       if (userDocId) {
         await updateDoc(doc(db, "users", userDocId), { firstLogin: false });
       }
-      navigation.replace("MainTabs", { username });
+      navigation.replace("MapScreen", { userDocId, username });
     } catch (error) {
       console.error("Error updating firstLogin:", error);
     }
@@ -66,8 +66,20 @@ export default function InstructionScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  slide: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#fff", padding: 20 },
+  slide: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+    padding: 20,
+  },
   image: { width: width * 0.7, height: height * 0.4, marginBottom: 20 },
-  title: { fontSize: 26, fontWeight: "bold", color: "#225B64", textAlign: "center", marginBottom: 10 },
+  title: {
+    fontSize: 26,
+    fontWeight: "bold",
+    color: "#225B64",
+    textAlign: "center",
+    marginBottom: 10,
+  },
   text: { fontSize: 16, color: "#444", textAlign: "center" },
 });

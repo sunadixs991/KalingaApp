@@ -33,30 +33,30 @@ const FloatingButtons = ({
         </TouchableOpacity>
       )}
 
-      <TouchableOpacity
-        style={[
-          styles.circleButton,
-          styles.addButton,
-
-          { bottom: offset + hp("15%") },
-        ]}
-        onPress={onAdd}
-      >
-        <Icon name="create-outline" size={24} color="#fff" />
-      </TouchableOpacity>
-
       {isAdmin && (
         <TouchableOpacity
           style={[
             styles.circleButton,
-            styles.pinButton,
-            { bottom: offset + hp("7.5%") },
+            styles.addButton,
+
+            { bottom: offset + hp("15%") },
           ]}
-          onPress={onPin}
+          onPress={onAdd}
         >
-          <Icon name="pin-sharp" size={24} color="#fff" />
+          <Icon name="create-outline" size={24} color="#fff" />
         </TouchableOpacity>
       )}
+
+      <TouchableOpacity
+        style={[
+          styles.circleButton,
+          styles.pinButton,
+          { bottom: offset + hp("7.5%") },
+        ]}
+        onPress={onPin}
+      >
+        <Icon name="pin-sharp" size={24} color="#fff" />
+      </TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.circleButton, { bottom: offset }]}
