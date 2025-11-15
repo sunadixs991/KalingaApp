@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome";
 import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+// import { getAuth } from "firebase/auth";
 
 const FeedbackModal = () => {
   const [visible, setVisible] = useState(false);
@@ -18,7 +18,7 @@ const FeedbackModal = () => {
   const [submitted, setSubmitted] = useState(false); // ✅ Track if user already submitted
 
   const db = getFirestore();
-  const auth = getAuth();
+  // const auth = getAuth();
 
   // Show modal every 1 minute (if not submitted yet)
   useEffect(() => {
@@ -34,7 +34,7 @@ const FeedbackModal = () => {
   const handleSubmit = async () => {
     try {
       await addDoc(collection(db, "feedback"), {
-        userId: auth.currentUser ? auth.currentUser.uid : null,
+        userId: null, // No auth
         rating,
         feedback,
         createdAt: serverTimestamp(),
@@ -44,7 +44,7 @@ const FeedbackModal = () => {
       setVisible(false);
       setFeedback("");
       setRating(0);
-      setSubmitted(true); // ✅ Stop showing modal after submission
+      setSubmitted(true);
     } catch (error) {
       console.error("❌ Error saving feedback: ", error);
     }

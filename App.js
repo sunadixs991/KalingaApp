@@ -42,6 +42,7 @@ import InstructionScreen from "./screens/InstructionScreen";
 
 // ✅ Import Feedback Modal
 import FeedbackModal from "./components/FeedbackModal";
+import CommentsScreen from "./screens/CommentsScreen";
 
 const Stack = createStackNavigator();
 
@@ -113,6 +114,7 @@ export default function App() {
               name="InstructionScreen"
               component={InstructionScreen}
             />
+            <Stack.Screen name="CommentsScreen" component={CommentsScreen} />
           </Stack.Navigator>
 
           {/* ✅ Global Feedback Modal */}

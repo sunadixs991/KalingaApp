@@ -1,336 +1,458 @@
+// screens/ChatScreen.js
 import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
-  TextInput,
   FlatList,
-  StyleSheet,
-  StatusBar,
   TouchableOpacity,
-  Platform,
+  StyleSheet,
+  Modal,
+  TextInput,
   ActivityIndicator,
-  KeyboardAvoidingView,
+  RefreshControl,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import Icon from "react-native-vector-icons/Ionicons";
-import { getGeminiResponse } from "../services/geminiChatService";
-import { getUserInfo } from "../services/getinfo";
-import * as Location from "expo-location";
 import {
-  widthPercentageToDP as wp,
-  heightPercentageToDP as hp,
-} from "react-native-responsive-screen";
+  getFirestore,
+  collection,
+  addDoc,
+  getDocs,
+  serverTimestamp,
+  query,
+  orderBy,
+} from "firebase/firestore";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import Icon from "react-native-vector-icons/Ionicons";
+import GeminiChatUI from "../components/GeminiChatUI";
+import { useNavigation } from "@react-navigation/native";
+import { getUserInfo } from "../services/getinfo";
 
-const FAQS = [
-  "What services are available in my area?",
-  "How do I request for medical assistance?",
-  "Where is the nearest evacuation center?",
-  "How do I report an emergency?",
-  "What are the food distribution schedules?",
-];
+const db = getFirestore();
 
-export default function ChatScreen({ route }) {
-  const username = route?.params?.username;
-
-  const [messages, setMessages] = useState([
-    {
-      id: "1",
-      sender: "bot",
-      text: "Hi! I am your chatbot assistant. How may I assist you today?",
-    },
-  ]);
+export default function ChatScreen() {
+  const [posts, setPosts] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
-  const [infoLoading, setInfoLoading] = useState(true);
-  const [loadTimeout, setLoadTimeout] = useState(false);
-  const [placeName, setPlaceName] = useState("");
-  const [showFaqs, setShowFaqs] = useState(true);
+  const [userFullName, setUserFullName] = useState("");
+  const [geminiVisible, setGeminiVisible] = useState(false);
+  const [postModalVisible, setPostModalVisible] = useState(false);
+  const navigation = useNavigation();
 
   useEffect(() => {
-    let timeoutId = setTimeout(() => {
-      setLoadTimeout(true);
-      setInfoLoading(false);
-    }, 5000);
-
-    async function fetchUserInfo() {
-      const data = await getUserInfo(username);
-      if (data) {
-        setUserInfo(data);
-        clearTimeout(timeoutId);
-        setInfoLoading(false);
-      }
-    }
-
-    fetchUserInfo();
-
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") return;
-      let loc = await Location.getCurrentPositionAsync({});
-      let places = await Location.reverseGeocodeAsync(loc.coords);
-      if (places && places.length > 0) {
-        const place = places[0];
-        setPlaceName(
-          [
-            place.name,
-            place.street,
-            place.subregion,
-            place.city,
-            place.region,
-            place.country,
-          ]
-            .filter(Boolean)
-            .join(", ")
-        );
+      const user = await AsyncStorage.getItem("user");
+      setUserInfo(user);
+      if (user) {
+        const info = await getUserInfo(user);
+        if (info) {
+          setUserFullName(`${info.firstName} ${info.lastName}`);
+        }
       }
     })();
+  }, []);
 
-    return () => clearTimeout(timeoutId);
-  }, [username]);
+  const fetchPosts = async () => {
+    try {
+      const q = query(
+        collection(db, "community_posts"),
+        orderBy("createdAt", "desc")
+      );
+      const snapshot = await getDocs(q);
+      setPosts(snapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id })));
+    } catch (error) {
+      console.error("Error fetching posts:", error);
+    }
+  };
 
-  function handleFAQPress(faq) {
-    setInput(faq);
-    sendMessageWithText(faq);
-  }
+  useEffect(() => {
+    fetchPosts();
+  }, []);
 
-  async function sendMessageWithText(text) {
-    if (!text.trim()) return;
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchPosts();
+    setRefreshing(false);
+  };
 
-    let USER_INFO;
-    let locationText = placeName ? `My current location is: ${placeName}.` : "";
-
-    if (userInfo) {
-      USER_INFO = `
-My name is ${userInfo.firstName.trim()} ${userInfo.lastName.trim()}.
-I am from ${userInfo.barangay}, ${userInfo.city}, ${userInfo.province}.
-I was born on ${userInfo.dob} and I identify as ${userInfo.gender}.
-My civil status is ${userInfo.status}.
-My location is ${locationText}.
-You should remember this information and use it to personalize your responses.
-`;
-    } else if (loadTimeout) {
-      USER_INFO = `
-This is not a signed-in account. If the user asks for personal information, politely tell them to sign in first (except for location).
-My location is ${locationText}
-`;
-    } else {
+  const handlePost = async () => {
+    if (!userInfo) {
+      setPostModalVisible(false);
+      navigation.navigate("LoginScreen");
       return;
     }
-
-    const userMessage = {
-      id: Date.now().toString(),
-      sender: "user",
-      text,
-    };
-    setMessages((prev) => [...prev, userMessage]);
-    setLoading(true);
-
-    const prompt = USER_INFO + "\nUser: " + text;
-    const botText = await getGeminiResponse(prompt);
-
-    setMessages((prev) => [
-      ...prev,
-      { id: Date.now().toString() + "_bot", sender: "bot", text: botText },
-    ]);
-    setInput("");
-    setLoading(false);
-  }
-
-  async function sendMessage() {
     if (!input.trim()) return;
-
-    sendMessageWithText(input);
-  }
-
-  if (infoLoading) {
-    return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <View
-          style={[
-            styles.container,
-            { justifyContent: "center", alignItems: "center" },
-          ]}
-        >
-          <ActivityIndicator size="large" color="#e75e33" />
-          <Text>Loading user info...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+    
+    try {
+      setLoading(true);
+      await addDoc(collection(db, "community_posts"), {
+        text: input.trim(),
+        userId: userInfo,
+        userFullName: userFullName,
+        createdAt: serverTimestamp(),
+      });
+      setInput("");
+      setPostModalVisible(false);
+      await fetchPosts();
+    } catch (error) {
+      console.error("Error posting:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={
-          Platform.OS === "ios" ? 0 : StatusBar.currentHeight || 0
-        }
+    <View style={styles.container}>
+      {/* Header Bar */}
+      <View style={styles.headerBar}>
+        <View style={styles.headerContent}>
+          <Icon name="people" size={28} color="#fff" style={{ marginRight: 12 }} />
+          <Text style={styles.headerTitle}>Community</Text>
+        </View>
+        {/* Gemini AI Button */}
+        <TouchableOpacity
+          style={styles.geminiButton}
+          onPress={() => setGeminiVisible(true)}
+        >
+          <Icon name="sparkles" size={22} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Gemini Chat Modal */}
+      <Modal
+        visible={geminiVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setGeminiVisible(false)}
       >
-        <StatusBar
-          style="light"
-          backgroundColor="#e75e33"
-          translucent={false}
-        />
-        <View style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerRow}>
-              <Icon name="chatbubble-ellipses-outline" size={20} color="#fff" />
-              <Text style={styles.headerTitle}>Chat with Gemini</Text>
-            </View>
-            {/* <TouchableOpacity>
-            <Icon name="menu-circle-outline" size={28} color="#fff" />
-          </TouchableOpacity> */}
+        <View style={styles.modalOverlay}>
+          <View style={styles.geminiModalContainer}>
+            <GeminiChatUI onClose={() => setGeminiVisible(false)} />
           </View>
+        </View>
+      </Modal>
 
-          {/* Chat Area */}
-          <FlatList
-            data={messages}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item, index }) => (
-              <View
-                style={[
-                  styles.message,
-                  item.sender === "user" ? styles.user : styles.bot,
-                ]}
-              >
-                <Text style={styles.messageText}>{item.text}</Text>
-                {index === 0 && item.sender === "bot" && (
-                  <View style={styles.faqContainer}>
-                    {FAQS.map((faq, idx) => (
-                      <TouchableOpacity
-                        key={idx}
-                        style={styles.faqButton}
-                        onPress={() => handleFAQPress(faq)}
-                        disabled={loading}
-                      >
-                        <Text style={styles.faqText}>{faq}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
+      {/* Posts List */}
+      <FlatList
+        data={posts}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={styles.postCard}
+            onPress={() => navigation.navigate("CommentsScreen", { post: item })}
+            activeOpacity={0.7}
+          >
+            <View style={styles.postHeader}>
+              <View style={styles.avatarCircle}>
+                <Icon name="person" size={24} color="#fff" />
               </View>
-            )}
-            contentContainerStyle={styles.chatContainer}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.postUser}>
+                  {item.userFullName
+                    ? item.userFullName
+                    : item.userId
+                    ? item.userId
+                    : "Anonymous"}
+                </Text>
+                <Text style={styles.postTimestamp}>
+                  {item.createdAt?.toDate ? 
+                    new Date(item.createdAt.toDate()).toLocaleDateString() : 
+                    "Just now"}
+                </Text>
+              </View>
+              <Icon name="chevron-forward" size={20} color="#e75e33" />
+            </View>
+            <Text style={styles.postText}>{item.text}</Text>
+          </TouchableOpacity>
+        )}
+        contentContainerStyle={styles.listContent}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Icon name="chatbubbles-outline" size={60} color="#ccc" />
+            <Text style={styles.emptyText}>No posts yet</Text>
+            <Text style={styles.emptySubtext}>Be the first to start a discussion!</Text>
+          </View>
+        }
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#e75e33"]}
+            tintColor="#e75e33"
           />
+        }
+      />
 
-          {/* Input Row */}
-          <View style={styles.inputRow}>
+      {/* Floating Create Post Button */}
+      <TouchableOpacity
+        style={styles.createPostButton}
+        onPress={() => {
+          if (!userInfo) {
+            navigation.navigate("LoginScreen");
+          } else {
+            setPostModalVisible(true);
+          }
+        }}
+      >
+        <Icon name="add" size={28} color="#fff" />
+      </TouchableOpacity>
+
+      {/* Post Creation Modal */}
+      <Modal
+        visible={postModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setPostModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.postModalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Create Post</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setInput("");
+                  setPostModalVisible(false);
+                }}
+                disabled={loading}
+              >
+                <Icon name="close-circle" size={28} color="#e75e33" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalUserInfo}>
+              <View style={styles.modalAvatarCircle}>
+                <Icon name="person" size={20} color="#fff" />
+              </View>
+              <Text style={styles.modalUserName}>{userFullName || "User"}</Text>
+            </View>
+
             <TextInput
-              style={styles.input}
+              style={styles.modalInput}
               value={input}
               onChangeText={setInput}
-              placeholder="Type your message..."
+              placeholder="What's on your mind?"
               placeholderTextColor="#999"
+              multiline
               editable={!loading}
+              autoFocus
             />
+
             <TouchableOpacity
-              style={styles.sendButton}
-              onPress={sendMessage}
-              disabled={loading}
+              style={[
+                styles.postSubmitButton,
+                (!input.trim() || loading) && styles.postSubmitButtonDisabled,
+              ]}
+              onPress={handlePost}
+              disabled={!input.trim() || loading}
             >
-              <Icon name="send" size={20} color="#fff" />
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Icon name="send" size={20} color="#fff" style={{ marginRight: 8 }} />
+                  <Text style={styles.postSubmitButtonText}>Post</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#e75e33",
-    // paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-  },
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#f7f8fa",
   },
-  header: {
-    backgroundColor: "#e75e33",
+  headerBar: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: hp("2%"),
-    paddingHorizontal: wp("4%"),
+    justifyContent: "space-between",
+    backgroundColor: "#e75e33",
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
   },
-  headerRow: {
+  headerContent: {
     flexDirection: "row",
     alignItems: "center",
   },
   headerTitle: {
     color: "#fff",
     fontWeight: "bold",
-    fontSize: wp("4.5%"),
-    marginLeft: wp("2%"),
+    fontSize: 24,
+    letterSpacing: 0.5,
   },
-  chatContainer: {
-    flexGrow: 1,
-    padding: wp("3.5%"),
+  geminiButton: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 20,
+    padding: 8,
+  },
+  listContent: {
+    padding: 16,
+    paddingBottom: 100,
+  },
+  postCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: "#e75e33",
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  postHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  avatarCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#e75e33",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  postUser: {
+    fontWeight: "bold",
+    fontSize: 16,
+    color: "#222",
+    marginBottom: 2,
+  },
+  postTimestamp: {
+    fontSize: 12,
+    color: "#888",
+  },
+  postText: {
+    fontSize: 15,
+    color: "#333",
+    lineHeight: 22,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 80,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#999",
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: "#aaa",
+    marginTop: 8,
+  },
+  createPostButton: {
+    position: "absolute",
+    bottom: 24,
+    right: 24,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#e75e33",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 8,
+    shadowColor: "#e75e33",
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
   },
-  message: {
-    marginVertical: hp("0.8%"),
-    padding: wp("3%"),
-    borderRadius: wp("3%"),
-    maxWidth: "80%",
+  geminiModalContainer: {
+    width: "100%",
+    height: "90%",
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: "hidden",
+    elevation: 10,
   },
-  user: {
-    alignSelf: "flex-end",
-    backgroundColor: "#DCF8C6",
+  postModalContainer: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 32,
+    elevation: 12,
+    maxHeight: "80%",
   },
-  bot: {
-    alignSelf: "flex-start",
-    backgroundColor: "#EEE",
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
   },
-  messageText: {
-    fontSize: wp("4%"),
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#e75e33",
+  },
+  modalUserInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  modalAvatarCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#e75e33",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  modalUserName: {
+    fontSize: 16,
+    fontWeight: "600",
     color: "#222",
   },
-  faqContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 10,
+  modalInput: {
+    minHeight: 120,
+    backgroundColor: "#f7f8fa",
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: "#222",
+    marginBottom: 20,
+    textAlignVertical: "top",
+    borderWidth: 1,
+    borderColor: "#e1e4e8",
   },
-  faqButton: {
+  postSubmitButton: {
+    flexDirection: "row",
     backgroundColor: "#e75e33",
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    margin: 4,
-  },
-  faqText: {
-    color: "#fff",
-    fontSize: 13,
-  },
-  inputRow: {
-    flexDirection: "row",
+    borderRadius: 12,
+    paddingVertical: 14,
     alignItems: "center",
-    backgroundColor: "#f1f1f1",
-    borderRadius: wp("3%"),
-    marginHorizontal: wp("4%"),
-    marginBottom: hp("3.5%"),
-    paddingHorizontal: wp("3%"),
-    paddingVertical: hp("0.5%"),
+    justifyContent: "center",
     elevation: 2,
   },
-  input: {
-    flex: 1,
-    height: hp("5.5%"),
-    paddingHorizontal: wp("2%"),
-    color: "#000",
-    fontSize: wp("3.8%"),
+  postSubmitButtonDisabled: {
+    backgroundColor: "#ccc",
+    elevation: 0,
   },
-  sendButton: {
-    backgroundColor: "#225B64",
-    borderRadius: wp("3%"),
-    padding: wp("2%"),
-    marginLeft: wp("2%"),
-    justifyContent: "center",
-    alignItems: "center",
+  postSubmitButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
   },
 });
