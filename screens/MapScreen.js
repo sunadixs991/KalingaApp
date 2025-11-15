@@ -59,10 +59,12 @@ import {
   handleSaveEvacPin,
   handleSavePin,
   handleSaveMedicalPin,
+  handleSaveRequestPin,
 } from "../utils/pinHandlers";
 import PinInfoModal from "../components/PinInfoModal";
 import EvacuationInfoModal from "../components/EvacuationInfoModal";
 import MedicalInfoModal from "../components/MedicalInfoModal";
+import ProvideSupplyModal from "../components/ProvideSupplyModal";
 
 // Debug: Log the imports immediately
 // console.log("=== IMPORT DEBUG ===");
@@ -81,6 +83,7 @@ export default function MapScreen({ route }) {
   const [userInfo, setUserInfo] = useState(null);
   const [userFirstName, setUserFirstName] = useState(null);
   const [allPins, setAllPins] = useState([]);
+  const [requestPins, setRequestPins] = useState([]); // <-- NEW: separate request pins state
   const [descModalVisible, setDescModalVisible] = useState(false);
   const [pendingPin, setPendingPin] = useState(null);
   const [description, setDescription] = useState("");
@@ -109,6 +112,9 @@ export default function MapScreen({ route }) {
   const [evacPurok, setEvacPurok] = useState("");
   const [evacSitio, setEvacSitio] = useState("");
   const [facilityName, setFacilityName] = useState("");
+
+  // NEW: User contact state
+  const [userContact, setUserContact] = useState(""); // <-- NEW
 
   useEffect(() => {
     pinModeRef.current = pinMode;
@@ -152,9 +158,12 @@ export default function MapScreen({ route }) {
   const [voteMessageModalVisible, setVoteMessageModalVisible] = useState(false);
   const [pendingVoteType, setPendingVoteType] = useState(null);
   const [voteMessage, setVoteMessage] = useState("");
-  const [pinTypeModalVisible, setPinTypeModalVisible] = useState(false); // <-- New state
+  const [pinTypeModalVisible, setPinTypeModalVisible] = useState(false); // <-- New/existing
   const [crosshairMode, setCrosshairMode] = useState(false);
   const [crosshairPinType, setCrosshairPinType] = useState(null); // 'regular', 'evacuation', 'medical'
+  const [supplyChoiceVisible, setSupplyChoiceVisible] = useState(false); // <-- existing
+  const [provideSupplyModalVisible, setProvideSupplyModalVisible] = useState(false); // <-- existing
+  const [supplyModalMode, setSupplyModalMode] = useState("provide"); // "provide" | "request"
   const [mapCenter, setMapCenter] = useState(null);
 
   const isFocused = useIsFocused();
@@ -191,6 +200,7 @@ export default function MapScreen({ route }) {
       if (user) {
         const info = await getUserInfo(user);
         setUserFirstName(info?.firstName || null);
+        setUserContact(info?.contact || info?.phone || ""); // <-- NEW: default contact
       }
 
       try {
@@ -215,6 +225,34 @@ export default function MapScreen({ route }) {
           }
         });
         setAllPins(pins);
+      } catch (error) {
+        console.error("Error fetching pins:", error);
+      }
+      // Fetch request_pins separately
+      try {
+        const reqSnap = await getDocs(collection(db, "request_pins"));
+        const reqs = [];
+        reqSnap.forEach((doc) => {
+          const data = doc.data();
+          if (data.latitude && data.longitude) {
+            reqs.push({
+              id: doc.id,
+              latitude: data.latitude,
+              longitude: data.longitude,
+              userId: data.userId,
+              userFullName: data.userFullName || "anonymous",
+              description: data.description,
+              category: data.category || "Supply Request",
+              media: data.media || [],
+              createdAt: data.createdAt,
+              supplyType: data.supplyType || "",
+              quantity: data.quantity || 0,
+              unit: data.unit || "",
+              contact: data.contact || "",
+            });
+          }
+        });
+        setRequestPins(reqs);
       } catch (error) {
         console.error("Error fetching pins:", error);
       }
@@ -394,30 +432,7 @@ export default function MapScreen({ route }) {
   // Updated pin button handlers
   const handlePinButton = () => {
     setEvacPinMode(false);
-    if (userInfo) {
-      setCrosshairMode(true);
-      setCrosshairPinType("regular");
-      setPinMode(false);
-
-      if (webviewRef.current) {
-        webviewRef.current.postMessage(
-          JSON.stringify({ type: "setCrosshairMode", enabled: true })
-        );
-      }
-
-      Alert.alert(
-        "Pin Mode",
-        "Move the map to position the crosshair where you want to place your pin.",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              setShowCrosshairSheet(true); // 👈 show modal after OK
-            },
-          },
-        ]
-      );
-    } else {
+    if (!userInfo) {
       Alert.alert(
         "Sign in required",
         "You need to sign in to pin a location.",
@@ -429,7 +444,37 @@ export default function MapScreen({ route }) {
           },
         ]
       );
+      return;
     }
+    // show choice: Provide or Request supplies
+    setSupplyChoiceVisible(true);
+  };
+
+  const startSupplyFlow = (type) => {
+    // type: 'supply_provide' | 'supply_request'
+    setSupplyChoiceVisible(false);
+    setCrosshairMode(true);
+    setCrosshairPinType(type);
+    // remember mode so modal can show correct labels later
+    setSupplyModalMode(type === "supply_provide" ? "provide" : "request");
+    setPinMode(false);
+    if (webviewRef.current) {
+      webviewRef.current.postMessage(
+        JSON.stringify({ type: "setCrosshairMode", enabled: true })
+      );
+    }
+    Alert.alert(
+      type === "supply_provide" ? "Provide Supplies" : "Request Supplies",
+      "Move the map to position the crosshair where you want to place your pin.",
+      [
+        {
+          text: "OK",
+          onPress: () => {
+            setShowCrosshairSheet(true);
+          },
+        },
+      ]
+    );
   };
 
   const handleEvacPinButton = () => {
@@ -551,6 +596,14 @@ export default function MapScreen({ route }) {
     } else if (pendingPinPlacement.crosshairPinType === "medical") {
       setPendingMedicalPin(pinCoordinate);
       setMedicalModalVisible(true);
+    } else if (pendingPinPlacement.crosshairPinType === "supply_request") {
+      // for "request supplies" open the ProvideSupplyModal (mode=request)
+      setPendingPin(pinCoordinate);
+      setProvideSupplyModalVisible(true);
+    } else if (pendingPinPlacement.crosshairPinType === "supply_provide") {
+      // for "provide supplies" revert to original behavior: open MapPinModal (description/category flow)
+      setPendingPin(pinCoordinate);
+      setDescModalVisible(true);
     } else {
       setPendingPin(pinCoordinate);
       setDescModalVisible(true);
@@ -568,7 +621,87 @@ export default function MapScreen({ route }) {
     }
   };
 
-  // Update your existing message handler to include this case
+  // Handle submit from ProvideSupplyModal (used for both provide and request modes)
+  const handleSupplySubmit = async (payload) => {
+    if (!pendingPin) {
+      setProvideSupplyModalVisible(false);
+      return;
+    }
+    const mode = supplyModalMode || "provide"; // "provide" or "request"
+    try {
+      const docData = {
+        latitude: pendingPin.latitude,
+        longitude: pendingPin.longitude,
+        userId: userInfo || null,
+        userFirstName: userFirstName || "",
+        description: payload.notes || "",
+        category: mode === "provide" ? "Supplies" : "Supply Request",
+        supplyType: payload.supplyType || "",
+        quantity: Number(payload.quantity) || 0,
+        unit: payload.unit || "",
+        contact: payload.contact || userContact || "",
+        media: payload.media || [],
+        createdAt: serverTimestamp(),
+        upvotes: 0,
+        downvotes: 0,
+      };
+
+      // Save request pins to a separate collection
+      if (mode === "request") {
+        // delegate to handler in pinHandlers.js
+        await handleSaveRequestPin({
+          payload,
+          pendingPin,
+          userInfo,
+          userFirstName,
+          db,
+          supabase,
+          setProvideSupplyModalVisible,
+          setPendingPin,
+          setRequestPins,
+          Alert,
+          collection,
+          addDoc,
+          serverTimestamp,
+          getBarangayFromCoords,
+          getDocs,
+        });
+      } else {
+        // existing provide flow uses handleSavePin
+        await handleSavePin({
+          selectedCategory: "Supplies",
+          description: payload.notes || "",
+          media: payload.media || [],
+          pendingPin,
+          userInfo,
+          userFirstName,
+          db,
+          supabase,
+          setDescModalVisible,
+          setDescription,
+          setSelectedCategory,
+          setMedia,
+          setPinMode,
+          setPendingPin,
+          setAllPins,
+          Alert,
+          getDocs,
+          collection,
+          addDoc,
+          serverTimestamp,
+          getBarangayFromCoords,
+        });
+      }
+    } catch (error) {
+      console.error("Error creating supply pin:", error);
+      Alert.alert("Error", "Failed to publish supply pin.");
+    } finally {
+      setProvideSupplyModalVisible(false);
+      setPendingPin(null);
+    }
+  };
+
+  // Updated your existing message handler to include this case
   const handleMessage = (event) => {
     try {
       const message = JSON.parse(event.nativeEvent.data);
@@ -856,10 +989,10 @@ export default function MapScreen({ route }) {
             prevPins.map((pin) =>
               pin.id === selectedPin.id
                 ? {
-                    ...pin,
-                    upvotes: updatedPin.upvotes,
-                    downvotes: updatedPin.downvotes,
-                  }
+                  ...pin,
+                  upvotes: updatedPin.upvotes,
+                  downvotes: updatedPin.downvotes,
+                }
                 : pin
             )
           );
@@ -1021,11 +1154,6 @@ export default function MapScreen({ route }) {
     };
   });
 
-  // Add this handler
-  const handleAddPinButton = () => {
-    setPinTypeModalVisible(true);
-  };
-
   const pinsWithIcons = (allPins || []).map((p) => {
     const categoryKey = (p.category || "Others").trim();
     const category = categoryStyles[categoryKey] ||
@@ -1034,6 +1162,17 @@ export default function MapScreen({ route }) {
       ...p,
       iconClass: `fas fa-${category.icon}`,
       color: category.color,
+    };
+  });
+
+  const requestPinsWithIcons = (requestPins || []).map((p) => {
+    // Use a distinct color/icon for requests
+    const category = { color: "#49A5A2", icon: "hands-helping" };
+    return {
+      ...p,
+      iconClass: `fas fa-${category.icon}`,
+      color: category.color,
+      isRequest: true,
     };
   });
 
@@ -1054,6 +1193,7 @@ export default function MapScreen({ route }) {
   // Add current location as a special pin so the WebView map shows it
   let allPinsForMap = [
     ...pinsWithIcons,
+    ...requestPinsWithIcons, // <-- include request pins separately so they render with different style
     ...evacPinsWithIcons,
     ...medicalPinsWithIcons,
   ];
@@ -1152,6 +1292,10 @@ export default function MapScreen({ route }) {
               if (msg.id === "__current_location") return;
               // Try to find in regular pins first
               let pin = allPins.find((p) => p.id === msg.id);
+              // If not found, try request pins
+              if (!pin) {
+                pin = requestPins.find((p) => p.id === msg.id);
+              }
               // If not found, try evacuation pins
               if (!pin) {
                 pin = evacPins.find((p) => p.id === msg.id);
@@ -1269,9 +1413,9 @@ export default function MapScreen({ route }) {
         }}
         onSave={async () => {
           await handleSavePin({
-            selectedCategory,
-            description,
-            media,
+            selectedCategory: "Supplies",
+            description: payload.notes || "",
+            media: payload.media || [],
             pendingPin,
             userInfo,
             userFirstName,
@@ -1568,6 +1712,37 @@ export default function MapScreen({ route }) {
         </View>
       </Modal>
 
+      {/* SUPPLY CHOICE MODAL */}
+      <Modal
+        visible={supplyChoiceVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSupplyChoiceVisible(false)}
+      >
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.35)" }}>
+          <View style={{ width: "86%", backgroundColor: "#fff", borderRadius: 12, padding: 18 }}>
+            <Text style={{ fontSize: 18, fontWeight: "bold", marginBottom: 8 }}>Pin Mode</Text>
+            <Text style={{ color: "#666", marginBottom: 16 }}>Would you like to provide supplies or request supplies?</Text>
+            <TouchableOpacity
+              style={{ backgroundColor: "#e75e33", paddingVertical: 12, borderRadius: 10, marginBottom: 10 }}
+              onPress={() => startSupplyFlow("supply_provide")}
+            >
+              <Text style={{ color: "#fff", fontWeight: "700", textAlign: "center" }}>Provide Supplies</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ backgroundColor: "#49A5A2", paddingVertical: 12, borderRadius: 10, marginBottom: 10 }}
+              onPress={() => startSupplyFlow("supply_request")}
+            >
+              <Text style={{ color: "#fff", fontWeight: "700", textAlign: "center" }}>Request Supplies</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setSupplyChoiceVisible(false)} style={{ paddingVertical: 8 }}>
+              <Text style={{ textAlign: "center", color: "#777" }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      {/* END SUPPLY CHOICE MODAL */}
+
       {/* MEDICAL PIN MODAL */}
       <MedicalPinModal
         visible={medicalModalVisible}
@@ -1630,6 +1805,18 @@ export default function MapScreen({ route }) {
         setMedia={setMedicalMedia}
         openTime={medicalOpenTime}
         onChangeOpenTime={setMedicalOpenTime}
+      />
+
+      {/* Provide / Request Supply Modal (same component; mode controls labels) */}
+      <ProvideSupplyModal
+        visible={provideSupplyModalVisible}
+        onClose={() => {
+          setProvideSupplyModalVisible(false);
+          setPendingPin(null);
+        }}
+        onSubmit={(payload) => handleSupplySubmit(payload)}
+        defaultContact={userContact}
+        mode={supplyModalMode} // pass mode so modal can change text when you update it later
       />
     </View>
   );
