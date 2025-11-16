@@ -6,47 +6,69 @@ import {
   TouchableOpacity,
   StyleSheet,
   TextInput,
+  Alert,
 } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome";
 import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
 // import { getAuth } from "firebase/auth";
 
-const FeedbackModal = () => {
+// exported helper to save feedback (can be reused elsewhere)
+export async function saveFeedbackToFirestore({ rating = 0, feedback = "", username = null } = {}) {
+  try {
+    const db = getFirestore();
+    const payload = {
+      rating,
+      feedback,
+      createdAt: serverTimestamp(),
+    };
+    if (username) payload.username = username;
+
+    await addDoc(collection(db, "feedback"), payload);
+    return { ok: true };
+  } catch (error) {
+    console.error("saveFeedbackToFirestore error:", error);
+    return { ok: false, error };
+  }
+}
+
+// Accept username from parent
+const FeedbackModal = ({ username = null }) => {
   const [visible, setVisible] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [rating, setRating] = useState(0);
   const [submitted, setSubmitted] = useState(false); // ✅ Track if user already submitted
 
-  const db = getFirestore();
-  // const auth = getAuth();
-
-  // Show modal every 1 minute (if not submitted yet)
+  // Show modal every 30 minutes (if not submitted yet)
   useEffect(() => {
-    if (submitted) return; // ✅ Stop timer once submitted
-
+    if (submitted) return;
     const timer = setInterval(() => {
       setVisible(true);
-    }, 30 * 60 * 1000); // 1 minute in ms
-
+    }, 1000);
     return () => clearInterval(timer);
   }, [submitted]);
 
   const handleSubmit = async () => {
     try {
-      await addDoc(collection(db, "feedback"), {
-        userId: null, // No auth
+      console.log("Feedback submit payload:", { rating, feedback, username });
+
+      const res = await saveFeedbackToFirestore({
         rating,
         feedback,
-        createdAt: serverTimestamp(),
+        username,
       });
-
-      console.log("✅ Feedback saved!");
-      setVisible(false);
-      setFeedback("");
-      setRating(0);
-      setSubmitted(true);
+      if (res.ok) {
+        console.log("✅ Feedback saved!");
+        setVisible(false);
+        setFeedback("");
+        setRating(0);
+        setSubmitted(true);
+        Alert.alert("Thanks!", "Your feedback has been submitted.");
+      } else {
+        throw res.error || new Error("Failed to save feedback");
+      }
     } catch (error) {
       console.error("❌ Error saving feedback: ", error);
+      Alert.alert("Error", "Unable to submit feedback. Please try again.");
     }
   };
 

@@ -1,10 +1,11 @@
 // App.js
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { ThemeProvider } from "./context/ThemeContext";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { LogBox } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LogBox, ActivityIndicator, View } from "react-native";
 
 import SplashScreen from "./screens/SplashScreen";
 import TabNavigator from "./navigation/TabNavigator";
@@ -49,6 +50,21 @@ const Stack = createStackNavigator();
 LogBox.ignoreLogs(["shared value's .value inside reanimated inline style"]);
 
 export default function App() {
+  const [currentUsername, setCurrentUsername] = useState(null);
+
+  useEffect(() => {
+    const loadUsername = async () => {
+      try {
+        // Get username from AsyncStorage (already set in LoginScreen.js)
+        const username = await AsyncStorage.getItem("user");
+        setCurrentUsername(username || null);
+      } catch (e) {
+        console.warn("Failed to load username from storage:", e);
+      }
+    };
+    loadUsername();
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
@@ -117,8 +133,8 @@ export default function App() {
             <Stack.Screen name="CommentsScreen" component={CommentsScreen} />
           </Stack.Navigator>
 
-          {/* ✅ Global Feedback Modal */}
-          <FeedbackModal />
+          {/* ✅ Pass username to Feedback Modal */}
+          <FeedbackModal username={currentUsername} />
         </NavigationContainer>
       </ThemeProvider>
     </GestureHandlerRootView>

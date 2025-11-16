@@ -94,6 +94,12 @@ export default function LoginScreen({ navigation, onLogin }) {
     }
   };
 
+  const onLoginSuccess = async (username) => {
+    // call the parent handler to store user data
+    navigation.navigate("MainTabs");
+    // If App.js is your parent, you may need to pass this via props or context
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />

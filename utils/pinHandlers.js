@@ -245,28 +245,6 @@ export async function handleSavePin({
     if (media && media.length > 0) {
       Alert.alert("Uploading", "Uploading image files...", []);
 
-      // Scan all images first
-      const results = await Promise.all(
-        media.map((img) => scanImageWithSightengine(img))
-      );
-
-      // Check if all images are safe
-      const allSafe = results.every(
-        (result) =>
-          result.nudity?.safe > 0.8 &&
-          (result.weapon === undefined || result.weapon < 0.2) &&
-          (result.offensive?.prob === undefined || result.offensive.prob < 0.1)
-      );
-
-      if (!allSafe) {
-        Alert.alert(
-          "Content Blocked",
-          "One or more of your images contain prohibited content and cannot be uploaded.",
-          [{ text: "OK", onPress: () => setDescModalVisible(false) }]
-        );
-        return;
-      }
-
       for (let i = 0; i < media.length; i++) {
         const mediaItem = media[i];
 
@@ -354,7 +332,7 @@ export async function handleSavePin({
       createdAt: serverTimestamp(),
       upvotes: 0,
       downvotes: 0,
-      Barangay: barangayName,
+      barangay: barangayName, // ✅ lowercase b
     });
 
     setDescModalVisible(false);
@@ -367,11 +345,11 @@ export async function handleSavePin({
     const successMessage =
       mediaUrls.length > 0
         ? `Your location has been pinned successfully with ${mediaUrls.length} image(s).`
-        : "Your location has been pinned successfully (some image uploads may have failed).";
+        : "Your location has been pinned successfully.";
 
     Alert.alert("Location pinned!", successMessage);
 
-    // 3. Refresh pins from FIRESTORE
+    // 4. Refresh pins from FIRESTORE
     const querySnapshot = await getDocs(collection(db, "pins"));
     const pins = [];
     querySnapshot.forEach((doc) => {
@@ -389,6 +367,7 @@ export async function handleSavePin({
           createdAt: data.createdAt,
           upvotes: data.upvotes || 0,
           downvotes: data.downvotes || 0,
+          barangay: data.barangay || "Unknown",
         });
       }
     });
@@ -577,8 +556,8 @@ export async function handleSaveMedicalPin({
   }
 }
 
-export async function handleSaveRequestPin({
-  payload, // { supplyType, numberOfPeople, contact, notes, urgency, media }
+export const handleSaveRequestPin = async ({
+  payload,
   pendingPin,
   userInfo,
   userFirstName,
@@ -593,151 +572,52 @@ export async function handleSaveRequestPin({
   serverTimestamp,
   getBarangayFromCoords,
   getDocs,
-}) {
-  // Basic validation
-  if (!payload || !payload.supplyType) {
-    Alert.alert("Validation", "Please select the type of supply needed.");
-    return;
-  }
-  if (!payload.numberOfPeople || isNaN(Number(payload.numberOfPeople))) {
-    Alert.alert("Validation", "Enter valid number of people.");
-    return;
-  }
-  if (!payload.urgency) {
-    Alert.alert("Validation", "Select urgency level.");
-    return;
-  }
-  if (!pendingPin) {
-    Alert.alert("Error", "Location not selected.");
-    return;
-  }
-
+}) => {
   try {
-    let mediaUrls = [];
-
-    // Upload media to same Supabase bucket used by handleSavePin
-    if (payload.media && payload.media.length > 0) {
-      Alert.alert("Uploading", "Uploading media files...", []);
-      for (let i = 0; i < payload.media.length; i++) {
-        const mediaItem = payload.media[i];
-
-        // Only allow images/videos; adapt if you allow other types
-        const fileName = `request_pins/${Date.now()}_${i}_${mediaItem.fileName || "media"}`;
-
-        let uploadData;
-        try {
-          const formData = new FormData();
-          formData.append("file", {
-            uri: mediaItem.uri,
-            type: mediaItem.type,
-            name: mediaItem.fileName || `media_${i}.jpg`,
-          });
-
-          const { data, error } = await supabase.storage
-            .from("pin-media")
-            .upload(fileName, formData, {
-              contentType: mediaItem.type,
-              cacheControl: "3600",
-              upsert: true,
-            });
-
-          if (error) {
-            // fallback: fetch blob and upload
-            const response = await fetch(mediaItem.uri);
-            if (!response.ok) throw new Error(`Failed to fetch media: ${response.status}`);
-            const blob = await response.blob();
-            const { data: blobData, error: blobError } = await supabase.storage
-              .from("pin-media")
-              .upload(fileName, blob, {
-                contentType: mediaItem.type,
-                cacheControl: "3600",
-                upsert: true,
-              });
-            if (blobError) throw blobError;
-            uploadData = blobData;
-          } else {
-            uploadData = data;
-          }
-        } catch (uploadError) {
-          Alert.alert("Upload Warning", `Failed to upload media file ${i + 1}: ${uploadError.message}. Continuing...`);
-          continue;
-        }
-
-        const { data: urlData } = supabase.storage.from("pin-media").getPublicUrl(uploadData.path);
-        mediaUrls.push({
-          url: urlData.publicUrl,
-          type: mediaItem.type,
-          fileName: mediaItem.fileName,
-          path: uploadData.path,
-        });
+    // Get barangay from coordinates
+    let barangay = "Unknown";
+    if (typeof getBarangayFromCoords === "function") {
+      try {
+        barangay = await getBarangayFromCoords(pendingPin.latitude, pendingPin.longitude) || "Unknown";
+      } catch (e) {
+        console.warn("Failed to get barangay:", e);
+        barangay = "Unknown";
       }
     }
 
-    // Get barangay (optional)
-    const barangayName = await getBarangayFromCoords(pendingPin.latitude, pendingPin.longitude);
-
-    // Prepare doc
     const docData = {
       latitude: pendingPin.latitude,
       longitude: pendingPin.longitude,
-      userId: userInfo || "anonymous",
+      userId: userInfo || null,
       userFullName: userFirstName || "anonymous",
       description: payload.notes || "",
       category: "Supply Request",
       supplyType: payload.supplyType || "",
-      numberOfPeople: Number(payload.numberOfPeople) || 1,
-      urgency: payload.urgency || "",
+      numberOfPeople: Number(payload.numberOfPeople) || 0,
+      urgency: payload.urgency || "Medium",
       contact: payload.contact || "",
-      media: mediaUrls,
+      media: payload.media || [],
       createdAt: serverTimestamp(),
-      barangay: barangayName,
+      barangay: barangay, // <-- ADD THIS
     };
 
-    // Save to Firestore request_pins
+    // Save to request_pins collection
     const docRef = await addDoc(collection(db, "request_pins"), docData);
 
-    // Close modal / clear pending pin
+    // Update local state
+    setRequestPins((prev) => [
+      ...prev,
+      {
+        id: docRef.id,
+        ...docData,
+      },
+    ]);
+
+    Alert.alert("Success", "Supply request published!");
     setProvideSupplyModalVisible(false);
     setPendingPin(null);
-
-    Alert.alert("Request Posted", "Your relief request has been posted.");
-
-    // Refresh request_pins local state
-    try {
-      const snap = await getDocs(collection(db, "request_pins"));
-      const reqs = [];
-      snap.forEach((d) => {
-        const data = d.data();
-        if (data.latitude && data.longitude) {
-          reqs.push({
-            id: d.id,
-            latitude: data.latitude,
-            longitude: data.longitude,
-            userId: data.userId,
-            userFullName: data.userFullName || "anonymous",
-            description: data.description,
-            category: data.category || "Supply Request",
-            media: data.media || [],
-            createdAt: data.createdAt,
-            supplyType: data.supplyType || "",
-            numberOfPeople: data.numberOfPeople || 0,
-            urgency: data.urgency || "",
-            contact: data.contact || "",
-          });
-        }
-      });
-      setRequestPins(reqs);
-    } catch (err) {
-      console.warn("Failed to refresh request_pins:", err);
-    }
-
-    return docRef;
-  } catch (err) {
-    console.error("Error saving request pin:", err);
-    Alert.alert("Error", `Failed to save request: ${err.message}`);
-    // Ensure modal closed & pending cleared
-    setProvideSupplyModalVisible(false);
-    setPendingPin(null);
-    throw err;
+  } catch (error) {
+    console.error("Error saving request pin:", error);
+    Alert.alert("Error", "Failed to publish supply request.");
   }
-}
+};

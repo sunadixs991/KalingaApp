@@ -30,6 +30,7 @@ import {
   updateDoc,
   deleteField,
 } from "firebase/firestore";
+import SupplyRequestModal from "../components/SupplyRequestModalDisplay";
 
 import {
   widthPercentageToDP as wp,
@@ -76,6 +77,7 @@ import ProvideSupplyModal from "../components/ProvideSupplyModal";
 export default function MapScreen({ route }) {
   // Get focusPin from route params
   const focusPin = route?.params?.focusPin;
+  const [supplyRequestModalVisible, setSupplyRequestModalVisible] = useState(false); // <-- NEW
 
   const [location, setLocation] = useState(null);
   const [pin, setPin] = useState(null);
@@ -246,8 +248,9 @@ export default function MapScreen({ route }) {
               media: data.media || [],
               createdAt: data.createdAt,
               supplyType: data.supplyType || "",
-              quantity: data.quantity || 0,
-              unit: data.unit || "",
+              barangay: data.barangay || "", // <-- ADD THIS
+              numberOfPeople: data.numberOfPeople || 0,
+              urgency: data.urgency || "",
               contact: data.contact || "",
             });
           }
@@ -629,23 +632,6 @@ export default function MapScreen({ route }) {
     }
     const mode = supplyModalMode || "provide"; // "provide" or "request"
     try {
-      const docData = {
-        latitude: pendingPin.latitude,
-        longitude: pendingPin.longitude,
-        userId: userInfo || null,
-        userFirstName: userFirstName || "",
-        description: payload.notes || "",
-        category: mode === "provide" ? "Supplies" : "Supply Request",
-        supplyType: payload.supplyType || "",
-        quantity: Number(payload.quantity) || 0,
-        unit: payload.unit || "",
-        contact: payload.contact || userContact || "",
-        media: payload.media || [],
-        createdAt: serverTimestamp(),
-        upvotes: 0,
-        downvotes: 0,
-      };
-
       // Save request pins to a separate collection
       if (mode === "request") {
         // delegate to handler in pinHandlers.js
@@ -677,7 +663,7 @@ export default function MapScreen({ route }) {
           userFirstName,
           db,
           supabase,
-          setDescModalVisible,
+          setDescModalVisible: setProvideSupplyModalVisible,
           setDescription,
           setSelectedCategory,
           setMedia,
@@ -761,6 +747,12 @@ export default function MapScreen({ route }) {
   const handlePinMarkerPress = async (pin) => {
     console.log("Pin marker pressed:", pin.id);
     setSelectedPin(pin);
+
+    // If this is a supply request pin, open the SupplyRequestModal
+    if (pin.isRequest || (pin.category && pin.category.toLowerCase().includes("request"))) {
+      setSupplyRequestModalVisible(true);
+      return;
+    }
 
     // Show the correct info modal based on pin type
     if (pin.category === "Evacuation Center" || pin.category === "Evacuation") {
@@ -1176,6 +1168,36 @@ export default function MapScreen({ route }) {
     };
   });
 
+
+
+  const handleAddPinButton = () => {
+  if (!userInfo) {
+    Alert.alert(
+      "Sign in required",
+      "You need to sign in to add a pin.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Sign in", onPress: () => navigation.navigate("LoginScreen") },
+      ]
+    );
+    return;
+  }
+
+  // Enable pin mode and open pin-type chooser for admins
+  setPinMode(true);
+  setPinTypeModalVisible(true);
+
+  // Inform WebView (keeps UI in sync)
+  if (webviewRef.current) {
+    try {
+      webviewRef.current.postMessage(
+        JSON.stringify({ type: "setPinMode", enabled: true })
+      );
+    } catch (e) {
+      console.log("Failed to post setPinMode to WebView", e);
+    }
+  }
+};
   const medicalPinsWithIcons = (medicalPins || []).map((p) => {
     const categoryKey = (p.category || "Medical Support").trim().toLowerCase();
     const category = evacCategoryStyles[categoryKey] ||
@@ -1313,6 +1335,7 @@ export default function MapScreen({ route }) {
         }}
       />
 
+
       {/* Crosshair overlay when in crosshair mode */}
       {crosshairMode && (
         <View style={styles.crosshairContainer}>
@@ -1412,10 +1435,11 @@ export default function MapScreen({ route }) {
           }
         }}
         onSave={async () => {
+          // use local state values (description, media, selectedCategory) — not `payload`
           await handleSavePin({
-            selectedCategory: "Supplies",
-            description: payload.notes || "",
-            media: payload.media || [],
+            selectedCategory: selectedCategory?.trim() ? selectedCategory : "Supplies",
+            description: description || "",
+            media: media || [],
             pendingPin,
             userInfo,
             userFirstName,
@@ -1435,6 +1459,8 @@ export default function MapScreen({ route }) {
             serverTimestamp,
             getBarangayFromCoords,
           });
+
+          // reset crosshair / pin state after save
           setCrosshairMode(false);
           setCrosshairPinType(null);
           if (webviewRef.current) {
@@ -1818,6 +1844,18 @@ export default function MapScreen({ route }) {
         defaultContact={userContact}
         mode={supplyModalMode} // pass mode so modal can change text when you update it later
       />
+
+      {/* Supply Request view modal (open when tapping request_pins on map) */}
+     <SupplyRequestModal
+        visible={supplyRequestModalVisible}
+        onClose={() => {
+          setSupplyRequestModalVisible(false);
+          setSelectedPin(null);
+        }}
+        pin={selectedPin}
+        location={location}
+        fetchRoute={fetchRoute}
+      />
     </View>
   );
 }
@@ -1844,41 +1882,25 @@ function getHoursAgo(createdAt) {
   return `${diffHours} Hour${diffHours !== 1 ? "s" : ""} ago`;
 }
 
-// Add this function to your MapScreen.js (outside your component)
+// Use Google Maps Geocoding API
 async function getBarangayFromCoords(latitude, longitude) {
   try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`;
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "KalingaApp/1.0 (your-email@example.com)", // Use your app name and email
-        Accept: "application/json",
-      },
-    });
-    const text = await response.text();
-    // Try to parse JSON, fallback to "Unknown" if error
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (e) {
-      console.log("Reverse geocoding parse error:", e, text);
-      return "Unknown";
-    }
-    if (data && data.address) {
-      return (
-        data.address.barangay ||
-        data.address.suburb ||
-        data.address.village ||
-        data.address.neighbourhood ||
-        data.address.city_district ||
-        data.address.city ||
-        data.address.town ||
-        data.address.municipality ||
-        "Unknown"
+    const GOOGLE_API_KEY = "AIzaSyAn8Tj_g2TDk-6gGVdg4Rg_A3eG3L6GV5g"; // Get from Google Cloud Console
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    if (data.results && data.results.length > 0) {
+      const addressComponents = data.results[0].address_components;
+      // Find administrative_area_level_3 (barangay in Philippines)
+      const barangay = addressComponents.find(
+        (c) => c.types.includes("administrative_area_level_3")
       );
+      return barangay?.long_name || "Unknown";
     }
     return "Unknown";
   } catch (error) {
-    console.log("Reverse geocoding error:", error);
+    console.log("Geocoding error:", error);
     return "Unknown";
   }
 }
