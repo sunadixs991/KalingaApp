@@ -59,14 +59,33 @@ function getMapHtml(
           function addPins(list){
             Object.values(markers).forEach(m=>map.removeLayer(m));
             for(const p of list){
-              const iconHtml =
-                '<div class="pin" style="background:' + (p.color||'#2c352a') + ';' +
-                (p.size ? 'width:' + p.size + 'px;height:' + p.size + 'px;border-radius:' + (p.size/2) + 'px;box-shadow:0 2px 8px rgba(25,118,210,0.4);border:3px solid #fff;' : '') +
-                (p.isEvacuation ? 'outline:3px solid #1976D2;' : '') +
-                (p.isMedical ? 'outline:3px solid #1976D2;' : '') +
-                '">' +
-                '<i class="' + (p.iconClass || 'fas fa-map-marker-alt') + '" aria-hidden="true" style="font-size:' + (p.size ? Math.floor(p.size/2) : 18) + 'px;"></i>' +
-                '</div>';
+              const isCurrent = p.id === "__current_location";
+
+       const iconHtml =
+        '<div class="pin" style="' +
+          (isCurrent
+            ? 'background:transparent !important;' +
+              'border:none !important;' +
+              'outline:none !important;' +
+              'box-shadow:none !important;' +
+              'padding:0;'
+            : 'background:' + (p.color || '#2c352a') + ';' +
+              (p.size
+                ? 'width:' + p.size + 'px;height:' + p.size + 'px;border-radius:' + (p.size / 2) +
+                  'px;box-shadow:0 2px 8px rgba(25,118,210,0.4);border:3px solid #fff;'
+                : ''
+              ) +
+              (p.isEvacuation ? 'outline:1px solid ;' : '') +
+              (p.isMedical ? 'outline:1px solid ;' : '')
+          ) +
+        '">' +
+          '<i class="' + (p.iconClass || 'fas fa-map-marker-alt') + '" ' +
+            'style="font-size:' + (isCurrent ? 36 : (p.size ? Math.floor(p.size / 2) : 18)) + 'px;' + // <-- 40px for current location
+            (isCurrent ? 'color:red !important;' : '') +
+          '"></i>' +
+        '</div>';
+
+
               const pinSize = p.size ? p.size : 36;
               const myIcon = L.divIcon({
                 html: iconHtml,

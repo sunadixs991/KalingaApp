@@ -219,7 +219,7 @@ export default function ChatScreen() {
               }}
               disabled={loading}
             >
-              <Icon name="close-circle" size={28} color="#e75e33" />
+              <Icon name="close-circle" size={30} color="#e75e33" />
             </TouchableOpacity>
           </View>
 
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: "#fff",
     fontWeight: "bold",
-    fontSize: 24,
+    fontSize: 20,
     letterSpacing: 0.5,
   },
   geminiButton: {
@@ -314,8 +314,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    elevation: 2,
-    shadowColor: "#e75e33",
+    elevation: 3,
+    shadowColor: "#888",
     shadowOpacity: 0.08,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
@@ -369,14 +369,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 24,
     right: 24,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#e75e33",
+    width: 55,
+    height: 55,
+    borderRadius: 15,
+    backgroundColor: "#49A5A2",
     alignItems: "center",
     justifyContent: "center",
-    elevation: 8,
-    shadowColor: "#e75e33",
+    elevation: 5,
+    shadowColor: "#000",
     shadowOpacity: 0.4,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 22,
     fontWeight: "bold",
-    color: "#e75e33",
+    color: "#000",
   },
   modalUserInfo: {
     flexDirection: "row",
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
   },
   postSubmitButton: {
     flexDirection: "row",
-    backgroundColor: "#e75e33",
+    backgroundColor: "#49A5A2",
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",

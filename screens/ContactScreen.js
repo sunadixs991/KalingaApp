@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   topBarTitle: {
-    fontSize: wp("4.5%"),
+    fontSize: wp("5%"),
     fontWeight: "bold",
     color: "#fff",
     letterSpacing: 0.5,

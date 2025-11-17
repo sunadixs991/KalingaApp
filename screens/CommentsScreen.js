@@ -13,6 +13,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
+  KeyboardAwareScrollView,
+  KeyboardAwareFlatList,
+} from "react-native-keyboard-aware-scroll-view";
+import {
   getFirestore,
   collection,
   addDoc,
@@ -55,34 +59,39 @@ export default function CommentsScreen() {
 
   const fetchComments = async () => {
     if (!post) return;
-    
+
     try {
       setFetchingComments(true);
       const postId = post.id;
-      
-      console.log("Fetching comments for postId:", postId, "Type:", typeof postId);
-      
+
+      console.log(
+        "Fetching comments for postId:",
+        postId,
+        "Type:",
+        typeof postId
+      );
+
       // REMOVED orderBy to avoid index requirement - comments will be sorted by Firestore document order
       const q = query(
         collection(db, "community_comments"),
         where("postId", "==", postId)
       );
-      
+
       const snapshot = await getDocs(q);
       console.log("Number of comments found:", snapshot.docs.length);
-      
+
       const fetchedComments = snapshot.docs.map((doc) => {
         const data = doc.data();
         console.log("Comment data:", data);
         return { ...data, id: doc.id };
       });
-      
+
       // Sort comments manually by createdAt (oldest first)
       const sortedComments = fetchedComments.sort((a, b) => {
         if (!a.createdAt || !b.createdAt) return 0;
         return a.createdAt.seconds - b.createdAt.seconds;
       });
-      
+
       setComments(sortedComments);
     } catch (error) {
       console.error("Error fetching comments:", error);
@@ -93,8 +102,8 @@ export default function CommentsScreen() {
 
   useEffect(() => {
     fetchComments();
-    
-    const unsubscribe = navigation.addListener('focus', () => {
+
+    const unsubscribe = navigation.addListener("focus", () => {
       fetchComments();
     });
 
@@ -107,10 +116,10 @@ export default function CommentsScreen() {
       return;
     }
     if (!commentInput.trim() || !post) return;
-    
+
     try {
       setCommentLoading(true);
-      
+
       await addDoc(collection(db, "community_comments"), {
         postId: post.id,
         text: commentInput.trim(),
@@ -118,11 +127,11 @@ export default function CommentsScreen() {
         userFullName: userFullName,
         createdAt: serverTimestamp(),
       });
-      
+
       console.log("Comment added for postId:", post.id);
-      
+
       setCommentInput("");
-      
+
       // Refetch comments after posting
       await fetchComments();
     } catch (error) {
@@ -133,87 +142,93 @@ export default function CommentsScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8fa" }} edges={["top"]}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <View style={styles.headerBar}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Icon name="chevron-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Post & Comments</Text>
-        </View>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: "#f7f8fa" }}
+      edges={["top"]}
+    >
+      {/* Header */}
+      <View style={styles.headerBar}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <Icon name="chevron-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Post & Comments</Text>
+      </View>
 
-        <View style={styles.postCard}>
-          <View style={styles.avatarCircle}>
-            <Icon name="person" size={28} color="#fff" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.postUser}>
-              {post?.userFullName
-                ? post.userFullName
-                : post?.userId
+      {/* Post */}
+      <View style={styles.postCard}>
+        <View style={styles.avatarCircle}>
+          <Icon name="person" size={28} color="#fff" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.postUser}>
+            {post?.userFullName
+              ? post.userFullName
+              : post?.userId
                 ? post.userId
                 : "Anonymous"}
-            </Text>
-            <Text style={styles.postText}>{post?.text}</Text>
-          </View>
-        </View>
-
-        <View style={styles.commentsSection}>
-          <Text style={styles.commentsHeader}>
-            Comments {comments.length > 0 && `(${comments.length})`}
           </Text>
-
-          {fetchingComments ? (
-            <ActivityIndicator
-              size="small"
-              color="#e75e33"
-              style={{ marginTop: 20 }}
-            />
-          ) : (
-            <FlatList
-              data={comments}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <View style={styles.commentCard}>
-                  <View style={styles.commentAvatar}>
-                    <Icon name="person-circle" size={32} color="#e75e33" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.commentUser}>
-                      {item.userFullName
-                        ? item.userFullName
-                        : item.userId
-                        ? item.userId
-                        : "Anonymous"}
-                    </Text>
-                    <Text style={styles.commentText}>{item.text}</Text>
-                  </View>
-                </View>
-              )}
-              ListEmptyComponent={
-                <Text style={styles.noCommentsText}>
-                  No comments yet. Be the first to comment!
-                </Text>
-              }
-              contentContainerStyle={{ paddingBottom: 80 }}
-            />
-          )}
+          <Text style={styles.postText}>{post?.text}</Text>
         </View>
+      </View>
 
+      {/* Comments List */}
+      {fetchingComments ? (
+        <ActivityIndicator
+          size="small"
+          color="#e75e33"
+          style={{ marginTop: 20 }}
+        />
+      ) : (
+        <FlatList
+          style={{ flex: 1 }}
+          data={comments}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={
+            <Text style={styles.commentsHeader}>
+              Comments {comments.length > 0 && `(${comments.length})`}
+            </Text>
+          }
+          renderItem={({ item }) => (
+            <View style={styles.commentCard}>
+              <View style={styles.commentAvatar}>
+                <Icon name="person-circle" size={32} color="#e75e33" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.commentUser}>
+                  {item.userFullName
+                    ? item.userFullName
+                    : item.userId
+                      ? item.userId
+                      : "Anonymous"}
+                </Text>
+                <Text style={styles.commentText}>{item.text}</Text>
+              </View>
+            </View>
+          )}
+          ListEmptyComponent={
+            <Text style={styles.noCommentsText}>
+              No comments yet. Be the first to comment!
+            </Text>
+          }
+          contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: 16 }}
+          keyboardShouldPersistTaps="handled"
+        />
+      )}
+
+      {/* Comment Input Row */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0} // adjust if you have header
+      >
         <View style={styles.commentInputRow}>
           <TextInput
             style={styles.commentInput}
             value={commentInput}
             onChangeText={setCommentInput}
-            placeholder={
-              userInfo ? "Write a comment..." : "Sign in to comment"
-            }
+            placeholder={userInfo ? "Write a comment..." : "Sign in to comment"}
             editable={!!userInfo && !commentLoading}
           />
           <TouchableOpacity
@@ -229,7 +244,7 @@ export default function CommentsScreen() {
             {commentLoading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Icon name="send" size={22} color="#fff" />
+              <Icon name="send" size={20} color="#fff" />
             )}
           </TouchableOpacity>
         </View>
@@ -269,8 +284,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     padding: 16,
     borderRadius: 16,
-    elevation: 2,
-    shadowColor: "#e75e33",
+    elevation: 3,
+    shadowColor: "#888",
     shadowOpacity: 0.08,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
@@ -287,7 +302,7 @@ const styles = StyleSheet.create({
   postUser: {
     fontWeight: "bold",
     fontSize: 16,
-    color: "#e75e33",
+    color: "#000",
     marginBottom: 4,
   },
   postText: {
@@ -302,7 +317,7 @@ const styles = StyleSheet.create({
   commentsHeader: {
     fontSize: 17,
     fontWeight: "bold",
-    color: "#e75e33",
+    color: "#000",
     marginBottom: 10,
     marginLeft: 2,
   },
@@ -313,8 +328,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginBottom: 10,
-    elevation: 1,
-    shadowColor: "#e75e33",
+    elevation: 3,
+    shadowColor: "#888",
     shadowOpacity: 0.05,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 1 },
@@ -332,7 +347,7 @@ const styles = StyleSheet.create({
   commentUser: {
     fontWeight: "bold",
     fontSize: 14,
-    color: "#e75e33",
+    color: "#000",
     marginBottom: 2,
   },
   commentText: {
@@ -350,12 +365,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#fff",
     borderRadius: 16,
-    margin: 16,
+    margin: 10,
     marginBottom: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
     elevation: 2,
-    shadowColor: "#e75e33",
+    shadowColor: "#888",
     shadowOpacity: 0.06,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 1 },
@@ -370,7 +385,7 @@ const styles = StyleSheet.create({
     color: "#222",
   },
   commentPostButton: {
-    backgroundColor: "#e75e33",
+    backgroundColor: "#49A5A2",
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 14,

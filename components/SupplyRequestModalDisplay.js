@@ -136,7 +136,7 @@ export default function SupplyRequestModal({
                 </View>
 
                 <TouchableOpacity onPress={onClose} style={styles.closeTouch} accessibilityLabel="Close">
-                  <Icon name="close" size={20} color="#444" />
+                  <Icon name="close" size={23} color="#444" />
                 </TouchableOpacity>
               </View>
 
@@ -306,7 +306,15 @@ const styles = StyleSheet.create({
   subTitle: { fontSize: 12, color: "#666", marginTop: 2 },
   dot: { color: "#999", marginHorizontal: 6 },
   metaRow: { flexDirection: "row", alignItems: "center" },
-  closeTouch: { padding: 8 },
+  closeTouch: { 
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderRadius: 8,
+    padding: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3, },
 
   content: {
     paddingVertical: 8,
