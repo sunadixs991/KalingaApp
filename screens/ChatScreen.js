@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   getFirestore,
   collection,
@@ -102,163 +103,171 @@ export default function ChatScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Header Bar */}
-      <View style={styles.headerBar}>
-        <View style={styles.headerContent}>
-          <Icon name="people" size={28} color="#fff" style={{ marginRight: 12 }} />
-          <Text style={styles.headerTitle}>Community</Text>
-        </View>
-        {/* Gemini AI Button */}
-        <TouchableOpacity
-          style={styles.geminiButton}
-          onPress={() => setGeminiVisible(true)}
-        >
-          <Icon name="sparkles" size={22} color="#fff" />
-        </TouchableOpacity>
+  <SafeAreaView style={styles.container} edges={['top']}>
+    {/* Header Bar */}
+    <View style={styles.headerBar}>
+      <View style={styles.headerContent}>
+        <Icon name="people" size={28} color="#fff" style={{ marginRight: 12 }} />
+        <Text style={styles.headerTitle}>Community</Text>
       </View>
 
-      {/* Gemini Chat Modal */}
-      <Modal
-        visible={geminiVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setGeminiVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.geminiModalContainer}>
-            <GeminiChatUI onClose={() => setGeminiVisible(false)} />
-          </View>
-        </View>
-      </Modal>
-
-      {/* Posts List */}
-      <FlatList
-        data={posts}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.postCard}
-            onPress={() => navigation.navigate("CommentsScreen", { post: item })}
-            activeOpacity={0.7}
-          >
-            <View style={styles.postHeader}>
-              <View style={styles.avatarCircle}>
-                <Icon name="person" size={24} color="#fff" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.postUser}>
-                  {item.userFullName
-                    ? item.userFullName
-                    : item.userId
-                    ? item.userId
-                    : "Anonymous"}
-                </Text>
-                <Text style={styles.postTimestamp}>
-                  {item.createdAt?.toDate ? 
-                    new Date(item.createdAt.toDate()).toLocaleDateString() : 
-                    "Just now"}
-                </Text>
-              </View>
-              <Icon name="chevron-forward" size={20} color="#e75e33" />
-            </View>
-            <Text style={styles.postText}>{item.text}</Text>
-          </TouchableOpacity>
-        )}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Icon name="chatbubbles-outline" size={60} color="#ccc" />
-            <Text style={styles.emptyText}>No posts yet</Text>
-            <Text style={styles.emptySubtext}>Be the first to start a discussion!</Text>
-          </View>
-        }
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={["#e75e33"]}
-            tintColor="#e75e33"
-          />
-        }
-      />
-
-      {/* Floating Create Post Button */}
+      {/* Gemini AI Button */}
       <TouchableOpacity
-        style={styles.createPostButton}
-        onPress={() => {
-          if (!userInfo) {
-            navigation.navigate("LoginScreen");
-          } else {
-            setPostModalVisible(true);
-          }
-        }}
+        style={styles.geminiButton}
+        onPress={() => setGeminiVisible(true)}
       >
-        <Icon name="add" size={28} color="#fff" />
+        <Icon name="sparkles" size={22} color="#fff" />
       </TouchableOpacity>
+    </View>
 
-      {/* Post Creation Modal */}
-      <Modal
-        visible={postModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setPostModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.postModalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create Post</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setInput("");
-                  setPostModalVisible(false);
-                }}
-                disabled={loading}
-              >
-                <Icon name="close-circle" size={28} color="#e75e33" />
-              </TouchableOpacity>
+    {/* Gemini Chat Modal */}
+    <Modal
+      visible={geminiVisible}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={() => setGeminiVisible(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.geminiModalContainer}>
+          <GeminiChatUI onClose={() => setGeminiVisible(false)} />
+        </View>
+      </View>
+    </Modal>
+
+    {/* Posts List */}
+    <FlatList
+      data={posts}
+      keyExtractor={(item) => item.id}
+      renderItem={({ item }) => (
+        <TouchableOpacity
+          style={styles.postCard}
+          onPress={() => navigation.navigate("CommentsScreen", { post: item })}
+          activeOpacity={0.7}
+        >
+          <View style={styles.postHeader}>
+            <View style={styles.avatarCircle}>
+              <Icon name="person" size={24} color="#fff" />
             </View>
 
-            <View style={styles.modalUserInfo}>
-              <View style={styles.modalAvatarCircle}>
-                <Icon name="person" size={20} color="#fff" />
-              </View>
-              <Text style={styles.modalUserName}>{userFullName || "User"}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.postUser}>
+                {item.userFullName || item.userId || "Anonymous"}
+              </Text>
+              <Text style={styles.postTimestamp}>
+                {item.createdAt?.toDate
+                  ? new Date(item.createdAt.toDate()).toLocaleDateString()
+                  : "Just now"}
+              </Text>
             </View>
 
-            <TextInput
-              style={styles.modalInput}
-              value={input}
-              onChangeText={setInput}
-              placeholder="What's on your mind?"
-              placeholderTextColor="#999"
-              multiline
-              editable={!loading}
-              autoFocus
-            />
+            <Icon name="chevron-forward" size={20} color="#e75e33" />
+          </View>
+
+          <Text style={styles.postText}>{item.text}</Text>
+        </TouchableOpacity>
+      )}
+      contentContainerStyle={styles.listContent}
+      ListEmptyComponent={
+        <View style={styles.emptyContainer}>
+          <Icon name="chatbubbles-outline" size={60} color="#ccc" />
+          <Text style={styles.emptyText}>No posts yet</Text>
+          <Text style={styles.emptySubtext}>
+            Be the first to start a discussion!
+          </Text>
+        </View>
+      }
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={["#e75e33"]}
+          tintColor="#e75e33"
+        />
+      }
+    />
+
+    {/* Floating Create Post Button */}
+    <TouchableOpacity
+      style={styles.createPostButton}
+      onPress={() => {
+        if (!userInfo) {
+          navigation.navigate("LoginScreen");
+        } else {
+          setPostModalVisible(true);
+        }
+      }}
+    >
+      <Icon name="add" size={28} color="#fff" />
+    </TouchableOpacity>
+
+    {/* Post Creation Modal */}
+    <Modal
+      visible={postModalVisible}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={() => setPostModalVisible(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.postModalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Create Post</Text>
 
             <TouchableOpacity
-              style={[
-                styles.postSubmitButton,
-                (!input.trim() || loading) && styles.postSubmitButtonDisabled,
-              ]}
-              onPress={handlePost}
-              disabled={!input.trim() || loading}
+              onPress={() => {
+                setInput("");
+                setPostModalVisible(false);
+              }}
+              disabled={loading}
             >
-              {loading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Icon name="send" size={20} color="#fff" style={{ marginRight: 8 }} />
-                  <Text style={styles.postSubmitButtonText}>Post</Text>
-                </>
-              )}
+              <Icon name="close-circle" size={28} color="#e75e33" />
             </TouchableOpacity>
           </View>
+
+          <View style={styles.modalUserInfo}>
+            <View style={styles.modalAvatarCircle}>
+              <Icon name="person" size={20} color="#fff" />
+            </View>
+            <Text style={styles.modalUserName}>{userFullName || "User"}</Text>
+          </View>
+
+          <TextInput
+            style={styles.modalInput}
+            value={input}
+            onChangeText={setInput}
+            placeholder="What's on your mind?"
+            placeholderTextColor="#999"
+            multiline
+            editable={!loading}
+            autoFocus
+          />
+
+          <TouchableOpacity
+            style={[
+              styles.postSubmitButton,
+              (!input.trim() || loading) && styles.postSubmitButtonDisabled,
+            ]}
+            onPress={handlePost}
+            disabled={!input.trim() || loading}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Icon
+                  name="send"
+                  size={20}
+                  color="#fff"
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={styles.postSubmitButtonText}>Post</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
-      </Modal>
-    </View>
-  );
+      </View>
+    </Modal>
+  </SafeAreaView>
+);
 }
 
 const styles = StyleSheet.create({

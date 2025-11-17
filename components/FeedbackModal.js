@@ -43,7 +43,7 @@ const FeedbackModal = ({ username = null }) => {
     if (submitted) return;
     const timer = setInterval(() => {
       setVisible(true);
-    }, 1000);
+    }, 1800000); // 30 minutes
     return () => clearInterval(timer);
   }, [submitted]);
 

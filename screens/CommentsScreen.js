@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   getFirestore,
   collection,
@@ -132,98 +133,108 @@ export default function CommentsScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#f7f8fa" }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Icon name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Post & Comments</Text>
-      </View>
-
-      <View style={styles.postCard}>
-        <View style={styles.avatarCircle}>
-          <Icon name="person" size={28} color="#fff" />
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8fa" }} edges={["top"]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <View style={styles.headerBar}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Icon name="chevron-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Post & Comments</Text>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.postUser}>
-            {post?.userFullName
-              ? post.userFullName
-              : post?.userId
-              ? post.userId
-              : "Anonymous"}
+
+        <View style={styles.postCard}>
+          <View style={styles.avatarCircle}>
+            <Icon name="person" size={28} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.postUser}>
+              {post?.userFullName
+                ? post.userFullName
+                : post?.userId
+                ? post.userId
+                : "Anonymous"}
+            </Text>
+            <Text style={styles.postText}>{post?.text}</Text>
+          </View>
+        </View>
+
+        <View style={styles.commentsSection}>
+          <Text style={styles.commentsHeader}>
+            Comments {comments.length > 0 && `(${comments.length})`}
           </Text>
-          <Text style={styles.postText}>{post?.text}</Text>
-        </View>
-      </View>
 
-      <View style={styles.commentsSection}>
-        <Text style={styles.commentsHeader}>
-          Comments {comments.length > 0 && `(${comments.length})`}
-        </Text>
-        {fetchingComments ? (
-          <ActivityIndicator size="small" color="#e75e33" style={{ marginTop: 20 }} />
-        ) : (
-          <FlatList
-            data={comments}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View style={styles.commentCard}>
-                <View style={styles.commentAvatar}>
-                  <Icon name="person-circle" size={22} color="#e75e33" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.commentUser}>
-                    {item.userFullName
-                      ? item.userFullName
-                      : item.userId
-                      ? item.userId
-                      : "Anonymous"}
-                  </Text>
-                  <Text style={styles.commentText}>{item.text}</Text>
-                </View>
-              </View>
-            )}
-            ListEmptyComponent={
-              <Text style={styles.noCommentsText}>
-                No comments yet. Be the first to comment!
-              </Text>
-            }
-            contentContainerStyle={{ paddingBottom: 80 }}
-          />
-        )}
-      </View>
-
-      <View style={styles.commentInputRow}>
-        <TextInput
-          style={styles.commentInput}
-          value={commentInput}
-          onChangeText={setCommentInput}
-          placeholder={
-            userInfo
-              ? "Write a comment..."
-              : "Sign in to comment"
-          }
-          editable={!!userInfo && !commentLoading}
-        />
-        <TouchableOpacity
-          style={[
-            styles.commentPostButton,
-            (!userInfo || commentLoading || !commentInput.trim()) && { opacity: 0.5 }
-          ]}
-          onPress={handleComment}
-          disabled={!userInfo || commentLoading || !commentInput.trim()}
-        >
-          {commentLoading ? (
-            <ActivityIndicator size="small" color="#fff" />
+          {fetchingComments ? (
+            <ActivityIndicator
+              size="small"
+              color="#e75e33"
+              style={{ marginTop: 20 }}
+            />
           ) : (
-            <Icon name="send" size={22} color="#fff" />
+            <FlatList
+              data={comments}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <View style={styles.commentCard}>
+                  <View style={styles.commentAvatar}>
+                    <Icon name="person-circle" size={32} color="#e75e33" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.commentUser}>
+                      {item.userFullName
+                        ? item.userFullName
+                        : item.userId
+                        ? item.userId
+                        : "Anonymous"}
+                    </Text>
+                    <Text style={styles.commentText}>{item.text}</Text>
+                  </View>
+                </View>
+              )}
+              ListEmptyComponent={
+                <Text style={styles.noCommentsText}>
+                  No comments yet. Be the first to comment!
+                </Text>
+              }
+              contentContainerStyle={{ paddingBottom: 80 }}
+            />
           )}
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+        </View>
+
+        <View style={styles.commentInputRow}>
+          <TextInput
+            style={styles.commentInput}
+            value={commentInput}
+            onChangeText={setCommentInput}
+            placeholder={
+              userInfo ? "Write a comment..." : "Sign in to comment"
+            }
+            editable={!!userInfo && !commentLoading}
+          />
+          <TouchableOpacity
+            style={[
+              styles.commentPostButton,
+              (!userInfo || commentLoading || !commentInput.trim()) && {
+                opacity: 0.5,
+              },
+            ]}
+            onPress={handleComment}
+            disabled={!userInfo || commentLoading || !commentInput.trim()}
+          >
+            {commentLoading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Icon name="send" size={22} color="#fff" />
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
