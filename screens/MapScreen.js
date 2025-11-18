@@ -52,7 +52,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 // import { Video } from "expo-av";
 import { WebView } from "react-native-webview";
 
-import { Image } from "react-native";
+import { Image, FlatList } from "react-native";
 import EvacuationPinModal from "../components/EvacuationPinModal"; // <-- Import your new modal
 import getMapHtml from "../utils/getMapHtml";
 import MedicalPinModal from "../components/MedicalPinModal";

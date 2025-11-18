@@ -14,31 +14,43 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
 import { db } from "../firebase";
-import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { collection, getDocs, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { useNavigation } from "@react-navigation/native";
 import { Swipeable } from "react-native-gesture-handler";
-
-// Add Picker import
 import { Picker } from "@react-native-picker/picker";
+import MapPinModal from "../components/MapPinModal";
 
 export default function ManagePins() {
   const [pins, setPins] = useState([]);
+  const [requestPins, setRequestPins] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState(0); // 0 = pins, 1 = request_pins
   const [mediaModalVisible, setMediaModalVisible] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState([]);
   const [filter, setFilter] = useState("All");
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [selectedPin, setSelectedPin] = useState(null);
+  const [editCategory, setEditCategory] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editMedia, setEditMedia] = useState([]);
   const navigation = useNavigation();
 
   useEffect(() => {
-    fetchPins();
+    fetchAllPins();
   }, []);
 
-  const fetchPins = async () => {
+  const fetchAllPins = async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, "pins"));
-      let list = snap.docs.map((docu) => ({ id: docu.id, ...docu.data() }));
-      setPins(list);
+      // Fetch regular pins
+      const pinsSnap = await getDocs(collection(db, "pins"));
+      const pinsList = pinsSnap.docs.map((docu) => ({ id: docu.id, type: "pin", ...docu.data() }));
+      setPins(pinsList);
+
+      // Fetch request pins
+      const reqPinsSnap = await getDocs(collection(db, "request_pins"));
+      const reqPinsList = reqPinsSnap.docs.map((docu) => ({ id: docu.id, type: "request_pin", ...docu.data() }));
+      setRequestPins(reqPinsList);
     } catch (error) {
       Alert.alert("Error", "Failed to fetch pins.");
     }
@@ -46,21 +58,49 @@ export default function ManagePins() {
   };
 
   const getFilteredPins = () => {
+   const dataSource = activeTab === 0 ? pins : requestPins;
     if (filter === "Most Relevant") {
-      return [...pins].sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0));
+     return [...dataSource].sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0));
     }
     if (filter === "Newest") {
-      return [...pins].sort((a, b) => {
+     return [...dataSource].sort((a, b) => {
         const aDate = a.createdAt?.seconds || 0;
         const bDate = b.createdAt?.seconds || 0;
         return bDate - aDate;
       });
     }
-    // Default: All, sorted by downvotes
-    return [...pins].sort((a, b) => (b.downvotes || 0) - (a.downvotes || 0));
+   return [...dataSource].sort((a, b) => (b.downvotes || 0) - (a.downvotes || 0));
   };
 
-  const handleDeletePin = (pinId) => {
+  const handleEdit = (pin) => {
+    setSelectedPin(pin);
+    setEditCategory(pin.category || pin.supplyType || "");
+    setEditDescription(pin.description || "");
+    setEditMedia(pin.media || []);
+    setEditModalVisible(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedPin) return;
+    try {
+      const collectionName = selectedPin.type === "request_pin" ? "request_pins" : "pins";
+      await updateDoc(doc(db, collectionName, selectedPin.id), {
+        category: editCategory,
+        supplyType: editCategory,
+        description: editDescription,
+        media: editMedia,
+      });
+      setEditModalVisible(false);
+      setSelectedPin(null);
+      setEditMedia([]);
+      fetchAllPins();
+      Alert.alert("Success", "Pin updated successfully!");
+    } catch (error) {
+      Alert.alert("Error", "Failed to update pin.");
+    }
+  };
+
+  const handleDeletePin = (pinId, pinType) => {
     Alert.alert(
       "Delete Pin",
       "Are you sure you want to delete this pin?",
@@ -71,8 +111,13 @@ export default function ManagePins() {
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteDoc(doc(db, "pins", pinId));
-              setPins((prev) => prev.filter((p) => p.id !== pinId));
+             const collectionName = pinType === "request_pin" ? "request_pins" : "pins";
+             await deleteDoc(doc(db, collectionName, pinId));
+             if (pinType === "request_pin") {
+               setRequestPins((prev) => prev.filter((p) => p.id !== pinId));
+             } else {
+               setPins((prev) => prev.filter((p) => p.id !== pinId));
+             }
             } catch (e) {
               Alert.alert("Error", "Failed to delete pin.");
             }
@@ -87,7 +132,12 @@ export default function ManagePins() {
     setMediaModalVisible(true);
   };
 
-  // Right swipe delete for pin (same style as ManageBarangay)
+  const renderLeftActions = (onEdit) => (
+    <TouchableOpacity style={styles.editButton} onPress={onEdit}>
+      <Icon name="pencil" size={22} color="#fff" />
+    </TouchableOpacity>
+  );
+
   const renderRightActions = (onDelete) => (
     <TouchableOpacity style={styles.deleteButton} onPress={onDelete}>
       <Icon name="trash-outline" size={22} color="#fff" />
@@ -96,8 +146,9 @@ export default function ManagePins() {
 
   const renderPinItem = ({ item }) => (
     <Swipeable
+     renderLeftActions={() => renderLeftActions(() => handleEdit(item))}
       renderRightActions={() =>
-        renderRightActions(() => handleDeletePin(item.id))
+        renderRightActions(() => handleDeletePin(item.id, item.type))
       }
     >
       <TouchableOpacity onPress={() => handlePinPress(item)}>
@@ -105,7 +156,7 @@ export default function ManagePins() {
           <View style={{ flex: 1 }}>
             <Text style={styles.pinTitle}>{item.description}</Text>
             <Text style={styles.pinDetail}>
-              Category: {item.category || "Unknown"}
+             Category: {item.category || item.supplyType || "Unknown"}
             </Text>
             <Text style={styles.pinDetail}>
               Upvotes: {item.upvotes || 0}
@@ -116,11 +167,23 @@ export default function ManagePins() {
             <Text style={styles.pinDetail}>
               Barangay: {item.barangay || "N/A"}
             </Text>
+           {item.numberOfPeople && (
+             <Text style={styles.pinDetail}>
+               People: {item.numberOfPeople}
+             </Text>
+           )}
+           {item.urgency && (
+             <Text style={styles.pinDetail}>
+               Urgency: {item.urgency}
+             </Text>
+           )}
           </View>
         </View>
       </TouchableOpacity>
     </Swipeable>
   );
+
+  const displayData = getFilteredPins();
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -135,6 +198,26 @@ export default function ManagePins() {
         <Text style={styles.topBarTitle}>Manage Pins</Text>
         <View style={styles.backButton} />
       </View>
+
+     {/* Tab Navigation */}
+     <View style={styles.tabContainer}>
+       <TouchableOpacity
+         style={[styles.tab, activeTab === 0 && styles.tabActive]}
+         onPress={() => setActiveTab(0)}
+       >
+         <Text style={[styles.tabText, activeTab === 0 && styles.tabTextActive]}>
+           Pins ({pins.length})
+         </Text>
+       </TouchableOpacity>
+       <TouchableOpacity
+         style={[styles.tab, activeTab === 1 && styles.tabActive]}
+         onPress={() => setActiveTab(1)}
+       >
+         <Text style={[styles.tabText, activeTab === 1 && styles.tabTextActive]}>
+           Requests ({requestPins.length})
+         </Text>
+       </TouchableOpacity>
+     </View>
 
       {/* Dropdown Filter */}
       <View style={styles.filterRow}>
@@ -154,13 +237,13 @@ export default function ManagePins() {
       <View style={styles.container}>
         {loading ? (
           <ActivityIndicator size="large" color="#EC6135" />
-        ) : getFilteredPins().length === 0 ? (
+        ) : displayData.length === 0 ? (
           <Text style={{ textAlign: "center", marginTop: 40, color: "#888" }}>
-            No pins found.
+            No {activeTab === 0 ? "pins" : "requests"} found.
           </Text>
         ) : (
           <FlatList
-            data={getFilteredPins()}
+            data={displayData}
             keyExtractor={(item) => item.id}
             renderItem={renderPinItem}
             contentContainerStyle={{ paddingBottom: 20 }}
@@ -173,31 +256,41 @@ export default function ManagePins() {
         <View style={styles.mediaModalOverlay}>
           <View style={styles.mediaModalContent}>
             <Text style={styles.mediaModalTitle}>Pin Media</Text>
-            {selectedMedia.length === 0 ? (
+            {selectedMedia && selectedMedia.length === 0 ? (
               <Text style={{ textAlign: "center", color: "#888" }}>
                 No media available.
               </Text>
-            ) : (
+            ) : selectedMedia && selectedMedia.length > 0 ? (
               <FlatList
                 data={selectedMedia}
-                keyExtractor={(item, idx) => idx.toString()}
-                renderItem={({ item }) => (
-                  <Image
-                    source={{ uri: item.url }}
-                    style={styles.mediaImage}
-                    resizeMode="contain"
-                  />
-                )}
+                keyExtractor={(item, idx) => (item?.url || item?.uri || `media-${idx}`)}
+                renderItem={({ item }) => {
+                 const mediaUrl = item?.url || item?.uri;
+                  return mediaUrl ? (
+                    <Image
+                     source={{ uri: mediaUrl }}
+                      style={styles.mediaImage}
+                      resizeMode="contain"
+                     onError={(error) => console.log("Image load error:", error)}
+                    />
+                 ) : (
+                   <View style={{ width: 220, height: 220, backgroundColor: "#eee", borderRadius: 10 }} />
+                 );
+                }}
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ alignItems: "center" }}
               />
+            ) : (
+              <Text style={{ textAlign: "center", color: "#888" }}>
+                No media data.
+              </Text>
             )}
             <TouchableOpacity
               style={styles.showMessagesBtn}
               onPress={() => {
                 setMediaModalVisible(false);
-       navigation.navigate("PinMessages", { pinId: pins.find(p => p.media === selectedMedia)?.id });
+                navigation.navigate("PinMessages", { pinId: pins.find(p => p.media === selectedMedia)?.id });
               }}
             >
               <Text style={styles.showMessagesText}>Show Messages</Text>
@@ -211,6 +304,22 @@ export default function ManagePins() {
           </View>
         </View>
       </Modal>
+
+     {/* Edit Pin Modal */}
+     <MapPinModal
+       visible={editModalVisible}
+       description={editDescription}
+       onChangeDescription={setEditDescription}
+       selectedCategory={editCategory}
+       onCategoryChange={setEditCategory}
+       onCancel={() => {
+         setEditModalVisible(false);
+         setSelectedPin(null);
+       }}
+       onSave={handleSaveEdit}
+       media={editMedia}
+       setMedia={setEditMedia}
+     />
     </SafeAreaView>
   );
 }
@@ -243,6 +352,31 @@ const styles = StyleSheet.create({
     color: "#fff",
     textAlign: "center",
   },
+  tabContainer: {
+    flexDirection: "row",
+    backgroundColor: "#f0f0f0",
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  tabActive: {
+    borderBottomColor: "#EC6135",
+  },
+  tabText: {
+    fontSize: 14,
+    color: "#888",
+    fontWeight: "500",
+  },
+  tabTextActive: {
+    color: "#EC6135",
+    fontWeight: "bold",
+  },
   filterRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -260,7 +394,7 @@ const styles = StyleSheet.create({
   },
   picker: {
     flex: 1,
-    height: 54, // Increased height for better visibility
+    height: 54,
     backgroundColor: "#fff",
     color: "#333",
   },
@@ -277,6 +411,15 @@ const styles = StyleSheet.create({
   },
   pinTitle: { fontSize: 16, fontWeight: "bold", color: "#333" },
   pinDetail: { fontSize: 13, color: "#555", marginTop: 2 },
+  editButton: {
+    backgroundColor: "#4CAF50",
+    justifyContent: "center",
+    alignItems: "center",
+    width: 60,
+    borderRadius: 8,
+    marginBottom: 12,
+    marginRight: 10,
+  },
   deleteButton: {
     backgroundColor: "#ff4444",
     justifyContent: "center",

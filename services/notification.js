@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs } from 'firebase/firestore';
+import { collection, addDoc, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Alert } from 'react-native';
 
@@ -193,5 +193,157 @@ export const notifyUsers = async (message, phoneNumbers = []) => {
   } catch (err) {
     console.error("notifyUsers error:", err);
     return { success: false, error: String(err) };
+  }
+};
+
+// Generate a random 6-digit OTP
+export const generateOTP = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// Send OTP via SMS to a single phone number
+export const sendOTPSMS = async (phoneNumber, otp = null) => {
+  try {
+    if (!phoneNumber || typeof phoneNumber !== "string") {
+      throw new Error("Invalid phone number");
+    }
+
+    const formatted = formatPhoneNumber(phoneNumber);
+    if (!formatted) {
+      throw new Error(`Phone number format invalid: ${phoneNumber}`);
+    }
+
+    // Generate OTP if not provided
+    const otpCode = otp || generateOTP();
+    const message = `Your Kalinga App verification code is: ${otpCode}. This code will expire in 10 minutes.`;
+
+    // Remove + for IPROG API
+    const cleanedNumber = formatted.replace("+", "");
+
+    const payload = {
+      api_token: IPROG_API_TOKEN,
+      phone_number: cleanedNumber,
+      message: message,
+      sms_provider: 0
+    };
+
+    console.log(`sendOTPSMS: sending OTP to ${formatted}`);
+
+    const res = await fetch(IPROG_BASE_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    let data = null;
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      const text = await res.text().catch(() => null);
+      try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
+    }
+
+    const ok = res.ok || (data && (data.status === 200 || String(data.status) === "200"));
+
+    // Log OTP attempt to Firestore
+    try {
+      await addDoc(collection(db, "otpNotifications"), {
+        phone: formatted,
+        otp: otpCode,
+        message,
+        status: ok ? "sent" : "failed",
+        response: data,
+        method: "iprog",
+        sentAt: new Date(),
+      });
+    } catch (logErr) {
+      console.warn("Firestore OTP log failed:", logErr);
+    }
+
+    console.log(`sendOTPSMS: ${ok ? "success" : "failed"}. Response:`, data);
+
+    return {
+      success: ok,
+      otp: otpCode,
+      phone: formatted,
+      response: data,
+      method: "iprog"
+    };
+  } catch (error) {
+    console.error("sendOTPSMS error:", error);
+    return {
+      success: false,
+      error: error.message || String(error)
+    };
+  }
+};
+
+// Verify OTP (basic client-side check + Firestore validation)
+export const verifyOTP = async (phoneNumber, enteredOTP) => {
+  try {
+    if (!phoneNumber || !enteredOTP) {
+      throw new Error("Phone number and OTP required");
+    }
+
+    const formatted = formatPhoneNumber(phoneNumber);
+    if (!formatted) {
+      throw new Error("Invalid phone number format");
+    }
+
+    // Query Firestore for matching OTP (most recent, not expired)
+    const snapshot = await getDocs(
+      collection(db, "otpNotifications")
+    );
+
+    let validOTP = null;
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const sentTime = data.sentAt?.toDate ? data.sentAt.toDate() : new Date(data.sentAt);
+      const now = new Date();
+      const expiresIn = 10 * 60 * 1000; // 10 minutes
+
+      // Check if OTP matches phone, is correct code, and not expired
+      if (
+        data.phone === formatted &&
+        data.otp === enteredOTP.trim() &&
+        (now - sentTime) < expiresIn &&
+        !data.verified
+      ) {
+        validOTP = doc;
+      }
+    });
+
+    if (!validOTP) {
+      return {
+        success: false,
+        error: "Invalid or expired OTP"
+      };
+    }
+
+    // Mark OTP as verified in Firestore
+    try {
+      await updateDoc(validOTP.ref, {
+        verified: true,
+        verifiedAt: new Date(),
+      });
+    } catch (updateErr) {
+      console.warn("Failed to mark OTP as verified:", updateErr);
+    }
+
+    console.log("OTP verified successfully for:", formatted);
+
+    return {
+      success: true,
+      phone: formatted,
+      message: "OTP verified successfully"
+    };
+  } catch (error) {
+    console.error("verifyOTP error:", error);
+    return {
+      success: false,
+      error: error.message || String(error)
+    };
   }
 };

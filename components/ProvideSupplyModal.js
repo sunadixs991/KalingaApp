@@ -17,29 +17,47 @@ import Icon from "react-native-vector-icons/Ionicons";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 
-export default function ProvideSupplyModal({ visible, onClose, onSubmit, defaultContact = "" }) {
+export default function ProvideSupplyModal({ 
+  visible, 
+  onClose, 
+  onSubmit, 
+  defaultContact = "",
+  supplyType = "",
+  numberOfPeople = "",
+  urgency = "",
+  description = "",
+  contact = "",
+  media = null,
+}) {
   // This modal is now a Request modal (request relief)
-  const [type, setType] = useState("");
-  const [numberOfPeople, setNumberOfPeople] = useState("1");
-  const [contact, setContact] = useState(defaultContact);
-  const [notes, setNotes] = useState("");
-  const [urgency, setUrgency] = useState(""); // "Low" | "Medium" | "High" | "Critical"
+  const [type, setType] = useState(supplyType);
+  const [people, setPeople] = useState(numberOfPeople.toString());
+  const [contactInfo, setContactInfo] = useState(contact || defaultContact);
+  const [notesState, setNotes] = useState(description);
+  const [urgencyLevel, setUrgencyLevel] = useState(urgency);
   const [loading, setLoading] = useState(false);
-  const [media, setMedia] = useState(null);
+  const [mediaItems, setMediaItems] = useState(media || null);
 
   const MAX_MEDIA_COUNT = 3;
 
   useEffect(() => {
-    if (!visible) {
+    if (visible) {
+      setType(supplyType || "");
+      setPeople(numberOfPeople?.toString() || "1");
+      setContactInfo(contact || defaultContact || "");
+      setNotes(description || "");
+      setUrgencyLevel(urgency || "");
+      setMediaItems(media || null);
+    } else {
       setType("");
-      setNumberOfPeople("1");
-      setContact(defaultContact || "");
+      setPeople("1");
+      setContactInfo(defaultContact || "");
       setNotes("");
-      setUrgency("");
+      setUrgencyLevel("");
       setLoading(false);
-      setMedia(null);
+      setMediaItems(null);
     }
-  }, [visible, defaultContact]);
+  }, [visible, supplyType, numberOfPeople, urgency, description, contact, media, defaultContact]);
 
   const supplyOptions = [
     { key: "Food", icon: "cube-outline" },
@@ -53,18 +71,19 @@ export default function ProvideSupplyModal({ visible, onClose, onSubmit, default
   const urgencyOptions = ["Low", "Medium", "High", "Critical"];
 
   const handleSubmit = async () => {
-    // basic validation for a request
-    if (!type || !numberOfPeople.trim() || !urgency) return;
+    if (!type || !people.trim() || !urgencyLevel) return;
     setLoading(true);
     try {
       const payload = {
         supplyType: type,
-        numberOfPeople: Number(numberOfPeople) || 1,
-        contact: contact.trim(),
-        notes: notes.trim(),
-        urgency,
-        media: media || [],
+        numberOfPeople: Number(people) || 1,
+        contact: contactInfo.trim(),
+        notes: notesState.trim(),
+        urgency: urgencyLevel,
+        description: notesState.trim(),
+        media: mediaItems || [],
       };
+      console.log("ProvideSupplyModal submitting:", payload);
       if (typeof onSubmit === "function") {
         await onSubmit(payload);
       }
@@ -77,8 +96,8 @@ export default function ProvideSupplyModal({ visible, onClose, onSubmit, default
   };
 
   const removeMedia = (index) => {
-    const next = media.filter((_, i) => i !== index);
-    setMedia(next.length ? next : null);
+    const next = mediaItems.filter((_, i) => i !== index);
+    setMediaItems(next.length ? next : null);
   };
 
   const pickFromCamera = async () => {
@@ -102,21 +121,21 @@ export default function ProvideSupplyModal({ visible, onClose, onSubmit, default
           type: asset.type === "video" ? "video/mp4" : "image/jpeg",
           fileName: `camera-${Date.now()}.${asset.type === "video" ? "mp4" : "jpg"}`,
         };
-        const next = media ? [...media, item] : [item];
+        const next = mediaItems ? [...mediaItems, item] : [item];
         if (next.length > MAX_MEDIA_COUNT) {
           Alert.alert("Limit Reached", `You can only add up to ${MAX_MEDIA_COUNT} media files.`);
           return;
         }
-        setMedia(next);
+        setMediaItems(next);
       } else if (!result.canceled && result.uri) {
         // legacy result shape
         const item = { uri: result.uri, type: "image/jpeg", fileName: `camera-${Date.now()}.jpg` };
-        const next = media ? [...media, item] : [item];
+        const next = mediaItems ? [...mediaItems, item] : [item];
         if (next.length > MAX_MEDIA_COUNT) {
           Alert.alert("Limit Reached", `You can only add up to ${MAX_MEDIA_COUNT} media files.`);
           return;
         }
-        setMedia(next);
+        setMediaItems(next);
       }
     } catch (error) {
       console.log("Error taking photo:", error);
@@ -145,20 +164,20 @@ export default function ProvideSupplyModal({ visible, onClose, onSubmit, default
           type: asset.type === "video" ? "video/mp4" : "image/jpeg",
           fileName: asset.fileName || `gallery-${Date.now()}.${asset.type === "video" ? "mp4" : "jpg"}`,
         };
-        const next = media ? [...media, item] : [item];
+        const next = mediaItems ? [...mediaItems, item] : [item];
         if (next.length > MAX_MEDIA_COUNT) {
           Alert.alert("Limit Reached", `You can only add up to ${MAX_MEDIA_COUNT} media files.`);
           return;
         }
-        setMedia(next);
+        setMediaItems(next);
       } else if (!result.canceled && result.uri) {
         const item = { uri: result.uri, type: "image/jpeg", fileName: `gallery-${Date.now()}.jpg` };
-        const next = media ? [...media, item] : [item];
+        const next = mediaItems ? [...mediaItems, item] : [item];
         if (next.length > MAX_MEDIA_COUNT) {
           Alert.alert("Limit Reached", `You can only add up to ${MAX_MEDIA_COUNT} media files.`);
           return;
         }
-        setMedia(next);
+        setMediaItems(next);
       }
     } catch (error) {
       console.log("Error picking from gallery:", error);
@@ -181,12 +200,12 @@ export default function ProvideSupplyModal({ visible, onClose, onSubmit, default
           type: result.mimeType || "image/jpeg",
           fileName: result.name || `file-${Date.now()}.jpg`,
         };
-        const next = media ? [...media, item] : [item];
+        const next = mediaItems ? [...mediaItems, item] : [item];
         if (next.length > MAX_MEDIA_COUNT) {
           Alert.alert("Limit Reached", `You can only add up to ${MAX_MEDIA_COUNT} media files.`);
           return;
         }
-        setMedia(next);
+        setMediaItems(next);
       }
     } catch (error) {
       console.log("Error picking file:", error);
@@ -195,7 +214,7 @@ export default function ProvideSupplyModal({ visible, onClose, onSubmit, default
   };
 
   const pickMedia = async () => {
-    if (media && media.length >= MAX_MEDIA_COUNT) {
+    if (mediaItems && mediaItems.length >= MAX_MEDIA_COUNT) {
       Alert.alert("Limit Reached", `You can only add up to ${MAX_MEDIA_COUNT} media files.`);
       return;
     }
@@ -257,8 +276,8 @@ export default function ProvideSupplyModal({ visible, onClose, onSubmit, default
               style={styles.input}
               keyboardType="numeric"
               placeholder="e.g. 1"
-              value={numberOfPeople}
-              onChangeText={setNumberOfPeople}
+              value={people}
+              onChangeText={setPeople}
             />
 
             <Text style={styles.label}>Urgency Level *</Text>
@@ -266,10 +285,10 @@ export default function ProvideSupplyModal({ visible, onClose, onSubmit, default
               {urgencyOptions.map((u) => (
                 <TouchableOpacity
                   key={u}
-                  style={[styles.urgencyBtn, urgency === u ? styles.urgencyActive : styles.urgencyInactive]}
-                  onPress={() => setUrgency(u)}
+                  style={[styles.urgencyBtn, urgencyLevel === u ? styles.urgencyActive : styles.urgencyInactive]}
+                  onPress={() => setUrgencyLevel(u)}
                 >
-                  <Text style={[styles.urgencyText, urgency === u ? { color: "#e75e33", fontWeight: "700" } : {}]}>
+                  <Text style={[styles.urgencyText, urgencyLevel === u ? { color: "#e75e33", fontWeight: "700" } : {}]}>
                     {u}
                   </Text>
                 </TouchableOpacity>
@@ -280,8 +299,8 @@ export default function ProvideSupplyModal({ visible, onClose, onSubmit, default
             <TextInput
               style={styles.input}
               placeholder="Contact info for coordination"
-              value={contact}
-              onChangeText={setContact}
+              value={contactInfo}
+              onChangeText={setContactInfo}
               keyboardType="default"
             />
 
@@ -290,22 +309,34 @@ export default function ProvideSupplyModal({ visible, onClose, onSubmit, default
               <Text style={{ color: "#666", marginBottom: 6 }}>
                 Add photos or a short video to help responders (max {MAX_MEDIA_COUNT}).
               </Text>
-              {(!media || media.length < MAX_MEDIA_COUNT) && (
+              {(!mediaItems || mediaItems.length < MAX_MEDIA_COUNT) && (
                 <TouchableOpacity onPress={pickMedia} style={styles.mediaPickerButton}>
                   <Text style={styles.mediaPickerText}>Add Media</Text>
                 </TouchableOpacity>
               )}
 
-              {media && (
+              {mediaItems && (
                 <View style={styles.mediaPreviewGrid}>
-                  {media.map((item, index) => (
-                    <View key={index} style={styles.mediaPreviewItem}>
-                      <Image source={{ uri: item.uri }} style={styles.mediaPreviewImage} resizeMode="cover" />
-                      <TouchableOpacity style={styles.removeMediaButton} onPress={() => removeMedia(index)}>
-                        <Text style={styles.removeMediaText}>✕</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
+                  {mediaItems.map((item, index) => {
+                   const mediaUrl = item?.url || item?.uri;
+                    return (
+                      <View key={index} style={styles.mediaPreviewItem}>
+                       {mediaUrl ? (
+                         <Image
+                           source={{ uri: mediaUrl }}
+                           style={styles.mediaPreviewImage}
+                           resizeMode="cover"
+                           onError={(error) => console.log("Image load error:", error)}
+                         />
+                       ) : (
+                         <View style={{ width: "100%", height: "100%", backgroundColor: "#eee", borderRadius: 8 }} />
+                       )}
+                        <TouchableOpacity style={styles.removeMediaButton} onPress={() => removeMedia(index)}>
+                          <Text style={styles.removeMediaText}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
                 </View>
               )}
             </View>
@@ -314,7 +345,7 @@ export default function ProvideSupplyModal({ visible, onClose, onSubmit, default
             <TextInput
               style={[styles.input, styles.textArea]}
               placeholder="Additional details (access, medical conditions...)"
-              value={notes}
+              value={notesState}
               onChangeText={setNotes}
               multiline
             />
@@ -329,10 +360,10 @@ export default function ProvideSupplyModal({ visible, onClose, onSubmit, default
               style={[
                 styles.actionBtn,
                 styles.submitBtn,
-                (!type || !numberOfPeople.trim() || !urgency || loading) && { opacity: 0.6 },
+                (!type || !people.trim() || !urgencyLevel || loading) && { opacity: 0.6 },
               ]}
               onPress={handleSubmit}
-              disabled={!type || !numberOfPeople.trim() || !urgency || loading}
+              disabled={!type || !people.trim() || !urgencyLevel || loading}
             >
               {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Request</Text>}
             </TouchableOpacity>

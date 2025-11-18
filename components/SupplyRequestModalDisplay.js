@@ -152,8 +152,8 @@ export default function SupplyRequestModal({
                 </View>
 
                 <View style={styles.row}>
-                  <Text style={styles.infoLabel}>Location</Text>
-                 <Text style={styles.infoValue}>{pin.barangay}</Text>
+                  {/* <Text style={styles.infoLabel}>Location</Text> */}
+                 {/* <Text style={styles.infoValue}>{pin.barangay}</Text> */}
                 </View>
 
                 <View style={styles.contactRow}>

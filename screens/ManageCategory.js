@@ -33,13 +33,13 @@ export default function ManageCategory() {
           <Text style={styles.optionText}>Manage Pin Category</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={styles.option}
           onPress={() => navigation.navigate("ManageEvacuationCategory")}
         >
           <Icon name="home-outline" size={28} color="#1976D2" style={styles.icon} />
           <Text style={styles.optionText}>Manage Evacuation Category</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         {/* NEW: Manage Landmark */}
         <TouchableOpacity

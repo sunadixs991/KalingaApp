@@ -22,9 +22,16 @@ import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
 } from "react-native-responsive-screen";
+import { sendOTPSMS, verifyOTP } from "../services/notification";
 
 export default function SignUp({ navigation }) {
   const [step, setStep] = useState(1);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Input states
   const [firstName, setFirstName] = useState("");
@@ -40,8 +47,8 @@ export default function SignUp({ navigation }) {
   const [city, setCity] = useState("");
   const [barangay, setBarangay] = useState("");
   const [barangayList, setBarangayList] = useState([]);
-  const [purok, setPurok] = useState("");
   const [purokList, setPurokList] = useState([]);
+  const [purok, setPurok] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -119,9 +126,15 @@ export default function SignUp({ navigation }) {
     if (!firstName.trim()) errors.firstName = true;
     if (!lastName.trim()) errors.lastName = true;
     if (!phone.trim()) errors.phone = true;
+    if (!otpVerified) {
+      Alert.alert("Phone Verification Required", "Please verify your phone number with OTP.");
+      return false;
+    }
     if (!dob) errors.dob = true;
     if (!gender) errors.gender = true;
     if (!status) errors.status = true;
+    if (!barangay) errors.barangay = true;
+    if (!purok) errors.purok = true;
     setStepOneErrors(errors);
     if (Object.keys(errors).length > 0) {
       Alert.alert(
@@ -212,6 +225,53 @@ export default function SignUp({ navigation }) {
     }
   };
 
+  const handleSendOTP = async () => {
+    if (!phone.trim()) {
+      Alert.alert("Error", "Please enter a phone number first.");
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      const result = await sendOTPSMS(phone);
+      if (result.success) {
+        setOtpSent(true);
+        Alert.alert("Success", `OTP sent to ${result.phone}`);
+      } else {
+        Alert.alert("Error", result.error || "Failed to send OTP");
+      }
+    } catch (error) {
+      console.error("OTP send error:", error);
+      Alert.alert("Error", "Failed to send OTP. Please try again.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    if (!otpCode.trim()) {
+      Alert.alert("Error", "Please enter the OTP code.");
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      const result = await verifyOTP(phone, otpCode);
+      if (result.success) {
+        Alert.alert("Success", "Phone verified successfully!");
+        setOtpVerified(true);
+        // Don't proceed yet - let user complete remaining fields
+      } else {
+        Alert.alert("Error", result.error || "Invalid OTP");
+      }
+    } catch (error) {
+      console.error("OTP verify error:", error);
+      Alert.alert("Error", "Failed to verify OTP. Please try again.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView
       style={{ flex: 1, backgroundColor: "#fff" }}
@@ -259,41 +319,106 @@ export default function SignUp({ navigation }) {
                   />
                 </View>
 
-                <View style={styles.inputWrapper}>
-                  <Icon name="call-outline" size={20} color="#225B64" style={styles.icon} />
-                  <TextInput
-                    style={[styles.inputField, stepOneErrors.phone && { borderColor: "red" }]}
-                    placeholder="Phone"
-                    keyboardType="phone-pad"
-                    value={phone}
-                    onChangeText={(text) => {
-                      setPhone(text);
-                      setStepOneErrors((prev) => ({ ...prev, phone: false }));
-                    }}
-                  />
+                <View style={styles.phoneInputWrapper}>
+                  <View style={[styles.inputWrapper, { flex: 1 }]}>
+                    <Icon name="call-outline" size={20} color="#225B64" style={styles.icon} />
+                    <TextInput
+                      style={[styles.inputField, stepOneErrors.phone && { borderColor: "red" }]}
+                      placeholder="Phone"
+                      keyboardType="phone-pad"
+                      value={phone}
+                      onChangeText={(text) => {
+                        setPhone(text);
+                        setStepOneErrors((prev) => ({ ...prev, phone: false }));
+                      }}
+                      editable={!otpSent}
+                    />
+                    <TouchableOpacity
+                      onPress={handleSendOTP}
+                      disabled={otpLoading || !phone.trim()}
+                      style={{ opacity: otpLoading || !phone.trim() ? 0.5 : 1 }}
+                    >
+                      <Text style={{ color: "#EC6135", fontSize: wp("3.5%"), fontWeight: "bold" }}>
+                        {otpLoading ? "..." : "Send"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
+                {/* OTP Input - appears after sending */}
+                {otpSent && (
+                  <View style={styles.otpInputWrapper}>
+                    <View style={[styles.inputWrapper, { flex: 1, height: hp("6%") }]}>
+                      <Icon name="key-outline" size={20} color="#225B64" style={styles.icon} />
+                      <TextInput
+                        style={styles.inputField}
+                        placeholder="Enter 6-digit OTP"
+                        keyboardType="number-pad"
+                        maxLength={6}
+                        value={otpCode}
+                        onChangeText={setOtpCode}
+                        editable={!otpVerified}
+                      />
+                    </View>
+                    <TouchableOpacity
+                      style={[
+                        styles.verifyOtpBtn,
+                        otpVerified && styles.verifyOtpBtnSuccess,
+                        (otpLoading || otpVerified) && { opacity: 0.6 },
+                      ]}
+                      onPress={handleVerifyOTP}
+                      disabled={otpLoading || otpVerified}
+                    >
+                      {otpVerified ? (
+                        <Icon name="checkmark-circle" size={24} color="#fff" />
+                      ) : (
+                        <Text style={styles.verifyOtpText}>
+                          {otpLoading ? "..." : "Verify"}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Change Phone button - appears after sending OTP */}
+                {otpSent && (
+                  <TouchableOpacity
+                    style={[styles.button, { backgroundColor: "#6c757d", marginTop: hp("1%") }]}
+                    onPress={() => {
+                      setOtpSent(false);
+                      setOtpCode("");
+                      setOtpVerified(false);
+                    }}
+                  >
+                    <Text style={styles.buttonText}>Change Phone</Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* All other fields - always visible */}
+                {/* Date of Birth Picker */}
                 <TouchableOpacity
-                  style={[styles.inputWrapper, stepOneErrors.dob && { borderColor: "red" }]}
+                  style={[styles.pickerWrapper, stepOneErrors.dob && { borderColor: "red" }]}
                   onPress={() => setShowDatePicker(true)}
                 >
                   <Icon name="calendar-outline" size={20} color="#225B64" style={styles.icon} />
-                  <Text style={{ color: dob ? "#000" : "#aaa", fontSize: 16 }}>
-                    {dob ? dob : "Date of Birth"}
+                  <Text style={{ flex: 1, fontSize: wp("4%"), color: dob ? "#000" : "#999", paddingVertical: hp("1.5%") }}>
+                    {dob || "Select Date of Birth"}
                   </Text>
                 </TouchableOpacity>
 
                 {showDatePicker && (
                   <DateTimePicker
-                    value={dob ? new Date(dob) : new Date()}
+                    value={new Date()}
                     mode="date"
                     display={Platform.OS === "ios" ? "spinner" : "default"}
                     onChange={onChangeDate}
-                    maximumDate={new Date()}
                   />
                 )}
 
-                <View style={[styles.pickerWrapper, stepOneErrors.gender && { borderColor: "red" }]}>
+                {/* Gender Picker */}
+                <TouchableOpacity
+                  style={[styles.pickerWrapper, stepOneErrors.gender && { borderColor: "red" }]}
+                >
                   <Icon name="male-female-outline" size={20} color="#225B64" style={styles.icon} />
                   <Picker
                     selectedValue={gender}
@@ -307,8 +432,9 @@ export default function SignUp({ navigation }) {
                     <Picker.Item label="Male" value="Male" />
                     <Picker.Item label="Female" value="Female" />
                   </Picker>
-                </View>
+                </TouchableOpacity>
 
+                {/* Status Picker */}
                 <View style={[styles.pickerWrapper, stepOneErrors.status && { borderColor: "red" }]}>
                   <Icon name="heart-outline" size={20} color="#225B64" style={styles.icon} />
                   <Picker
@@ -325,6 +451,7 @@ export default function SignUp({ navigation }) {
                   </Picker>
                 </View>
 
+                {/* Barangay Picker */}
                 <View style={[styles.pickerWrapper, stepOneErrors.barangay && { borderColor: "red" }]}>
                   <Icon name="home-outline" size={20} color="#225B64" style={styles.icon} />
                   <Picker
@@ -342,6 +469,7 @@ export default function SignUp({ navigation }) {
                   </Picker>
                 </View>
 
+                {/* Purok Picker */}
                 <View style={[styles.pickerWrapper, stepOneErrors.purok && { borderColor: "red" }]}>
                   <Icon name="location-outline" size={20} color="#225B64" style={styles.icon} />
                   <Picker
@@ -408,13 +536,20 @@ export default function SignUp({ navigation }) {
                   <TextInput
                     style={[styles.inputField, stepTwoErrors.password && { borderColor: "red" }]}
                     placeholder="Password"
-                    secureTextEntry
+                    secureTextEntry={!showPassword}
                     value={password}
                     onChangeText={(text) => {
                       setPassword(text);
                       setStepTwoErrors((prev) => ({ ...prev, password: false }));
                     }}
                   />
+                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                    <Icon
+                      name={showPassword ? "eye-outline" : "eye-off-outline"}
+                      size={20}
+                      color="#225B64"
+                    />
+                  </TouchableOpacity>
                 </View>
 
                 <View style={styles.inputWrapper}>
@@ -425,7 +560,7 @@ export default function SignUp({ navigation }) {
                       (stepTwoErrors.confirmPassword || stepTwoErrors.passwordMismatch) && { borderColor: "red" },
                     ]}
                     placeholder="Confirm Password"
-                    secureTextEntry
+                    secureTextEntry={!showConfirmPassword}
                     value={confirmPassword}
                     onChangeText={(text) => {
                       setConfirmPassword(text);
@@ -436,6 +571,13 @@ export default function SignUp({ navigation }) {
                       }));
                     }}
                   />
+                  <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+                    <Icon
+                      name={showConfirmPassword ? "eye-outline" : "eye-off-outline"}
+                      size={20}
+                      color="#225B64"
+                    />
+                  </TouchableOpacity>
                 </View>
 
                 <TouchableOpacity style={styles.button} onPress={handleSignUp}>
@@ -510,9 +652,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: wp("8%"),
-    paddingHorizontal: wp("2%"),
+    paddingHorizontal: wp("5%"),
     marginBottom: hp("2%"),
     elevation: 4,
+    height: hp("6%"),
   },
   picker: {
     flex: 1,
@@ -527,6 +670,43 @@ const styles = StyleSheet.create({
   buttonText: {
     color: "#fff",
     fontSize: wp("4.5%"),
+    fontWeight: "bold",
+  },
+  otpContainer: {
+    backgroundColor: "#e8f4f3",
+    borderRadius: wp("5%"),
+    padding: wp("4%"),
+    marginBottom: hp("2%"),
+    borderWidth: 1,
+    borderColor: "#49A5A2",
+  },
+  otpLabel: {
+    fontSize: wp("3.5%"),
+    color: "#225B64",
+    fontWeight: "500",
+    marginBottom: hp("1%"),
+  },
+  otpInputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: wp("2%"),
+    marginBottom: hp("2%"),
+  },
+  verifyOtpBtn: {
+    backgroundColor: "#225B64",
+    paddingHorizontal: wp("4%"),
+    borderRadius: wp("8%"),
+    justifyContent: "center",
+    alignItems: "center",
+    height: hp("6%"),
+    minWidth: wp("20%"),
+  },
+  verifyOtpBtnSuccess: {
+    backgroundColor: "#28a745",
+  },
+  verifyOtpText: {
+    color: "#fff",
+    fontSize: wp("4%"),
     fontWeight: "bold",
   },
 });

@@ -25,6 +25,7 @@ export default function LoginScreen({ navigation, onLogin }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(100)).current;
   const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
@@ -94,12 +95,6 @@ export default function LoginScreen({ navigation, onLogin }) {
     }
   };
 
-  const onLoginSuccess = async (username) => {
-    // call the parent handler to store user data
-    navigation.navigate("MainTabs");
-    // If App.js is your parent, you may need to pass this via props or context
-  };
-
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
@@ -147,12 +142,19 @@ export default function LoginScreen({ navigation, onLogin }) {
                 <Icon name="lock-closed-outline" size={25} color="#225B64" style={styles.inputIcon} />
                 <TextInput
                   placeholder="Enter Password"
-                  secureTextEntry
+                  secureTextEntry={!showPassword}
                   style={styles.input}
                   placeholderTextColor="#888"
                   value={password}
                   onChangeText={setPassword}
                 />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                  <Icon
+                    name={showPassword ? "eye-outline" : "eye-off-outline"}
+                    size={24}
+                    color="#225B64"
+                  />
+                </TouchableOpacity>
               </View>
 
               {/* Remember Me & Forgot Password */}

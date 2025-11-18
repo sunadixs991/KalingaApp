@@ -97,7 +97,7 @@ export default function AdminUtils() {
           onPress={() => navigation.navigate("ManageEvacuationPins")}
         >
           <Icon name="home-outline" size={28} color="#1976D2" style={styles.icon} />
-          <Text style={styles.optionText}>Manage Evacuation Pins</Text>
+          <Text style={styles.optionText}>Manage Response Facilities Pins</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.option}

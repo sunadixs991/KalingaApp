@@ -1,5 +1,5 @@
 import React from "react";
-import { Modal, View, Text, TouchableOpacity, ScrollView, Image, StyleSheet } from "react-native";
+import { Modal, View, Text, TouchableOpacity, ScrollView, Image, StyleSheet, FlatList } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { FontAwesome5 } from "@expo/vector-icons";
@@ -163,63 +163,25 @@ const PinInfoModal = ({
                   selectedPin.media &&
                   selectedPin.media.length > 0 && (
                     <View style={styles.mediaContainer}>
-                      <ScrollView
+                      <FlatList
+                        data={selectedPin.media}
+                        keyExtractor={(item, idx) => (item?.url || item?.uri || `media-${idx}`)}
+                        renderItem={({ item }) => {
+                          const mediaUrl = item?.url || item?.uri;
+                          return mediaUrl ? (
+                            <Image
+                              source={{ uri: mediaUrl }}
+                              style={{ width: 220, height: 220, borderRadius: 10, marginHorizontal: 8 }}
+                              resizeMode="contain"
+                              onError={(error) => console.log("Image load error:", error)}
+                            />
+                          ) : (
+                            <View style={{ width: 220, height: 220, backgroundColor: "#eee", borderRadius: 10 }} />
+                          );
+                        }}
                         horizontal
                         showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.mediaScrollContent}
-                        style={styles.mediaScroller}
-                      >
-                        {selectedPin.media.map((mediaItem, index) => (
-                          <View key={index} style={styles.mediaWrapper}>
-                            {mediaItem.type &&
-                              mediaItem.type.startsWith("image") ? (
-                              <Image
-                                source={{ uri: mediaItem.url }}
-                                style={styles.mediaPreview}
-                                resizeMode="cover"
-                              />
-                            ) : mediaItem.type &&
-                              mediaItem.type.startsWith("video") ? (
-                              // Uncomment if you use expo-av
-                              // <Video
-                              //   source={{ uri: mediaItem.url }}
-                              //   style={styles.mediaPreview}
-                              //   useNativeControls={true}
-                              //   resizeMode="contain"
-                              //   shouldPlay={false}
-                              //   isMuted={false}
-                              // />
-                              <View style={[styles.mediaPreview, styles.mediaError]}>
-                                <FontAwesome5
-                                  name="exclamation-triangle"
-                                  size={20}
-                                  color="#666"
-                                />
-                                <Text style={styles.mediaErrorText}>
-                                  Video preview not supported here.
-                                </Text>
-                              </View>
-                            ) : (
-                              <View
-                                style={[
-                                  styles.mediaPreview,
-                                  styles.mediaError,
-                                ]}
-                              >
-                                <FontAwesome5
-                                  name="exclamation-triangle"
-                                  size={20}
-                                  color="#666"
-                                />
-                                <Text style={styles.mediaErrorText}>
-                                  Unsupported media type:{" "}
-                                  {mediaItem.type || "unknown"}
-                                </Text>
-                              </View>
-                            )}
-                          </View>
-                        ))}
-                      </ScrollView>
+                      />
                     </View>
                   )}
               </View>
