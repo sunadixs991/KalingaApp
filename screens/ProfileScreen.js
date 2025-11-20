@@ -562,7 +562,10 @@ export default function ProfileScreen() {
                 </Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={styles.settingItem}>
+              <TouchableOpacity
+              style={styles.settingItem}
+              onPress={() => navigation.navigate("AboutUs")}
+            >
               <Icon name="information-circle-outline" size={22} color="#555" />
               <Text style={styles.settingText}>About us</Text>
             </TouchableOpacity>

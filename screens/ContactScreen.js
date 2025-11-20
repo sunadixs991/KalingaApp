@@ -32,6 +32,16 @@ export default function ContactScreen() {
       querySnapshot.forEach((doc) => {
         fetched.push({ id: doc.id, ...doc.data() });
       });
+
+      // Sort alphabetically by name
+      fetched.sort((a, b) => {
+        const nameA = a.name.toUpperCase(); // ignore case
+        const nameB = b.name.toUpperCase();
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        return 0;
+      });
+
       setContacts(fetched);
       setContactsLoading(false);
     }
@@ -56,7 +66,11 @@ export default function ContactScreen() {
       </View>
 
       {contactsLoading ? (
-        <ActivityIndicator size="large" color="#e75e33" style={{ marginTop: 30 }} />
+        <ActivityIndicator
+          size="large"
+          color="#e75e33"
+          style={{ marginTop: 30 }}
+        />
       ) : (
         <FlatList
           data={contacts}
@@ -121,7 +135,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: wp("4.5%"),
-    paddingVertical: hp("2%"), 
+    paddingVertical: hp("2%"),
   },
   contactRow: {
     flexDirection: "row",

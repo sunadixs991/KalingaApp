@@ -32,7 +32,7 @@ export default function UsersActivity() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <StatusBar barStyle="light-content" backgroundColor="#e75e33" />
+      <StatusBar barStyle="light-content" backgroundColor="#e67e22" />
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.backButton}

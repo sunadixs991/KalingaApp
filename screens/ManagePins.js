@@ -14,7 +14,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
 import { db } from "../firebase";
-import { collection, getDocs, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  deleteDoc,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
 import { useNavigation } from "@react-navigation/native";
 import { Swipeable } from "react-native-gesture-handler";
 import { Picker } from "@react-native-picker/picker";
@@ -44,12 +50,20 @@ export default function ManagePins() {
     try {
       // Fetch regular pins
       const pinsSnap = await getDocs(collection(db, "pins"));
-      const pinsList = pinsSnap.docs.map((docu) => ({ id: docu.id, type: "pin", ...docu.data() }));
+      const pinsList = pinsSnap.docs.map((docu) => ({
+        id: docu.id,
+        type: "pin",
+        ...docu.data(),
+      }));
       setPins(pinsList);
 
       // Fetch request pins
       const reqPinsSnap = await getDocs(collection(db, "request_pins"));
-      const reqPinsList = reqPinsSnap.docs.map((docu) => ({ id: docu.id, type: "request_pin", ...docu.data() }));
+      const reqPinsList = reqPinsSnap.docs.map((docu) => ({
+        id: docu.id,
+        type: "request_pin",
+        ...docu.data(),
+      }));
       setRequestPins(reqPinsList);
     } catch (error) {
       Alert.alert("Error", "Failed to fetch pins.");
@@ -58,18 +72,22 @@ export default function ManagePins() {
   };
 
   const getFilteredPins = () => {
-   const dataSource = activeTab === 0 ? pins : requestPins;
+    const dataSource = activeTab === 0 ? pins : requestPins;
     if (filter === "Most Relevant") {
-     return [...dataSource].sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0));
+      return [...dataSource].sort(
+        (a, b) => (b.upvotes || 0) - (a.upvotes || 0)
+      );
     }
     if (filter === "Newest") {
-     return [...dataSource].sort((a, b) => {
+      return [...dataSource].sort((a, b) => {
         const aDate = a.createdAt?.seconds || 0;
         const bDate = b.createdAt?.seconds || 0;
         return bDate - aDate;
       });
     }
-   return [...dataSource].sort((a, b) => (b.downvotes || 0) - (a.downvotes || 0));
+    return [...dataSource].sort(
+      (a, b) => (b.downvotes || 0) - (a.downvotes || 0)
+    );
   };
 
   const handleEdit = (pin) => {
@@ -83,7 +101,8 @@ export default function ManagePins() {
   const handleSaveEdit = async () => {
     if (!selectedPin) return;
     try {
-      const collectionName = selectedPin.type === "request_pin" ? "request_pins" : "pins";
+      const collectionName =
+        selectedPin.type === "request_pin" ? "request_pins" : "pins";
       await updateDoc(doc(db, collectionName, selectedPin.id), {
         category: editCategory,
         supplyType: editCategory,
@@ -101,30 +120,27 @@ export default function ManagePins() {
   };
 
   const handleDeletePin = (pinId, pinType) => {
-    Alert.alert(
-      "Delete Pin",
-      "Are you sure you want to delete this pin?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-             const collectionName = pinType === "request_pin" ? "request_pins" : "pins";
-             await deleteDoc(doc(db, collectionName, pinId));
-             if (pinType === "request_pin") {
-               setRequestPins((prev) => prev.filter((p) => p.id !== pinId));
-             } else {
-               setPins((prev) => prev.filter((p) => p.id !== pinId));
-             }
-            } catch (e) {
-              Alert.alert("Error", "Failed to delete pin.");
+    Alert.alert("Delete Pin", "Are you sure you want to delete this pin?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const collectionName =
+              pinType === "request_pin" ? "request_pins" : "pins";
+            await deleteDoc(doc(db, collectionName, pinId));
+            if (pinType === "request_pin") {
+              setRequestPins((prev) => prev.filter((p) => p.id !== pinId));
+            } else {
+              setPins((prev) => prev.filter((p) => p.id !== pinId));
             }
-          },
+          } catch (e) {
+            Alert.alert("Error", "Failed to delete pin.");
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handlePinPress = (item) => {
@@ -146,7 +162,7 @@ export default function ManagePins() {
 
   const renderPinItem = ({ item }) => (
     <Swipeable
-     renderLeftActions={() => renderLeftActions(() => handleEdit(item))}
+      renderLeftActions={() => renderLeftActions(() => handleEdit(item))}
       renderRightActions={() =>
         renderRightActions(() => handleDeletePin(item.id, item.type))
       }
@@ -156,27 +172,23 @@ export default function ManagePins() {
           <View style={{ flex: 1 }}>
             <Text style={styles.pinTitle}>{item.description}</Text>
             <Text style={styles.pinDetail}>
-             Category: {item.category || item.supplyType || "Unknown"}
+              Category: {item.category || item.supplyType || "Unknown"}
             </Text>
-            <Text style={styles.pinDetail}>
-              Upvotes: {item.upvotes || 0}
-            </Text>
+            <Text style={styles.pinDetail}>Upvotes: {item.upvotes || 0}</Text>
             <Text style={styles.pinDetail}>
               Downvotes: {item.downvotes || 0}
             </Text>
             <Text style={styles.pinDetail}>
               Barangay: {item.barangay || "N/A"}
             </Text>
-           {item.numberOfPeople && (
-             <Text style={styles.pinDetail}>
-               People: {item.numberOfPeople}
-             </Text>
-           )}
-           {item.urgency && (
-             <Text style={styles.pinDetail}>
-               Urgency: {item.urgency}
-             </Text>
-           )}
+            {item.numberOfPeople && (
+              <Text style={styles.pinDetail}>
+                People: {item.numberOfPeople}
+              </Text>
+            )}
+            {item.urgency && (
+              <Text style={styles.pinDetail}>Urgency: {item.urgency}</Text>
+            )}
           </View>
         </View>
       </TouchableOpacity>
@@ -193,31 +205,35 @@ export default function ManagePins() {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Icon name="chevron-back" size={26} color="#fff" />
+          <Icon name="chevron-back" size={26} color="#000" />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Manage Pins</Text>
         <View style={styles.backButton} />
       </View>
 
-     {/* Tab Navigation */}
-     <View style={styles.tabContainer}>
-       <TouchableOpacity
-         style={[styles.tab, activeTab === 0 && styles.tabActive]}
-         onPress={() => setActiveTab(0)}
-       >
-         <Text style={[styles.tabText, activeTab === 0 && styles.tabTextActive]}>
-           Pins ({pins.length})
-         </Text>
-       </TouchableOpacity>
-       <TouchableOpacity
-         style={[styles.tab, activeTab === 1 && styles.tabActive]}
-         onPress={() => setActiveTab(1)}
-       >
-         <Text style={[styles.tabText, activeTab === 1 && styles.tabTextActive]}>
-           Requests ({requestPins.length})
-         </Text>
-       </TouchableOpacity>
-     </View>
+      {/* Tab Navigation */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 0 && styles.tabActive]}
+          onPress={() => setActiveTab(0)}
+        >
+          <Text
+            style={[styles.tabText, activeTab === 0 && styles.tabTextActive]}
+          >
+            Pins ({pins.length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 1 && styles.tabActive]}
+          onPress={() => setActiveTab(1)}
+        >
+          <Text
+            style={[styles.tabText, activeTab === 1 && styles.tabTextActive]}
+          >
+            Requests ({requestPins.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Dropdown Filter */}
       <View style={styles.filterRow}>
@@ -263,19 +279,30 @@ export default function ManagePins() {
             ) : selectedMedia && selectedMedia.length > 0 ? (
               <FlatList
                 data={selectedMedia}
-                keyExtractor={(item, idx) => (item?.url || item?.uri || `media-${idx}`)}
+                keyExtractor={(item, idx) =>
+                  item?.url || item?.uri || `media-${idx}`
+                }
                 renderItem={({ item }) => {
-                 const mediaUrl = item?.url || item?.uri;
+                  const mediaUrl = item?.url || item?.uri;
                   return mediaUrl ? (
                     <Image
-                     source={{ uri: mediaUrl }}
+                      source={{ uri: mediaUrl }}
                       style={styles.mediaImage}
                       resizeMode="contain"
-                     onError={(error) => console.log("Image load error:", error)}
+                      onError={(error) =>
+                        console.log("Image load error:", error)
+                      }
                     />
-                 ) : (
-                   <View style={{ width: 220, height: 220, backgroundColor: "#eee", borderRadius: 10 }} />
-                 );
+                  ) : (
+                    <View
+                      style={{
+                        width: 220,
+                        height: 220,
+                        backgroundColor: "#eee",
+                        borderRadius: 10,
+                      }}
+                    />
+                  );
                 }}
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -290,7 +317,9 @@ export default function ManagePins() {
               style={styles.showMessagesBtn}
               onPress={() => {
                 setMediaModalVisible(false);
-                navigation.navigate("PinMessages", { pinId: pins.find(p => p.media === selectedMedia)?.id });
+                navigation.navigate("PinMessages", {
+                  pinId: pins.find((p) => p.media === selectedMedia)?.id,
+                });
               }}
             >
               <Text style={styles.showMessagesText}>Show Messages</Text>
@@ -305,21 +334,21 @@ export default function ManagePins() {
         </View>
       </Modal>
 
-     {/* Edit Pin Modal */}
-     <MapPinModal
-       visible={editModalVisible}
-       description={editDescription}
-       onChangeDescription={setEditDescription}
-       selectedCategory={editCategory}
-       onCategoryChange={setEditCategory}
-       onCancel={() => {
-         setEditModalVisible(false);
-         setSelectedPin(null);
-       }}
-       onSave={handleSaveEdit}
-       media={editMedia}
-       setMedia={setEditMedia}
-     />
+      {/* Edit Pin Modal */}
+      <MapPinModal
+        visible={editModalVisible}
+        description={editDescription}
+        onChangeDescription={setEditDescription}
+        selectedCategory={editCategory}
+        onCategoryChange={setEditCategory}
+        onCancel={() => {
+          setEditModalVisible(false);
+          setSelectedPin(null);
+        }}
+        onSave={handleSaveEdit}
+        media={editMedia}
+        setMedia={setEditMedia}
+      />
     </SafeAreaView>
   );
 }
@@ -330,7 +359,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#EC6135",
+    backgroundColor: "#fff",
     paddingVertical: 10,
     paddingHorizontal: 15,
     shadowColor: "#000",
@@ -349,7 +378,7 @@ const styles = StyleSheet.create({
   topBarTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#fff",
+    color: "#000",
     textAlign: "center",
   },
   tabContainer: {

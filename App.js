@@ -40,6 +40,8 @@ import DeletedPins from "./screens/DeletedPins";
 import UserSelector from "./screens/UserSelector";
 import ManagePurokLeaders from "./screens/ManagePurokLeaders";
 import InstructionScreen from "./screens/InstructionScreen";
+import AboutUs from "./screens/AboutUs";
+import PrivacyPolicy from "./screens/PrivacyPolicy";
 
 // ✅ Import Feedback Modal
 import FeedbackModal from "./components/FeedbackModal";
@@ -131,6 +133,8 @@ export default function App() {
               component={InstructionScreen}
             />
             <Stack.Screen name="CommentsScreen" component={CommentsScreen} />
+            <Stack.Screen name="AboutUs" component={AboutUs} />
+            <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicy} />
           </Stack.Navigator>
 
           {/* ✅ Pass username to Feedback Modal */}

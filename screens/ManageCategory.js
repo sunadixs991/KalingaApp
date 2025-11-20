@@ -9,7 +9,7 @@ export default function ManageCategory() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <StatusBar barStyle="light-content" backgroundColor="#e75e33" />
+      <StatusBar barStyle="light-content" backgroundColor="#16a085" />
 
       {/* Top Bar */}
       <View style={styles.topBar}>
@@ -19,7 +19,7 @@ export default function ManageCategory() {
         >
           <Icon name="chevron-back" size={26} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.topBarTitle}>Manage Category</Text>
+        <Text style={styles.topBarTitle}>Choose a Category</Text>
         <View style={styles.backButton} />
       </View>
 
@@ -30,7 +30,7 @@ export default function ManageCategory() {
           onPress={() => navigation.navigate("ManagePinCategory")}
         >
           <Icon name="pricetag-outline" size={28} color="#e75e33" style={styles.icon} />
-          <Text style={styles.optionText}>Manage Pin Category</Text>
+          <Text style={styles.optionText}>Pin Resources</Text>
         </TouchableOpacity>
 
         {/* <TouchableOpacity
@@ -47,7 +47,7 @@ export default function ManageCategory() {
           onPress={() => navigation.navigate("ManageLandmark")}
         >
           <Icon name="location-outline" size={28} color="#49A5A2" style={styles.icon} />
-          <Text style={styles.optionText}>Manage Landmark</Text>
+          <Text style={styles.optionText}>Food Distribution Landmark</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#e75e33",
+    backgroundColor: "#16a085",
     paddingVertical: 10,
     paddingHorizontal: 15,
     shadowColor: "#000",

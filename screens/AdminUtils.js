@@ -37,7 +37,7 @@ export default function AdminUtils() {
           onPress={() => navigation.navigate("ManageContact")}
         >
           <Icon name="call-outline" size={28} color="#e75e33" style={styles.icon} />
-          <Text style={styles.optionText}>Manage Contacts</Text>
+          <Text style={styles.optionText}>Contact Details</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -45,7 +45,7 @@ export default function AdminUtils() {
           onPress={() => navigation.navigate("ManageBarangay")}
         >
           <Icon name="business-outline" size={28} color="#49A5A2" style={styles.icon} />
-          <Text style={styles.optionText}>Manage Barangay</Text>
+          <Text style={styles.optionText}>Barangay Management</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -70,7 +70,7 @@ export default function AdminUtils() {
           onPress={() => navigation.navigate("UserSelector")}
         >
           <Icon name="people-outline" size={28} color="#2d98da" style={styles.icon} />
-          <Text style={styles.optionText}>Users</Text>
+          <Text style={styles.optionText}>User Account Management</Text>
         </TouchableOpacity>
 
         {/* NEW: Users Activity */}
@@ -88,7 +88,7 @@ export default function AdminUtils() {
           onPress={() => navigation.navigate("ManageCategory")}
         >
           <Icon name="pricetags-outline" size={28} color="#16a085" style={styles.icon} />
-          <Text style={styles.optionText}>Manage Category</Text>
+          <Text style={styles.optionText}>Category Details</Text>
         </TouchableOpacity>
 
         {/* NEW: Manage Evacuation Pins */}
@@ -97,14 +97,14 @@ export default function AdminUtils() {
           onPress={() => navigation.navigate("ManageEvacuationPins")}
         >
           <Icon name="home-outline" size={28} color="#1976D2" style={styles.icon} />
-          <Text style={styles.optionText}>Manage Response Facilities Pins</Text>
+          <Text style={styles.optionText}>Pinned Facilities</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.option}
           onPress={() => navigation.navigate("ManagePins")}
         >
           <Icon name="pin-outline" size={28} color="#EC6135" style={styles.icon} />
-          <Text style={styles.optionText}>Manage Pins</Text>
+          <Text style={styles.optionText}>User Pin Management</Text>
         </TouchableOpacity>
 
         {/* NEW: Deleted Pins */}

@@ -74,6 +74,16 @@ export default function ManageContact({ navigation }) {
       querySnapshot.forEach((doc) => {
         fetched.push({ id: doc.id, ...doc.data() });
       });
+
+      // Sort alphabetically by name
+      fetched.sort((a, b) => {
+        const nameA = a.name.toUpperCase(); // ignore case
+        const nameB = b.name.toUpperCase();
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        return 0;
+      });
+
       setContacts(fetched);
       setContactsLoading(false);
     }
@@ -195,7 +205,11 @@ export default function ManageContact({ navigation }) {
                           onPress={() => handleSave(item.id)}
                           style={styles.iconButton}
                         >
-                          <Icon name="checkmark-outline" size={28} color="green" />
+                          <Icon
+                            name="checkmark-outline"
+                            size={28}
+                            color="green"
+                          />
                         </TouchableOpacity>
                       </View>
                     ) : (
@@ -241,7 +255,10 @@ export default function ManageContact({ navigation }) {
         {/* Floating Add Button */}
         {isLoggedIn && isAdmin && (
           <>
-            <TouchableOpacity style={styles.fab} onPress={() => setAdding(true)}>
+            <TouchableOpacity
+              style={styles.fab}
+              onPress={() => setAdding(true)}
+            >
               <Icon name="add" size={30} color="#fff" />
             </TouchableOpacity>
 

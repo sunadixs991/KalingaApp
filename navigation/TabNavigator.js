@@ -48,7 +48,7 @@ export default function TabNavigator({ route }) {
             case "Contacts":
               iconName = focused ? "call" : "call-outline";
               break;
-            case "Chat":
+            case "Community":
               iconName = focused ? "chatbubble" : "chatbubble-outline";
               break;
             case "Map":
@@ -92,7 +92,7 @@ export default function TabNavigator({ route }) {
       <Tab.Screen name="Contacts" component={ContactScreen} />
       <Tab.Screen name="Map" component={MapScreen} />
       <Tab.Screen
-        name="Chat"
+        name="Community"
         component={ChatScreen}
         initialParams={{ username }}
       />

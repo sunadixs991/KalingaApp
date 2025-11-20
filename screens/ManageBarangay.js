@@ -163,7 +163,7 @@ export default function ManageBarangay() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <StatusBar barStyle="light-content" backgroundColor="#e75e33" />
+      <StatusBar barStyle="light-content" backgroundColor="#49A5A2" />
 
       {/* Top Bar */}
       <View style={styles.topBar}>
@@ -378,6 +378,9 @@ const styles = StyleSheet.create({
   addButtonText: { color: "#fff", fontWeight: "bold" },
   barangayRow: {
     backgroundColor: "#f7f7f7",
+    borderWidth: 1,
+    borderColor: "#ccc",
+    elevation: 2,
     borderRadius: 8,
     padding: 16,
     marginBottom: 8,
@@ -415,7 +418,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e0e0e0",
   },
-  modalTitle: { fontSize: 18, fontWeight: "bold", color: "#e75e33", flex: 1 },
+  modalTitle: { fontSize: 18, fontWeight: "bold", color: "#000", flex: 1 },
   closeButton: {
     width: 30,
     height: 30,
@@ -440,6 +443,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
+    elevation: 2,
   },
   purokName: { flex: 1, fontSize: 14, color: "#333" },
   emptyText: {

@@ -32,14 +32,14 @@ export default function UserSelector() {
           onPress={() => navigation.navigate("ManagePurokLeaders")}
         >
           <Icon name="person-outline" size={28} color="#e67e22" style={styles.icon} />
-          <Text style={styles.optionText}>Manage Purok Leaders</Text>
+          <Text style={styles.optionText}>Purok Leader</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.option}
           onPress={() => navigation.navigate("ManageUsers")}
         >
           <Icon name="people-outline" size={28} color="#2d98da" style={styles.icon} />
-          <Text style={styles.optionText}>Manage Users</Text>
+          <Text style={styles.optionText}>Citizens</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

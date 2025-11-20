@@ -289,6 +289,7 @@ const styles = StyleSheet.create({
     width: "90%",
     maxWidth: 400,
     elevation: 5,
+    maxHeight: "80%",
   },
   title: {
     fontSize: 18,

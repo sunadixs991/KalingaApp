@@ -48,23 +48,31 @@ export default function PrivacyScreen({ navigation }) {
       Alert.alert("Error", "New passwords do not match.");
       return;
     }
-    
+
     setLoading(true);
     try {
       // Get the stored user identifier from AsyncStorage
       let userIdentifier = await AsyncStorage.getItem("user");
-      
+
       // Try other possible keys if "user" doesn't exist
       if (!userIdentifier) {
-        const possibleKeys = ['username', 'userEmail', 'currentUser', 'loggedInUser'];
+        const possibleKeys = [
+          "username",
+          "userEmail",
+          "currentUser",
+          "loggedInUser",
+        ];
         for (const key of possibleKeys) {
           userIdentifier = await AsyncStorage.getItem(key);
           if (userIdentifier) break;
         }
       }
-      
+
       if (!userIdentifier) {
-        Alert.alert("Error", "No user is currently logged in. Please log in again.");
+        Alert.alert(
+          "Error",
+          "No user is currently logged in. Please log in again."
+        );
         setLoading(false);
         return;
       }
@@ -73,8 +81,9 @@ export default function PrivacyScreen({ navigation }) {
       let cleanIdentifier = userIdentifier;
       try {
         const parsed = JSON.parse(userIdentifier);
-        if (typeof parsed === 'object' && parsed !== null) {
-          cleanIdentifier = parsed.username || parsed.email || parsed.id || userIdentifier;
+        if (typeof parsed === "object" && parsed !== null) {
+          cleanIdentifier =
+            parsed.username || parsed.email || parsed.id || userIdentifier;
         }
       } catch (e) {
         // It's a plain string, use as is
@@ -122,7 +131,7 @@ export default function PrivacyScreen({ navigation }) {
 
       if (!userDoc) {
         Alert.alert(
-          "Error", 
+          "Error",
           `User not found. Searched for: ${cleanIdentifier}\n\nMake sure you're logged in with the correct account.`
         );
         setLoading(false);
@@ -148,7 +157,6 @@ export default function PrivacyScreen({ navigation }) {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmNewPassword("");
-      
     } catch (error) {
       console.log("Error updating password:", error);
       Alert.alert("Error", `Failed to update password: ${error.message}`);
@@ -161,7 +169,12 @@ export default function PrivacyScreen({ navigation }) {
     try {
       let userIdentifier = await AsyncStorage.getItem("user");
       if (!userIdentifier) {
-        const possibleKeys = ['username', 'userEmail', 'currentUser', 'loggedInUser'];
+        const possibleKeys = [
+          "username",
+          "userEmail",
+          "currentUser",
+          "loggedInUser",
+        ];
         for (const key of possibleKeys) {
           userIdentifier = await AsyncStorage.getItem(key);
           if (userIdentifier) break;
@@ -175,8 +188,9 @@ export default function PrivacyScreen({ navigation }) {
       let cleanIdentifier = userIdentifier;
       try {
         const parsed = JSON.parse(userIdentifier);
-        if (typeof parsed === 'object' && parsed !== null) {
-          cleanIdentifier = parsed.username || parsed.email || parsed.id || userIdentifier;
+        if (typeof parsed === "object" && parsed !== null) {
+          cleanIdentifier =
+            parsed.username || parsed.email || parsed.id || userIdentifier;
         }
       } catch (e) {}
       cleanIdentifier = cleanIdentifier.toString().trim();
@@ -188,7 +202,7 @@ export default function PrivacyScreen({ navigation }) {
       );
       const snap = await getDocs(q);
       const history = [];
-      snap.forEach(doc => {
+      snap.forEach((doc) => {
         const data = doc.data();
         history.push({
           id: doc.id,
@@ -240,12 +254,10 @@ export default function PrivacyScreen({ navigation }) {
           Recent login activity will be shown here.
         </Text>
 
-        {/* Privacy Policy Link */}
+        {/* Privacy Policy */}
         <TouchableOpacity
           style={styles.item}
-          onPress={() =>
-            Linking.openURL("https://your-privacy-policy-link.com")
-          }
+          onPress={() => navigation.navigate("PrivacyPolicy")}
         >
           <Icon name="document-text-outline" size={22} color="#555" />
           <Text style={styles.itemText}>Privacy Policy</Text>
@@ -319,18 +331,27 @@ export default function PrivacyScreen({ navigation }) {
             <View style={[styles.modalContent, { maxHeight: 400 }]}>
               <Text style={styles.modalHeader}>Recent Login Activity</Text>
               {loginLoading ? (
-                <Text style={{ textAlign: "center", marginTop: 20 }}>Loading...</Text>
+                <Text style={{ textAlign: "center", marginTop: 20 }}>
+                  Loading...
+                </Text>
               ) : loginHistory.length === 0 ? (
-                <Text style={{ textAlign: "center", marginTop: 20, color: "#888" }}>
+                <Text
+                  style={{ textAlign: "center", marginTop: 20, color: "#888" }}
+                >
                   No login history found.
                 </Text>
               ) : (
                 <FlatList
                   data={loginHistory}
-                  keyExtractor={item => item.id}
+                  keyExtractor={(item) => item.id}
                   renderItem={({ item, index }) => (
                     <View style={styles.loginRow}>
-                      <Icon name="time-outline" size={20} color="#e75e33" style={{ marginRight: 10 }} />
+                      <Icon
+                        name="time-outline"
+                        size={20}
+                        color="#e75e33"
+                        style={{ marginRight: 10 }}
+                      />
                       <Text style={styles.loginText}>
                         {item.timestamp
                           ? item.timestamp.toLocaleString()

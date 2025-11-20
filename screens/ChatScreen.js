@@ -160,7 +160,7 @@ export default function ChatScreen() {
               </Text>
             </View>
 
-            <Icon name="chevron-forward" size={20} color="#e75e33" />
+            <Icon name="chevron-forward" size={20} color="#000" />
           </View>
 
           <Text style={styles.postText}>{item.text}</Text>
@@ -219,7 +219,7 @@ export default function ChatScreen() {
               }}
               disabled={loading}
             >
-              <Icon name="close-circle" size={30} color="#e75e33" />
+              <Icon name="close-circle" size={30} color="#999" />
             </TouchableOpacity>
           </View>
 

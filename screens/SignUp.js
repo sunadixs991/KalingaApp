@@ -4,12 +4,12 @@ import {
   Text,
   Image,
   TextInput,
-  StyleSheet,
   TouchableOpacity,
   Alert,
   Platform,
   KeyboardAvoidingView,
   ScrollView,
+  StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { db } from "../firebase";
@@ -66,6 +66,8 @@ export default function SignUp({ navigation }) {
           const data = doc.data();
           if (data.name) list.push(data.name);
         });
+        // Sort alphabetically
+        list.sort((a, b) => a.localeCompare(b));
         setBarangayList(list);
       } catch (error) {
         console.log("Failed to fetch barangays:", error);
@@ -98,6 +100,8 @@ export default function SignUp({ navigation }) {
             const data = doc.data();
             if (data.name) list.push(data.name);
           });
+          // Sort alphabetically
+          list.sort((a, b) => a.localeCompare(b));
           setPurokList(list);
         } else {
           setPurokList([]);
@@ -127,7 +131,10 @@ export default function SignUp({ navigation }) {
     if (!lastName.trim()) errors.lastName = true;
     if (!phone.trim()) errors.phone = true;
     if (!otpVerified) {
-      Alert.alert("Phone Verification Required", "Please verify your phone number with OTP.");
+      Alert.alert(
+        "Phone Verification Required",
+        "Please verify your phone number with OTP."
+      );
       return false;
     }
     if (!dob) errors.dob = true;
@@ -154,12 +161,13 @@ export default function SignUp({ navigation }) {
     if (!confirmPassword.trim()) errors.confirmPassword = true;
     if (password !== confirmPassword) errors.passwordMismatch = true;
     setStepTwoErrors(errors);
+
     if (errors.passwordMismatch) {
       Alert.alert("Password Error", "Passwords do not match.");
       return false;
     }
     if (Object.keys(errors).length > 0) {
-      Alert.alert("Incomplete Form", "Please complete all fields.");
+      Alert.alert("Incomplete Information", "Please fill out all fields.");
       return false;
     }
     return true;
@@ -209,16 +217,9 @@ export default function SignUp({ navigation }) {
         userType: "user",
       });
 
-      Alert.alert(
-        "Success",
-        `Account created!`,
-        [
-          {
-            text: "OK",
-            onPress: () => navigation.replace("LoginScreen"),
-          },
-        ]
-      );
+      Alert.alert("Success", `Account created!`, [
+        { text: "OK", onPress: () => navigation.replace("LoginScreen") },
+      ]);
     } catch (error) {
       console.error("Signup error:", error);
       Alert.alert("Error", "Failed to create account. Please try again.");
@@ -260,7 +261,6 @@ export default function SignUp({ navigation }) {
       if (result.success) {
         Alert.alert("Success", "Phone verified successfully!");
         setOtpVerified(true);
-        // Don't proceed yet - let user complete remaining fields
       } else {
         Alert.alert("Error", result.error || "Invalid OTP");
       }
@@ -273,10 +273,7 @@ export default function SignUp({ navigation }) {
   };
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: "#fff" }}
-      edges={["top", "left", "right"]}
-    >
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -291,39 +288,73 @@ export default function SignUp({ navigation }) {
           />
 
           <Animated.View entering={FadeIn} style={styles.formContainer}>
+            {/* Step 1: Name + Phone + OTP */}
             {step === 1 && (
               <>
+                {/* First Name */}
                 <View style={styles.inputWrapper}>
-                  <Icon name="person-outline" size={20} color="#225B64" style={styles.icon} />
+                  <Icon
+                    name="person-outline"
+                    size={20}
+                    color="#225B64"
+                    style={styles.icon}
+                  />
                   <TextInput
-                    style={[styles.inputField, stepOneErrors.firstName && { borderColor: "red" }]}
+                    style={[
+                      styles.inputField,
+                      stepOneErrors.firstName && { borderColor: "red" },
+                    ]}
                     placeholder="First Name"
                     value={firstName}
                     onChangeText={(text) => {
                       setFirstName(text);
-                      setStepOneErrors((prev) => ({ ...prev, firstName: false }));
+                      setStepOneErrors((prev) => ({
+                        ...prev,
+                        firstName: false,
+                      }));
                     }}
                   />
                 </View>
 
+                {/* Last Name */}
                 <View style={styles.inputWrapper}>
-                  <Icon name="person-outline" size={20} color="#225B64" style={styles.icon} />
+                  <Icon
+                    name="person-outline"
+                    size={20}
+                    color="#225B64"
+                    style={styles.icon}
+                  />
                   <TextInput
-                    style={[styles.inputField, stepOneErrors.lastName && { borderColor: "red" }]}
+                    style={[
+                      styles.inputField,
+                      stepOneErrors.lastName && { borderColor: "red" },
+                    ]}
                     placeholder="Last Name"
                     value={lastName}
                     onChangeText={(text) => {
                       setLastName(text);
-                      setStepOneErrors((prev) => ({ ...prev, lastName: false }));
+                      setStepOneErrors((prev) => ({
+                        ...prev,
+                        lastName: false,
+                      }));
                     }}
                   />
                 </View>
 
+                {/* Phone + Send OTP */}
                 <View style={styles.phoneInputWrapper}>
                   <View style={[styles.inputWrapper, { flex: 1 }]}>
-                    <Icon name="call-outline" size={20} color="#225B64" style={styles.icon} />
+                    <Icon
+                      name="call-outline"
+                      size={20}
+                      color="#225B64"
+                      style={styles.icon}
+                    />
                     <TextInput
-                      style={[styles.inputField, stepOneErrors.phone && { borderColor: "red" }]}
+                      style={[
+                        styles.inputField,
+                        stepOneErrors.phone && { borderColor: "red" },
+                      ]}
                       placeholder="Phone"
                       keyboardType="phone-pad"
                       value={phone}
@@ -338,18 +369,34 @@ export default function SignUp({ navigation }) {
                       disabled={otpLoading || !phone.trim()}
                       style={{ opacity: otpLoading || !phone.trim() ? 0.5 : 1 }}
                     >
-                      <Text style={{ color: "#EC6135", fontSize: wp("3.5%"), fontWeight: "bold" }}>
+                      <Text
+                        style={{
+                          color: "#EC6135",
+                          fontSize: wp("3.5%"),
+                          fontWeight: "bold",
+                        }}
+                      >
                         {otpLoading ? "..." : "Send"}
                       </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
 
-                {/* OTP Input - appears after sending */}
+                {/* OTP */}
                 {otpSent && (
                   <View style={styles.otpInputWrapper}>
-                    <View style={[styles.inputWrapper, { flex: 1, height: hp("6%") }]}>
-                      <Icon name="key-outline" size={20} color="#225B64" style={styles.icon} />
+                    <View
+                      style={[
+                        styles.inputWrapper,
+                        { flex: 1, height: hp("6%") },
+                      ]}
+                    >
+                      <Icon
+                        name="key-outline"
+                        size={20}
+                        color="#225B64"
+                        style={styles.icon}
+                      />
                       <TextInput
                         style={styles.inputField}
                         placeholder="Enter 6-digit OTP"
@@ -380,10 +427,12 @@ export default function SignUp({ navigation }) {
                   </View>
                 )}
 
-                {/* Change Phone button - appears after sending OTP */}
                 {otpSent && (
                   <TouchableOpacity
-                    style={[styles.button, { backgroundColor: "#6c757d", marginTop: hp("1%") }]}
+                    style={[
+                      styles.button,
+                      { backgroundColor: "#6c757d", marginTop: hp("1%") },
+                    ]}
                     onPress={() => {
                       setOtpSent(false);
                       setOtpCode("");
@@ -394,18 +443,52 @@ export default function SignUp({ navigation }) {
                   </TouchableOpacity>
                 )}
 
-                {/* All other fields - always visible */}
-                {/* Date of Birth Picker */}
                 <TouchableOpacity
-                  style={[styles.pickerWrapper, stepOneErrors.dob && { borderColor: "red" }]}
+                  style={styles.button}
+                  onPress={() => {
+                    if (!otpVerified) {
+                      Alert.alert(
+                        "Verify Phone",
+                        "Please verify your phone first."
+                      );
+                      return;
+                    }
+                    setStep(2);
+                  }}
+                >
+                  <Text style={styles.buttonText}>Next</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {/* Step 2: DOB + Gender + Status + Barangay/Purok */}
+            {step === 2 && (
+              <>
+                {/* Date Picker */}
+                <TouchableOpacity
+                  style={[
+                    styles.pickerWrapper,
+                    stepOneErrors.dob && { borderColor: "red" },
+                  ]}
                   onPress={() => setShowDatePicker(true)}
                 >
-                  <Icon name="calendar-outline" size={20} color="#225B64" style={styles.icon} />
-                  <Text style={{ flex: 1, fontSize: wp("4%"), color: dob ? "#000" : "#999", paddingVertical: hp("1.5%") }}>
+                  <Icon
+                    name="calendar-outline"
+                    size={20}
+                    color="#225B64"
+                    style={styles.icon}
+                  />
+                  <Text
+                    style={{
+                      flex: 1,
+                      fontSize: wp("4%"),
+                      color: dob ? "#000" : "#999",
+                      paddingVertical: hp("1.5%"),
+                    }}
+                  >
                     {dob || "Select Date of Birth"}
                   </Text>
                 </TouchableOpacity>
-
                 {showDatePicker && (
                   <DateTimePicker
                     value={new Date()}
@@ -415,11 +498,21 @@ export default function SignUp({ navigation }) {
                   />
                 )}
 
-                {/* Gender Picker */}
-                <TouchableOpacity
-                  style={[styles.pickerWrapper, stepOneErrors.gender && { borderColor: "red" }]}
+                {/* Gender */}
+                <View
+                  style={[
+                    styles.pickerWrapper,
+                    stepOneErrors.gender && {
+                      borderColor: "red",
+                    },
+                  ]}
                 >
-                  <Icon name="male-female-outline" size={20} color="#225B64" style={styles.icon} />
+                  <Icon
+                    name="male-female-outline"
+                    size={20}
+                    color="#225B64"
+                    style={styles.icon}
+                  />
                   <Picker
                     selectedValue={gender}
                     onValueChange={(itemValue) => {
@@ -432,11 +525,23 @@ export default function SignUp({ navigation }) {
                     <Picker.Item label="Male" value="Male" />
                     <Picker.Item label="Female" value="Female" />
                   </Picker>
-                </TouchableOpacity>
+                </View>
 
-                {/* Status Picker */}
-                <View style={[styles.pickerWrapper, stepOneErrors.status && { borderColor: "red" }]}>
-                  <Icon name="heart-outline" size={20} color="#225B64" style={styles.icon} />
+                {/* Status */}
+                <View
+                  style={[
+                    styles.pickerWrapper,
+                    stepOneErrors.status && {
+                      borderColor: "red",
+                    },
+                  ]}
+                >
+                  <Icon
+                    name="heart-outline"
+                    size={20}
+                    color="#225B64"
+                    style={styles.icon}
+                  />
                   <Picker
                     selectedValue={status}
                     onValueChange={(itemValue) => {
@@ -451,14 +556,29 @@ export default function SignUp({ navigation }) {
                   </Picker>
                 </View>
 
-                {/* Barangay Picker */}
-                <View style={[styles.pickerWrapper, stepOneErrors.barangay && { borderColor: "red" }]}>
-                  <Icon name="home-outline" size={20} color="#225B64" style={styles.icon} />
+                {/* Barangay */}
+                <View
+                  style={[
+                    styles.pickerWrapper,
+                    stepOneErrors.barangay && {
+                      borderColor: "red",
+                    },
+                  ]}
+                >
+                  <Icon
+                    name="home-outline"
+                    size={20}
+                    color="#225B64"
+                    style={styles.icon}
+                  />
                   <Picker
                     selectedValue={barangay}
                     onValueChange={(itemValue) => {
                       setBarangay(itemValue);
-                      setStepOneErrors((prev) => ({ ...prev, barangay: false }));
+                      setStepOneErrors((prev) => ({
+                        ...prev,
+                        barangay: false,
+                      }));
                     }}
                     style={styles.picker}
                   >
@@ -469,9 +589,21 @@ export default function SignUp({ navigation }) {
                   </Picker>
                 </View>
 
-                {/* Purok Picker */}
-                <View style={[styles.pickerWrapper, stepOneErrors.purok && { borderColor: "red" }]}>
-                  <Icon name="location-outline" size={20} color="#225B64" style={styles.icon} />
+                {/* Purok */}
+                <View
+                  style={[
+                    styles.pickerWrapper,
+                    stepOneErrors.purok && {
+                      borderColor: "red",
+                    },
+                  ]}
+                >
+                  <Icon
+                    name="location-outline"
+                    size={20}
+                    color="#225B64"
+                    style={styles.icon}
+                  />
                   <Picker
                     selectedValue={purok}
                     onValueChange={(itemValue) => {
@@ -482,7 +614,9 @@ export default function SignUp({ navigation }) {
                     enabled={!!barangay}
                   >
                     <Picker.Item
-                      label={barangay ? "Select Purok" : "Select Barangay first"}
+                      label={
+                        barangay ? "Select Purok" : "Select Barangay first"
+                      }
                       value=""
                     />
                     {purokList.map((name, idx) => (
@@ -494,35 +628,74 @@ export default function SignUp({ navigation }) {
                 <TouchableOpacity
                   style={styles.button}
                   onPress={() => {
-                    if (validateStepOne()) setStep(2);
+                    if (validateStepOne()) setStep(3);
                   }}
                 >
                   <Text style={styles.buttonText}>Next</Text>
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.button,
+                    { backgroundColor: "#6c757d", marginTop: hp("1%") },
+                  ]}
+                  onPress={() => setStep(1)}
+                >
+                  <Text style={styles.buttonText}>Back</Text>
+                </TouchableOpacity>
               </>
             )}
 
-            {step === 2 && (
+            {/* Step 3: Account Info */}
+            {step === 3 && (
               <>
-                <View style={styles.inputWrapper}>
-                  <Icon name="person-outline" size={20} color="#225B64" style={styles.icon} />
+                {/* Username */}
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    stepTwoErrors.username && {
+                      borderColor: "red",
+                    },
+                  ]}
+                >
+                  <Icon
+                    name="person-outline"
+                    size={20}
+                    color="#225B64"
+                    style={styles.icon}
+                  />
                   <TextInput
-                    style={[styles.inputField, stepTwoErrors.username && { borderColor: "red" }]}
+                    style={styles.inputField}
                     placeholder="Username"
                     value={username}
                     onChangeText={(text) => {
                       setUsername(text);
-                      setStepTwoErrors((prev) => ({ ...prev, username: false }));
+                      setStepTwoErrors((prev) => ({
+                        ...prev,
+                        username: false,
+                      }));
                     }}
                   />
                 </View>
 
-                <View style={styles.inputWrapper}>
-                  <Icon name="mail-outline" size={20} color="#225B64" style={styles.icon} />
+                {/* Email */}
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    stepTwoErrors.email && {
+                      borderColor: "red",
+                    },
+                  ]}
+                >
+                  <Icon
+                    name="mail-outline"
+                    size={20}
+                    color="#225B64"
+                    style={styles.icon}
+                  />
                   <TextInput
-                    style={[styles.inputField, stepTwoErrors.email && { borderColor: "red" }]}
+                    style={styles.inputField}
                     placeholder="Email"
-                    keyboardType="email-address"
                     value={email}
                     onChangeText={(text) => {
                       setEmail(text);
@@ -531,19 +704,38 @@ export default function SignUp({ navigation }) {
                   />
                 </View>
 
-                <View style={styles.inputWrapper}>
-                  <Icon name="lock-closed-outline" size={20} color="#225B64" style={styles.icon} />
+                {/* Password */}
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    stepTwoErrors.password && {
+                      borderColor: "red",
+                    },
+                  ]}
+                >
+                  <Icon
+                    name="lock-closed-outline"
+                    size={20}
+                    color="#225B64"
+                    style={styles.icon}
+                  />
                   <TextInput
-                    style={[styles.inputField, stepTwoErrors.password && { borderColor: "red" }]}
+                    style={styles.inputField}
                     placeholder="Password"
-                    secureTextEntry={!showPassword}
                     value={password}
+                    secureTextEntry={!showPassword}
                     onChangeText={(text) => {
                       setPassword(text);
-                      setStepTwoErrors((prev) => ({ ...prev, password: false }));
+                      setStepTwoErrors((prev) => ({
+                        ...prev,
+                        password: false,
+                        passwordMismatch: false,
+                      }));
                     }}
                   />
-                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
                     <Icon
                       name={showPassword ? "eye-outline" : "eye-off-outline"}
                       size={20}
@@ -552,16 +744,27 @@ export default function SignUp({ navigation }) {
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.inputWrapper}>
-                  <Icon name="lock-closed-outline" size={20} color="#225B64" style={styles.icon} />
+                {/* Confirm Password */}
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    (stepTwoErrors.confirmPassword ||
+                      stepTwoErrors.passwordMismatch) && {
+                      borderColor: "red",
+                    },
+                  ]}
+                >
+                  <Icon
+                    name="lock-closed-outline"
+                    size={20}
+                    color="#225B64"
+                    style={styles.icon}
+                  />
                   <TextInput
-                    style={[
-                      styles.inputField,
-                      (stepTwoErrors.confirmPassword || stepTwoErrors.passwordMismatch) && { borderColor: "red" },
-                    ]}
+                    style={styles.inputField}
                     placeholder="Confirm Password"
-                    secureTextEntry={!showConfirmPassword}
                     value={confirmPassword}
+                    secureTextEntry={!showConfirmPassword}
                     onChangeText={(text) => {
                       setConfirmPassword(text);
                       setStepTwoErrors((prev) => ({
@@ -571,9 +774,13 @@ export default function SignUp({ navigation }) {
                       }));
                     }}
                   />
-                  <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+                  <TouchableOpacity
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
                     <Icon
-                      name={showConfirmPassword ? "eye-outline" : "eye-off-outline"}
+                      name={
+                        showConfirmPassword ? "eye-outline" : "eye-off-outline"
+                      }
                       size={20}
                       color="#225B64"
                     />
@@ -581,12 +788,15 @@ export default function SignUp({ navigation }) {
                 </View>
 
                 <TouchableOpacity style={styles.button} onPress={handleSignUp}>
-                  <Text style={styles.buttonText}>Create Account</Text>
+                  <Text style={styles.buttonText}>Sign Up</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.button, { backgroundColor: "#6c757d" }]}
-                  onPress={() => setStep(1)}
+                  style={[
+                    styles.button,
+                    { backgroundColor: "#6c757d", marginTop: hp("1%") },
+                  ]}
+                  onPress={() => setStep(2)}
                 >
                   <Text style={styles.buttonText}>Back</Text>
                 </TouchableOpacity>
@@ -625,17 +835,17 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
   },
   inputWrapper: {
-  flexDirection: "row",
-  alignItems: "center",
-  backgroundColor: "#fff",
-  borderWidth: 1,
-  borderColor: "#ccc",
-  borderRadius: wp("8%"),
-  paddingHorizontal: wp("5%"), // keep original padding
-  marginBottom: hp("2%"),
-  elevation: 4,
-  height: hp("6%"), // same as original input height
-},
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: wp("8%"),
+    paddingHorizontal: wp("5%"), // keep original padding
+    marginBottom: hp("2%"),
+    elevation: 4,
+    height: hp("6%"), // same as original input height
+  },
   inputField: {
     flex: 1,
     fontSize: wp("4%"),
@@ -684,7 +894,7 @@ const styles = StyleSheet.create({
     fontSize: wp("3.5%"),
     color: "#225B64",
     fontWeight: "500",
-    marginBottom: hp("1%"),
+    marginBottom: hp("2%"),
   },
   otpInputWrapper: {
     flexDirection: "row",
@@ -698,15 +908,15 @@ const styles = StyleSheet.create({
     borderRadius: wp("8%"),
     justifyContent: "center",
     alignItems: "center",
-    height: hp("6%"),
+    height: hp("5%"),
     minWidth: wp("20%"),
   },
   verifyOtpBtnSuccess: {
-    backgroundColor: "#28a745",
+    backgroundColor: "green",
   },
   verifyOtpText: {
     color: "#fff",
-    fontSize: wp("4%"),
+    fontSize: wp("3.5%"),
     fontWeight: "bold",
   },
 });

@@ -64,7 +64,7 @@ export default function ManageUsers() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <StatusBar barStyle="light-content" backgroundColor="#e75e33" />
+      <StatusBar barStyle="light-content" backgroundColor="#2d98da" />
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.backButton}
@@ -72,7 +72,7 @@ export default function ManageUsers() {
         >
           <Icon name="chevron-back" size={26} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.topBarTitle}>Manage Users</Text>
+        <Text style={styles.topBarTitle}>Manage Citizens</Text>
         <View style={styles.backButton} />
       </View>
       <View style={styles.container}>
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#e75e33",
+    color: "#000",
     marginBottom: 12,
     textAlign: "center",
   },

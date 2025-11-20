@@ -1349,7 +1349,7 @@ export default function MapScreen({ route }) {
                     : "location"
               }
               size={50}
-              color="#49A5A2"
+              color="#EC6135"
             />
           </View>
           <View style={styles.crosshairDot} />
@@ -1961,7 +1961,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: 5,
     height: 5,
-    backgroundColor: "#49A5A2",
+    backgroundColor: "#EC6135",
     borderRadius: 2,
     top: "50%",
     left: "50%",

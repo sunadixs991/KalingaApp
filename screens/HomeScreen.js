@@ -383,7 +383,7 @@ export default function HomeScreen({ route, navigation }) {
                 style={styles.carouselImage}
               />
               <Image
-                source={require("../assets/food3.png")}
+                source={require("../assets/Disaster 1.jpg")}
                 style={styles.carouselImage}
               />
             </Swiper>

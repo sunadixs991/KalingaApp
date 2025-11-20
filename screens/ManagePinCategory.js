@@ -281,7 +281,7 @@ export default function ManageCategory() {
         >
           <Icon name="chevron-back" size={26} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.topBarTitle}>Manage Category</Text>
+        <Text style={styles.topBarTitle}>Manage Pin Resources</Text>
         <View style={styles.backButton} />
       </View>
 

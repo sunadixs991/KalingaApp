@@ -213,7 +213,7 @@ export default function PinLogs() {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Icon name="chevron-back" size={26} color="#e75e33" />
+          <Icon name="chevron-back" size={26} color="#000" />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Pin Logs</Text>
         <View style={styles.backButton} />
@@ -302,6 +302,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     paddingVertical: 10,
     paddingHorizontal: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
   },
   backButton: {
     width: 40,
@@ -351,6 +353,8 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: "#ddd",
   },
   pinTitle: {
     fontSize: 16,

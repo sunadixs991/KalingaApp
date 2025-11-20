@@ -22,13 +22,14 @@ import {
   doc,
 } from "firebase/firestore";
 import { Picker } from "@react-native-picker/picker";
-import { getUserInfo } from "../services/getinfo";
 
 export default function AccountInfoScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const { userInfo, onUpdate } = route.params;
+
   const [uploading, setUploading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   const [editInfo, setEditInfo] = useState({
     firstName: "",
@@ -41,7 +42,7 @@ export default function AccountInfoScreen() {
     barangay: "",
     purok: "",
   });
-  const [isEditing, setIsEditing] = useState(false);
+
   const [barangayList, setBarangayList] = useState([]);
   const [purokList, setPurokList] = useState([]);
 
@@ -61,7 +62,6 @@ export default function AccountInfoScreen() {
     }
   }, [userInfo]);
 
-  // Fetch Barangays
   useEffect(() => {
     const fetchBarangays = async () => {
       try {
@@ -75,7 +75,6 @@ export default function AccountInfoScreen() {
     fetchBarangays();
   }, []);
 
-  // Fetch Puroks when Barangay changes
   useEffect(() => {
     const fetchPuroks = async () => {
       if (!editInfo.barangay) {
@@ -89,11 +88,13 @@ export default function AccountInfoScreen() {
           where("name", "==", editInfo.barangay)
         );
         const snap = await getDocs(q);
+
         if (!snap.empty) {
           const docRef = snap.docs[0].ref;
           const purokSnap = await getDocs(collection(docRef, "puroks"));
           const list = purokSnap.docs.map((d) => d.data().name).sort();
           setPurokList(list);
+
           setEditInfo((prev) => ({
             ...prev,
             purok: list.includes(prev.purok) ? prev.purok : "",
@@ -108,7 +109,8 @@ export default function AccountInfoScreen() {
 
   const handleSaveEdit = async () => {
     try {
-      setUploading(true); // optional for loader
+      setUploading(true);
+
       let userIdentifier = await AsyncStorage.getItem("user");
       if (!userIdentifier) return;
 
@@ -127,8 +129,10 @@ export default function AccountInfoScreen() {
         where("username", "==", cleanIdentifier)
       );
       const userSnap = await getDocs(userQuery);
+
       if (!userSnap.empty) {
         const userDocId = userSnap.docs[0].id;
+
         await updateDoc(doc(db, "users", userDocId), {
           firstName: editInfo.firstName,
           lastName: editInfo.lastName,
@@ -141,15 +145,12 @@ export default function AccountInfoScreen() {
           purok: editInfo.purok,
         });
 
-        // Manually update userInfo state immediately
-        if (onUpdate) {
-          onUpdate(editInfo); // <-- this updates Profile screen immediately
-        }
+        if (onUpdate) onUpdate(editInfo);
+
         setIsEditing(false);
         Alert.alert("Success", "Account information updated!");
       }
     } catch (error) {
-      console.log(error);
       Alert.alert("Error", "Failed to update account information.");
     } finally {
       setUploading(false);
@@ -157,121 +158,125 @@ export default function AccountInfoScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            marginBottom: 20,
-          }}
-        >
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F4F6F8" }}>
+      <ScrollView contentContainerStyle={{ padding: 20 }}>
+        {/* HEADER */}
+        <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Icon name="chevron-back" size={24} color="#e75e33" />
+            <Icon name="chevron-back" size={26} color="#333" />
           </TouchableOpacity>
-          <Text style={{ fontSize: 18, fontWeight: "bold", textAlign: "center", flex: 1 }}>
-            {isEditing ? "Edit Account Information" : "Account Information"}
+
+          <Text style={styles.headerTitle}>
+            {isEditing ? "Edit Account Details" : "Account Information"}
           </Text>
+
+          <View style={{ width: 26 }} />
         </View>
 
-        <TextInput
-          style={styles.input}
-          placeholder="First Name"
-          value={editInfo.firstName}
-          onChangeText={(t) => setEditInfo({ ...editInfo, firstName: t })}
-          editable={isEditing}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Last Name"
-          value={editInfo.lastName}
-          onChangeText={(t) => setEditInfo({ ...editInfo, lastName: t })}
-          editable={isEditing}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={editInfo.email}
-          onChangeText={(t) => setEditInfo({ ...editInfo, email: t })}
-          editable={isEditing}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Phone"
-          value={editInfo.phone}
-          onChangeText={(t) => setEditInfo({ ...editInfo, phone: t })}
-          editable={isEditing}
-        />
+        {/* FORM CARD */}
+        <View style={styles.card}>
+          {/* FIRST NAME */}
+          <Text style={styles.label}>First Name</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="First Name"
+            value={editInfo.firstName}
+            editable={isEditing}
+            onChangeText={(t) => setEditInfo({ ...editInfo, firstName: t })}
+          />
 
-        {/* Status Picker */}
-        <View style={styles.input}>
-          <Picker
-            selectedValue={editInfo.status}
-            onValueChange={(v) => setEditInfo({ ...editInfo, status: v })}
-            enabled={isEditing}
-          >
-            <Picker.Item label="Select Status" value="" />
-            <Picker.Item label="Single" value="Single" />
-            <Picker.Item label="Married" value="Married" />
-          </Picker>
-        </View>
+          <Text style={styles.label}>Last Name</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Last Name"
+            value={editInfo.lastName}
+            editable={isEditing}
+            onChangeText={(t) => setEditInfo({ ...editInfo, lastName: t })}
+          />
 
-        {/* Barangay Picker */}
-        <View style={styles.input}>
-          <Picker
-            selectedValue={editInfo.barangay}
-            onValueChange={(v) =>
-              setEditInfo({ ...editInfo, barangay: v, purok: "" })
-            }
-            enabled={isEditing}
-          >
-            <Picker.Item label="Select Barangay" value="" />
-            {barangayList.map((b, idx) => (
-              <Picker.Item key={idx} label={b} value={b} />
-            ))}
-          </Picker>
-        </View>
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            value={editInfo.email}
+            editable={isEditing}
+            onChangeText={(t) => setEditInfo({ ...editInfo, email: t })}
+          />
 
-        {/* Purok Picker */}
-        <View style={styles.input}>
-          <Picker
-            selectedValue={editInfo.purok}
-            onValueChange={(v) => setEditInfo({ ...editInfo, purok: v })}
-            enabled={isEditing && !!editInfo.barangay}
-          >
-            <Picker.Item
-              label={
-                editInfo.barangay ? "Select Purok" : "Select Barangay first"
+          <Text style={styles.label}>Phone</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Phone Number"
+            value={editInfo.phone}
+            editable={isEditing}
+            onChangeText={(t) => setEditInfo({ ...editInfo, phone: t })}
+          />
+
+          {/* STATUS */}
+          <Text style={styles.label}>Civil Status</Text>
+          <View style={styles.pickerBox}>
+            <Picker
+              selectedValue={editInfo.status}
+              onValueChange={(v) => setEditInfo({ ...editInfo, status: v })}
+              enabled={isEditing}
+            >
+              <Picker.Item label="Select Status" value="" />
+              <Picker.Item label="Single" value="Single" />
+              <Picker.Item label="Married" value="Married" />
+            </Picker>
+          </View>
+
+          {/* BARANGAY */}
+          <Text style={styles.label}>Barangay</Text>
+          <View style={styles.pickerBox}>
+            <Picker
+              selectedValue={editInfo.barangay}
+              onValueChange={(v) =>
+                setEditInfo({ ...editInfo, barangay: v, purok: "" })
               }
-              value=""
-            />
-            {purokList.map((p, idx) => (
-              <Picker.Item key={idx} label={p} value={p} />
-            ))}
-          </Picker>
+              enabled={isEditing}
+            >
+              <Picker.Item label="Select Barangay" value="" />
+              {barangayList.map((b, idx) => (
+                <Picker.Item key={idx} label={b} value={b} />
+              ))}
+            </Picker>
+          </View>
+
+          {/* PUROK */}
+          <Text style={styles.label}>Purok</Text>
+          <View style={styles.pickerBox}>
+            <Picker
+              selectedValue={editInfo.purok}
+              onValueChange={(v) => setEditInfo({ ...editInfo, purok: v })}
+              enabled={isEditing && !!editInfo.barangay}
+            >
+              <Picker.Item
+                label={
+                  editInfo.barangay ? "Select Purok" : "Select Barangay first"
+                }
+                value=""
+              />
+              {purokList.map((p, idx) => (
+                <Picker.Item key={idx} label={p} value={p} />
+              ))}
+            </Picker>
+          </View>
         </View>
 
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "flex-end",
-            marginTop: 20,
-          }}
-        >
+        {/* BUTTONS */}
+        <View style={styles.buttonRow}>
           <TouchableOpacity
-            style={styles.cancelButton}
+            style={styles.editButton}
             onPress={() => setIsEditing((prev) => !prev)}
           >
-            <Text style={styles.cancelButtonText}>
+            <Text style={styles.editButtonText}>
               {isEditing ? "Cancel" : "Edit"}
             </Text>
           </TouchableOpacity>
 
           {isEditing && (
-            <TouchableOpacity
-              style={styles.saveButton}
-              onPress={handleSaveEdit}
-            >
+            <TouchableOpacity style={styles.saveButton} onPress={handleSaveEdit}>
               <Text style={styles.saveButtonText}>Save</Text>
             </TouchableOpacity>
           )}
@@ -282,34 +287,83 @@ export default function AccountInfoScreen() {
 }
 
 const styles = StyleSheet.create({
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 15,
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#333",
+  },
+
+  card: {
+    backgroundColor: "#fff",
+    padding: 18,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
+    marginBottom: 20,
+  },
+
+  label: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#555",
+    marginBottom: 6,
+    marginTop: 10,
+  },
+
   input: {
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    backgroundColor: "#fff",
+    borderColor: "#D1D5DB",
+    backgroundColor: "#F9FAFB",
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     fontSize: 16,
   },
-  cancelButton: {
-    marginRight: 10,
-    backgroundColor: "#ccc",
-    paddingHorizontal: 18,
+
+  pickerBox: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    backgroundColor: "#F9FAFB",
+    marginBottom: 6,
+  },
+
+  buttonRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginBottom: 20,
+    gap: 10,
+  },
+
+  editButton: {
+    backgroundColor: "#D1D5DB",
     paddingVertical: 12,
+    paddingHorizontal: 20,
     borderRadius: 10,
   },
-  cancelButtonText: {
+  editButtonText: {
+    fontWeight: "700",
     color: "#333",
-    fontWeight: "bold",
   },
+
   saveButton: {
-    backgroundColor: "#49A5A2",
-    paddingHorizontal: 20,
+    backgroundColor: "#2AA39A",
     paddingVertical: 12,
+    paddingHorizontal: 24,
     borderRadius: 10,
   },
   saveButtonText: {
     color: "#fff",
-    fontWeight: "bold",
+    fontWeight: "700",
   },
 });
