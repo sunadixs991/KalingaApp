@@ -1,21 +1,25 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   StatusBar,
+  ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function UserSelector() {
+export default function Admin2Utils() {
   const navigation = useNavigation();
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <StatusBar barStyle="light-content" backgroundColor="#2d98da" />
+      <StatusBar barStyle="light-content" backgroundColor="#e75e33" />
+
+      {/* Top Bar */}
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.backButton}
@@ -23,25 +27,29 @@ export default function UserSelector() {
         >
           <Icon name="chevron-back" size={26} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.topBarTitle}>Manage Users</Text>
+        <Text style={styles.topBarTitle}>LGU Admin Utilities</Text>
         <View style={styles.backButton} />
       </View>
-      <View style={styles.container}>
+
+      <ScrollView contentContainerStyle={styles.container}>
+        {/* Contact Details */}
         <TouchableOpacity
           style={styles.option}
-          onPress={() => navigation.navigate("ManageLGUAdmins")}
+          onPress={() => navigation.navigate("ManageContact")}
         >
-          <Icon name="person-outline" size={28} color="#e67e22" style={styles.icon} />
-          <Text style={styles.optionText}>LGU Admin</Text>
+          <Icon name="call-outline" size={28} color="#e75e33" style={styles.icon} />
+          <Text style={styles.optionText}>Contact Details</Text>
         </TouchableOpacity>
+
+        {/* Food Distribution Schedules */}
         <TouchableOpacity
           style={styles.option}
-          onPress={() => navigation.navigate("ManageUsers")}
+          onPress={() => navigation.navigate("ManageSchedule")}
         >
-          <Icon name="people-outline" size={28} color="#2d98da" style={styles.icon} />
-          <Text style={styles.optionText}>Citizens</Text>
+          <Icon name="calendar-outline" size={28} color="#007AFF" style={styles.icon} />
+          <Text style={styles.optionText}>Food Distribution Schedules</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -55,9 +63,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#2d98da",
+    backgroundColor: "#e75e33",
     paddingVertical: 10,
     paddingHorizontal: 15,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 3,
     elevation: 4,
     zIndex: 10,
   },
@@ -84,7 +96,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f7f7f7",
     borderRadius: 12,
     padding: 16,
-    marginBottom: 18,
+    marginBottom: 12,
     elevation: 2,
     shadowColor: "#000",
     shadowOpacity: 0.1,

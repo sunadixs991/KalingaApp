@@ -38,10 +38,12 @@ import ActivitySelector from "./screens/ActivitySelector";
 import ManageLandmark from "./screens/ManageLandmark";
 import DeletedPins from "./screens/DeletedPins";
 import UserSelector from "./screens/UserSelector";
-import ManagePurokLeaders from "./screens/ManagePurokLeaders";
+import ManageLGUAdmins from "./screens/ManageLGUAdmins";
 import InstructionScreen from "./screens/InstructionScreen";
 import AboutUs from "./screens/AboutUs";
 import PrivacyPolicy from "./screens/PrivacyPolicy";
+import ManageFeedback from "./screens/ManageFeedback";
+import Admin2Utils from "./screens/Admin2Utils";
 
 // ✅ Import Feedback Modal
 import FeedbackModal from "./components/FeedbackModal";
@@ -124,17 +126,14 @@ export default function App() {
             <Stack.Screen name="ManageLandmark" component={ManageLandmark} />
             <Stack.Screen name="DeletedPins" component={DeletedPins} />
             <Stack.Screen name="UserSelector" component={UserSelector} />
-            <Stack.Screen
-              name="ManagePurokLeaders"
-              component={ManagePurokLeaders}
-            />
-            <Stack.Screen
-              name="InstructionScreen"
-              component={InstructionScreen}
+            <Stack.Screen name="InstructionScreen" component={InstructionScreen}
             />
             <Stack.Screen name="CommentsScreen" component={CommentsScreen} />
             <Stack.Screen name="AboutUs" component={AboutUs} />
             <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicy} />
+            <Stack.Screen name="ManageFeedback" component={ManageFeedback} />
+            <Stack.Screen name="ManageLGUAdmins" component={ManageLGUAdmins} />
+            <Stack.Screen name="Admin2Utils" component={Admin2Utils} />
           </Stack.Navigator>
 
           {/* ✅ Pass username to Feedback Modal */}

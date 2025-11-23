@@ -31,10 +31,12 @@ import {
   collection,
   where,
   getDocs,
+  getDoc,
   updateDoc,
   doc,
 } from "firebase/firestore";
 import { Picker } from "@react-native-picker/picker"; // Add this import if not present
+import { checkAdminStatus, isUserAdmin } from "../utils/adminUtils";
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
@@ -63,27 +65,77 @@ export default function ProfileScreen() {
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userType, setUserType] = useState("user");
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   const [barangayList, setBarangayList] = useState([]);
   const [purokList, setPurokList] = useState([]);
 
   useEffect(() => {
-    checkAdminStatus();
+    checkUserAdminStatus();
   }, []);
 
-  const checkAdminStatus = async () => {
+  const checkUserAdminStatus = async () => {
     try {
-      const userInfoStr = await AsyncStorage.getItem("userInfo");
-      const userStr = await AsyncStorage.getItem("user");
-      if (userInfoStr && userStr) {
-        const parsedInfo = JSON.parse(userInfoStr);
+      const userId = await AsyncStorage.getItem("user");
+      if (!userId) {
+        setIsLoggedIn(false);
+        setIsAdmin(false);
+        setCurrentUserId(null);
+        return;
+      }
+
+      setCurrentUserId(userId);
+
+      // Query by username (since userId is actually username)
+      //     const userDoc = await getDoc(doc(db, "users", userId));
+      //     let userData = null;
+      //     
+      //     if (userDoc.exists()) {
+      //       userData = userDoc.data();
+      //     } else {
+      //       // Fallback: search by username if ID doesn't work
+      //       const userQuery = query(
+      //         collection(db, "users"),
+      //         where("username", "==", userId)
+      //       );
+      //       const userSnap = await getDocs(userQuery);
+      //       if (!userSnap.empty) {
+      //         userData = userSnap.docs[0].data();
+      //       }
+      //     }
+      // Search by username since AsyncStorage stores username
+      const userQuery = query(
+        collection(db, "users"),
+        where("username", "==", userId)
+      );
+      const userSnap = await getDocs(userQuery);
+      let userData = null;
+      
+      if (!userSnap.empty) {
+        userData = userSnap.docs[0].data();
+        console.log("Found user data:", userData);
+      }
+
+      if (userData) {
+        const userTypeValue = userData.userType || "user";
+        setUserType(userTypeValue);
+
+        // Check if user is admin using the utility function
+        const isAdminUser = isUserAdmin(userId, userTypeValue);
+        console.log("DEBUG - Full userData:", userData);
+        console.log("DEBUG - userTypeValue:", userTypeValue);
+        console.log("DEBUG - isAdminUser:", isAdminUser);
+        console.log("User ID:", userId, "Is Admin:", isAdminUser, "User Type:", userTypeValue);
         setIsLoggedIn(true);
-        setIsAdmin(parsedInfo.isAdmin === true);
+        setIsAdmin(isAdminUser);
       } else {
+        console.log("User not found in Firestore");
         setIsLoggedIn(false);
         setIsAdmin(false);
       }
     } catch (error) {
+      console.log("Failed to check admin status:", error);
       setIsLoggedIn(false);
       setIsAdmin(false);
     }
@@ -541,11 +593,18 @@ export default function ProfileScreen() {
               <Icon name="settings-outline" size={22} color="#555" />
               <Text style={styles.settingText}>Settings</Text>
             </TouchableOpacity>
-            {/* Admin Utilities - only visible for admin */}
+            {/* Admin Utilities - visible for admin or LGU Admin */}
             {isLoggedIn && isAdmin && (
               <TouchableOpacity
                 style={styles.settingItem}
-                onPress={() => navigation.navigate("AdminUtils")}
+                onPress={() => {
+                  // Navigate to appropriate admin screen based on userType
+                  if (userType === "LGU Admin") {
+                    navigation.navigate("Admin2Utils");
+                  } else {
+                    navigation.navigate("AdminUtils");
+                  }
+                }}
               >
                 <Icon
                   name="shield-checkmark-outline"

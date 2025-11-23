@@ -30,15 +30,10 @@ export default function ManagePins() {
   const [pins, setPins] = useState([]);
   const [requestPins, setRequestPins] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState(0); // 0 = pins, 1 = request_pins
+  const [activeTab, setActiveTab] = useState(0);
   const [mediaModalVisible, setMediaModalVisible] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState([]);
   const [filter, setFilter] = useState("All");
-  const [editModalVisible, setEditModalVisible] = useState(false);
-  const [selectedPin, setSelectedPin] = useState(null);
-  const [editCategory, setEditCategory] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editMedia, setEditMedia] = useState([]);
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -90,35 +85,6 @@ export default function ManagePins() {
     );
   };
 
-  const handleEdit = (pin) => {
-    setSelectedPin(pin);
-    setEditCategory(pin.category || pin.supplyType || "");
-    setEditDescription(pin.description || "");
-    setEditMedia(pin.media || []);
-    setEditModalVisible(true);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!selectedPin) return;
-    try {
-      const collectionName =
-        selectedPin.type === "request_pin" ? "request_pins" : "pins";
-      await updateDoc(doc(db, collectionName, selectedPin.id), {
-        category: editCategory,
-        supplyType: editCategory,
-        description: editDescription,
-        media: editMedia,
-      });
-      setEditModalVisible(false);
-      setSelectedPin(null);
-      setEditMedia([]);
-      fetchAllPins();
-      Alert.alert("Success", "Pin updated successfully!");
-    } catch (error) {
-      Alert.alert("Error", "Failed to update pin.");
-    }
-  };
-
   const handleDeletePin = (pinId, pinType) => {
     Alert.alert("Delete Pin", "Are you sure you want to delete this pin?", [
       { text: "Cancel", style: "cancel" },
@@ -148,12 +114,6 @@ export default function ManagePins() {
     setMediaModalVisible(true);
   };
 
-  const renderLeftActions = (onEdit) => (
-    <TouchableOpacity style={styles.editButton} onPress={onEdit}>
-      <Icon name="pencil" size={22} color="#fff" />
-    </TouchableOpacity>
-  );
-
   const renderRightActions = (onDelete) => (
     <TouchableOpacity style={styles.deleteButton} onPress={onDelete}>
       <Icon name="trash-outline" size={22} color="#fff" />
@@ -162,7 +122,6 @@ export default function ManagePins() {
 
   const renderPinItem = ({ item }) => (
     <Swipeable
-      renderLeftActions={() => renderLeftActions(() => handleEdit(item))}
       renderRightActions={() =>
         renderRightActions(() => handleDeletePin(item.id, item.type))
       }
@@ -333,22 +292,6 @@ export default function ManagePins() {
           </View>
         </View>
       </Modal>
-
-      {/* Edit Pin Modal */}
-      <MapPinModal
-        visible={editModalVisible}
-        description={editDescription}
-        onChangeDescription={setEditDescription}
-        selectedCategory={editCategory}
-        onCategoryChange={setEditCategory}
-        onCancel={() => {
-          setEditModalVisible(false);
-          setSelectedPin(null);
-        }}
-        onSave={handleSaveEdit}
-        media={editMedia}
-        setMedia={setEditMedia}
-      />
     </SafeAreaView>
   );
 }
@@ -440,15 +383,6 @@ const styles = StyleSheet.create({
   },
   pinTitle: { fontSize: 16, fontWeight: "bold", color: "#333" },
   pinDetail: { fontSize: 13, color: "#555", marginTop: 2 },
-  editButton: {
-    backgroundColor: "#4CAF50",
-    justifyContent: "center",
-    alignItems: "center",
-    width: 60,
-    borderRadius: 8,
-    marginBottom: 12,
-    marginRight: 10,
-  },
   deleteButton: {
     backgroundColor: "#ff4444",
     justifyContent: "center",

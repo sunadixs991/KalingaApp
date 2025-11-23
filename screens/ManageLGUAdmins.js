@@ -6,7 +6,7 @@ import { db } from "../firebase";
 import { collection, getDocs, updateDoc, doc } from "firebase/firestore";
 import { useNavigation } from "@react-navigation/native";
 
-export default function ManagePurokLeaders() {
+export default function ManageLGUAdmins() {
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,8 +45,8 @@ export default function ManagePurokLeaders() {
             (u.lastName && u.lastName.toLowerCase().includes(search.toLowerCase())) ||
             (u.username && u.username.toLowerCase().includes(search.toLowerCase())) ||
             (u.email && u.email.toLowerCase().includes(search.toLowerCase())) ||
-            (u.barangay && u.barangay.toLowerCase().includes(search.toLowerCase())) || // <-- Added
-            (u.purok && u.purok.toLowerCase().includes(search.toLowerCase()))           // <-- Added
+            (u.barangay && u.barangay.toLowerCase().includes(search.toLowerCase())) ||
+            (u.purok && u.purok.toLowerCase().includes(search.toLowerCase()))
         )
       );
     }
@@ -73,7 +73,7 @@ export default function ManagePurokLeaders() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <StatusBar barStyle="light-content" backgroundColor="#e67e22" />
+      <StatusBar barStyle="light-content" backgroundColor="#e75e33" />
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.backButton}
@@ -81,7 +81,7 @@ export default function ManagePurokLeaders() {
         >
           <Icon name="chevron-back" size={26} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.topBarTitle}>Manage Purok Leaders</Text>
+        <Text style={styles.topBarTitle}>Manage LGU Admins</Text>
         <View style={styles.backButton} />
       </View>
       <View style={styles.container}>
@@ -102,8 +102,8 @@ export default function ManagePurokLeaders() {
             data={filteredUsers}
             keyExtractor={item => item.id}
             renderItem={({ item }) => {
-              let bgColor = "#f7f7f7"; // default
-              if (item.userType === "Purok Leader") bgColor = "#d4edda"; // green for Purok Leader
+             let bgColor = "#f7f7f7"; // default
+             if (item.userType === "LGU Admin") bgColor = "#d4edda"; // green for LGU Admin
 
               return (
                 <TouchableOpacity
@@ -117,10 +117,10 @@ export default function ManagePurokLeaders() {
                     Barangay: {item.barangay || "N/A"}
                   </Text>
                   <Text style={styles.userInfo}>
-                    Purok: {item.purok || "N/A"}
+                   Division: {item.division || "N/A"}
                   </Text>
                   <Text style={styles.userInfo}>
-                    User Type: {item.userType || "user"}
+                    User Type: {item.userType || "user"}  
                   </Text>
                   <Text style={styles.editText}>Tap to edit</Text>
                 </TouchableOpacity>
@@ -155,11 +155,11 @@ export default function ManagePurokLeaders() {
               <TouchableOpacity
                 style={[
                   styles.userTypeButton,
-                  userType === "Purok Leader" && styles.userTypeSelected,
+                  userType === "LGU Admin" && styles.userTypeSelected,
                 ]}
-                onPress={() => setUserType("Purok Leader")}
+                onPress={() => setUserType("LGU Admin")}
               >
-                <Text style={styles.userTypeText}>Purok Leader</Text>
+                <Text style={styles.userTypeText}>LGU Admin</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.modalActions}>

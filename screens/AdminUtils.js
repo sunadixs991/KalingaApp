@@ -119,7 +119,7 @@ export default function AdminUtils() {
         {/* NEW: Manage Feedbacks */}
         <TouchableOpacity
           style={styles.option}
-          onPress={() => navigation.navigate("ManageFeedbacks")}
+          onPress={() => navigation.navigate("ManageFeedback")}
         >
           <Icon
             name="chatbox-ellipses-outline"
