@@ -91,7 +91,7 @@ export default function LoginScreen({ navigation, onLogin }) {
       
       if (lockStatus && lockTime) {
         const timeDiff = Date.now() - parseInt(lockTime);
-        const lockDurationMs = 1 * 60 * 1000; // 15 minutes
+        const lockDurationMs = 15 * 60 * 1000; // 15 minutes
         
         if (timeDiff < lockDurationMs) {
           setIsLocked(true);
