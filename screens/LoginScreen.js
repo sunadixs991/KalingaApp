@@ -20,6 +20,36 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from "react-native-responsive-screen";
 import { db } from "../firebase";
 import { collection, addDoc, serverTimestamp, doc, updateDoc, getDocs, query, where } from "firebase/firestore";
+import * as Crypto from 'expo-crypto';
+import NetInfo from "@react-native-community/netinfo";
+import {
+  sendLockedAccountNotification,
+  notifyBruteForceAttempt,
+} from "../services/securityNotification";
+
+const validatePasswordStrength = (password) => {
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasLowerCase = /[a-z]/.test(password);
+  const hasNumbers = /\d/.test(password);
+  const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+  const isLongEnough = password.length >= 8;
+
+  return hasUpperCase && hasLowerCase && hasNumbers && hasSpecialChar && isLongEnough;
+};
+
+const logSecurityEvent = async (eventType, username, details) => {
+  try {
+    await addDoc(collection(db, "security_events"), {
+      eventType: eventType, // "suspicious_activity", "brute_force", "password_change", etc.
+      username: username || "unknown",
+      details: details,
+      timestamp: serverTimestamp(),
+      platform: Platform.OS,
+    });
+  } catch (error) {
+    console.log("Failed to log security event:", error);
+  }
+};
 
 export default function LoginScreen({ navigation, onLogin }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -28,6 +58,11 @@ export default function LoginScreen({ navigation, onLogin }) {
   const [showPassword, setShowPassword] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [isLocked, setIsLocked] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [sessionToken, setSessionToken] = useState(null);
 
   useEffect(() => {
     Animated.parallel([
@@ -42,33 +77,314 @@ export default function LoginScreen({ navigation, onLogin }) {
         useNativeDriver: true,
       }),
     ]).start();
+
+    // Check if account is locked
+    checkAccountLockStatus();
+    checkNetworkConnectivity();
+    startSessionTimeout();
   }, []);
 
-  const logLoginActivity = async (username) => {
+  const checkAccountLockStatus = async () => {
+    try {
+      const lockStatus = await AsyncStorage.getItem("accountLocked");
+      const lockTime = await AsyncStorage.getItem("lockTime");
+      
+      if (lockStatus && lockTime) {
+        const timeDiff = Date.now() - parseInt(lockTime);
+        const lockDurationMs = 1 * 60 * 1000; // 15 minutes
+        
+        if (timeDiff < lockDurationMs) {
+          setIsLocked(true);
+          const remainingMinutes = Math.ceil((lockDurationMs - timeDiff) / 60000);
+          Alert.alert(
+            "Account Locked",
+            `Too many failed login attempts. Try again in ${remainingMinutes} minutes.`
+          );
+        } else {
+          // Unlock account
+          await AsyncStorage.removeItem("accountLocked");
+          await AsyncStorage.removeItem("lockTime");
+          await AsyncStorage.removeItem("loginAttempts");
+          setIsLocked(false);
+        }
+      }
+    } catch (error) {
+      console.log("Failed to check account lock status:", error);
+    }
+  };
+
+  const logLoginActivity = async (username, success, userType) => {
     try {
       await addDoc(collection(db, "login_activity"), {
         username: username.trim(),
         timestamp: serverTimestamp(),
+        success: success,
+        userType: userType || "unknown",
+        ipAddress: "mobile_app", // You can enhance this
+        deviceInfo: Platform.OS,
       });
     } catch (error) {
       console.log("Failed to log login activity:", error);
     }
   };
 
+  const checkNetworkConnectivity = async () => {
+    const state = await NetInfo.fetch();
+    setIsOnline(state.isConnected ?? true);
+    
+    if (!state.isConnected) {
+      Alert.alert(
+        "⚠️ No Internet Connection",
+        "Please check your internet connection and try again."
+      );
+    }
+  };
+
+  const startSessionTimeout = () => {
+    // Auto-logout after 30 minutes of inactivity
+    const timeout = setTimeout(() => {
+      handleLogout();
+    }, 30 * 60 * 1000); // 30 minutes
+
+    return () => clearTimeout(timeout);
+  };
+
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem("user");
+    await AsyncStorage.removeItem("sessionToken");
+    Alert.alert("Session Expired", "Your session has expired. Please log in again.");
+  };
+
+  const validateLoginInput = (username, password) => {
+    // Check for SQL injection patterns
+    const sqlInjectionPattern = /(\bOR\b|\bAND\b|--|;|\/\*|\*\/|xp_|sp_)/gi;
+    if (sqlInjectionPattern.test(username) || sqlInjectionPattern.test(password)) {
+      logSecurityEvent("suspicious_activity", username, "SQL injection attempt detected");
+      Alert.alert("⚠️ Invalid Input", "Your input contains invalid characters.");
+      return false;
+    }
+
+    // Check for XSS patterns
+    const xssPattern = /<script|javascript:|onerror|onclick/gi;
+    if (xssPattern.test(username) || xssPattern.test(password)) {
+      logSecurityEvent("suspicious_activity", username, "XSS attempt detected");
+      Alert.alert("⚠️ Invalid Input", "Your input contains invalid characters.");
+      return false;
+    }
+
+    // Username validation
+    if (username.length < 3 || username.length > 50) {
+      Alert.alert("⚠️ Invalid Username", "Username must be between 3 and 50 characters.");
+      return false;
+    }
+
+    // Password validation
+    if (password.length < 6) {
+      Alert.alert("⚠️ Invalid Password", "Password must be at least 6 characters long.");
+      return false;
+    }
+
+    return true;
+  };
+
+  const generateSessionToken = async (username) => {
+    try {
+      const token = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        `${username}-${Date.now()}-${Math.random()}`
+      );
+      return token;
+    } catch (error) {
+      console.log("Failed to generate session token:", error);
+      return null;
+    }
+  };
+
+  const checkSuspiciousActivity = async (username) => {
+    try {
+      // Check for multiple login attempts from different locations/devices
+      const activityRef = collection(db, "login_activity");
+      const q = query(
+        activityRef,
+        where("username", "==", username),
+        where("success", "==", true)
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.size > 0) {
+        const lastLogin = querySnapshot.docs[querySnapshot.size - 1].data();
+        const lastDevice = lastLogin.deviceInfo;
+        
+        if (lastDevice !== Platform.OS) {
+          await logSecurityEvent("suspicious_activity", username, `Login from different device: ${Platform.OS}`);
+          
+          // Optional: Ask for additional verification
+          return new Promise((resolve) => {
+            Alert.alert(
+              "🔐 Verify Login",
+              `We detected a login from a different device (${Platform.OS}). Is this you?`,
+              [
+                { text: "No", onPress: () => resolve(false) },
+                { text: "Yes", onPress: () => resolve(true) },
+              ]
+            );
+          });
+        }
+      }
+      return true;
+    } catch (error) {
+      console.log("Failed to check suspicious activity:", error);
+      return true;
+    }
+  };
+
+  const recordFailedLoginAttempt = async (username) => {
+    try {
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("username", "==", username.trim()));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        const userDocId = querySnapshot.docs[0].id;
+        const userData = querySnapshot.docs[0].data();
+        const failedAttempts = (userData.failedLoginAttempts || 0) + 1;
+        const remainingAttempts = 3 - failedAttempts;
+
+        // Log brute force attempts and send SMS notification
+        if (failedAttempts >= 2) {
+          await logSecurityEvent("brute_force_attempt", username, `Failed attempts: ${failedAttempts}`);
+          // Send SMS to user about brute force attempt
+          await notifyBruteForceAttempt(userData.phone, username, failedAttempts);
+        }
+
+        // If admin and exceeds 3 attempts, lock account
+        if ((userData.userType === "LGU Admin" || userData.isAdmin) && failedAttempts >= 3) {
+          await updateDoc(doc(db, "users", userDocId), {
+            failedLoginAttempts: failedAttempts,
+            accountLocked: true,
+            lockedAt: serverTimestamp(),
+          });
+
+          await AsyncStorage.setItem("accountLocked", "true");
+          await AsyncStorage.setItem("lockTime", Date.now().toString());
+          setIsLocked(true);
+
+          await addDoc(collection(db, "security_alerts"), {
+            type: "account_locked",
+            username: username.trim(),
+            userType: userData.userType,
+            reason: "Multiple failed login attempts",
+            timestamp: serverTimestamp(),
+            ipAddress: "mobile_app",
+            device: Platform.OS,
+          });
+
+          // Send SMS notification for account lockout
+          await sendLockedAccountNotification(username, "Multiple failed login attempts");
+
+          Alert.alert(
+            "🔒 Account Locked",
+            "Too many failed login attempts.\n\nYour account has been temporarily locked for security purposes.\n\nPlease try again in 15 minutes."
+          );
+        } else {
+          let alertTitle = "❌ Login Failed";
+          let alertMessage = `Invalid username or password.\n\n`;
+
+          if (remainingAttempts > 0) {
+            alertMessage += `⚠️ Remaining attempts: ${remainingAttempts}\n\n`;
+            if (remainingAttempts === 1) {
+              alertMessage += `⚠️ One more failed attempt will lock your account for 15 minutes.`;
+            } else {
+              alertMessage += `After ${3 - remainingAttempts} more failed attempts, your account will be locked.`;
+            }
+          }
+
+          await updateDoc(doc(db, "users", userDocId), {
+            failedLoginAttempts: failedAttempts,
+          });
+
+          Alert.alert(alertTitle, alertMessage);
+        }
+      }
+    } catch (error) {
+      console.log("Failed to record login attempt:", error);
+    }
+  };
+
+  const resetFailedLoginAttempts = async (username) => {
+    try {
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("username", "==", username.trim()));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        const userDocId = querySnapshot.docs[0].id;
+        await updateDoc(doc(db, "users", userDocId), {
+          failedLoginAttempts: 0,
+          accountLocked: false,
+        });
+      }
+    } catch (error) {
+      console.log("Failed to reset login attempts:", error);
+    }
+  };
+
   const handleLogin = async () => {
-    if (!username || !password) {
-      Alert.alert("Error", "Please enter both username and password");
+    if (!isOnline) {
+      Alert.alert("⚠️ No Internet", "Please check your internet connection.");
       return;
     }
+
+    if (isLocked) {
+      Alert.alert(
+        "🔒 Account Locked",
+        "Your account is temporarily locked due to multiple failed login attempts.\n\nPlease try again later."
+      );
+      return;
+    }
+
+    if (!username || !password) {
+      Alert.alert(
+        "⚠️ Missing Information",
+        "Please enter both your username and password to continue."
+      );
+      return;
+    }
+
+    // Validate input for injection attacks
+    if (!validateLoginInput(username, password)) {
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const { success, userData } = await loginWithUsernameAndPassword(username, password);
 
       if (success && userData) {
+        // Check for suspicious activity
+        const isTrusted = await checkSuspiciousActivity(username);
+        if (!isTrusted) {
+          await logSecurityEvent("suspicious_activity_rejected", username, "User denied suspicious login");
+          setLoading(false);
+          return;
+        }
+
+        // Generate session token
+        const token = await generateSessionToken(username);
+        if (token) {
+          await AsyncStorage.setItem("sessionToken", token);
+          setSessionToken(token);
+        }
+
+        // Reset failed attempts on successful login
+        await resetFailedLoginAttempts(username);
+
         await AsyncStorage.setItem("userInfo", JSON.stringify(userData));
         await AsyncStorage.setItem("user", username.trim());
+        await AsyncStorage.setItem("lastLogin", new Date().toISOString());
 
-        await logLoginActivity(username);
+        await logLoginActivity(username, true, userData.userType);
 
         const usersRef = collection(db, "users");
         const q = query(usersRef, where("username", "==", username.trim()));
@@ -76,22 +392,43 @@ export default function LoginScreen({ navigation, onLogin }) {
 
         if (!querySnapshot.empty) {
           const userDocId = querySnapshot.docs[0].id;
-          await updateDoc(doc(db, "users", userDocId), { accountStatus: "active" });
+          await updateDoc(doc(db, "users", userDocId), {
+            accountStatus: "active",
+            lastLoginTime: serverTimestamp(),
+            lastLoginDevice: Platform.OS,
+          });
         }
 
         if (onLogin) onLogin();
 
-        Alert.alert("Success", userData.isAdmin ? "Logged in as Administrator!" : "Logged in successfully!");
+        Alert.alert(
+          "✅ Success",
+          userData.userType === "LGU Admin"
+            ? "Welcome back, LGU Admin! 🎉"
+            : userData.isAdmin
+            ? "Welcome back, Administrator! 🎉"
+            : "Welcome back! 🎉"
+        );
 
         navigation.replace("MainTabs", {
           username,
           isAdmin: userData.isAdmin,
+          userType: userData.userType,
+          sessionToken: token,
         });
       } else {
-        Alert.alert("Error", "Invalid username or password");
+        // Record failed attempt
+        await recordFailedLoginAttempt(username);
+        await logLoginActivity(username, false, null);
       }
     } catch (error) {
-      Alert.alert("Error", error.message);
+      await logLoginActivity(username, false, null);
+      Alert.alert(
+        "⚠️ Login Error",
+        error.message || "An unexpected error occurred. Please try again."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -134,6 +471,7 @@ export default function LoginScreen({ navigation, onLogin }) {
                   placeholderTextColor="#888"
                   value={username}
                   onChangeText={setUsername}
+                  editable={!loading}
                 />
               </View>
 
@@ -147,8 +485,9 @@ export default function LoginScreen({ navigation, onLogin }) {
                   placeholderTextColor="#888"
                   value={password}
                   onChangeText={setPassword}
+                  editable={!loading}
                 />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} disabled={loading}>
                   <Icon
                     name={showPassword ? "eye-outline" : "eye-off-outline"}
                     size={24}
@@ -163,6 +502,7 @@ export default function LoginScreen({ navigation, onLogin }) {
                   style={styles.rememberMeContainer}
                   onPress={() => setRememberMe(!rememberMe)}
                   activeOpacity={0.7}
+                  disabled={loading}
                 >
                   <View
                     style={[styles.checkbox, rememberMe && styles.checkboxChecked]}
@@ -172,20 +512,26 @@ export default function LoginScreen({ navigation, onLogin }) {
                   <Text style={styles.rememberMeText}>Remember me</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity>
+                <TouchableOpacity disabled={loading}>
                   <Text style={styles.forgotPasswordText}>Forgot password?</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Login Button */}
-              <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-                <Text style={styles.loginButtonText}>Login</Text>
+              <TouchableOpacity
+                style={[styles.loginButton, (loading || isLocked) && { opacity: 0.6 }]}
+                onPress={handleLogin}
+                disabled={loading || isLocked}
+              >
+                <Text style={styles.loginButtonText}>
+                  {loading ? "Logging in..." : "Login"}
+                </Text>
               </TouchableOpacity>
 
               {/* Sign Up */}
               <View style={styles.signupContainer}>
                 <Text style={styles.signupText}>Not yet a member?</Text>
-                <TouchableOpacity onPress={() => navigation.navigate("SignUp")}>
+                <TouchableOpacity onPress={() => navigation.navigate("SignUp")} disabled={loading}>
                   <Text style={styles.signupLink}> SIGN UP</Text>
                 </TouchableOpacity>
               </View>

@@ -44,6 +44,7 @@ import AboutUs from "./screens/AboutUs";
 import PrivacyPolicy from "./screens/PrivacyPolicy";
 import ManageFeedback from "./screens/ManageFeedback";
 import Admin2Utils from "./screens/Admin2Utils";
+import SecurityLogs from "./screens/SecurityLogs";
 
 // ✅ Import Feedback Modal
 import FeedbackModal from "./components/FeedbackModal";
@@ -134,6 +135,7 @@ export default function App() {
             <Stack.Screen name="ManageFeedback" component={ManageFeedback} />
             <Stack.Screen name="ManageLGUAdmins" component={ManageLGUAdmins} />
             <Stack.Screen name="Admin2Utils" component={Admin2Utils} />
+            <Stack.Screen name="SecurityLogs" component={SecurityLogs} />
           </Stack.Navigator>
 
           {/* ✅ Pass username to Feedback Modal */}

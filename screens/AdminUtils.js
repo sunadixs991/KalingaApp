@@ -130,6 +130,15 @@ export default function AdminUtils() {
           <Text style={styles.optionText}>Manage Feedbacks</Text>
         </TouchableOpacity>
 
+        {/* NEW: Security Logs */}
+        <TouchableOpacity
+          style={styles.option}
+          onPress={() => navigation.navigate("SecurityLogs")}
+        >
+          <Icon name="shield-outline" size={28} color="#d9534f" style={styles.icon} />
+          <Text style={styles.optionText}>Security Logs</Text>
+        </TouchableOpacity>
+
       </ScrollView>
     </SafeAreaView>
   );
