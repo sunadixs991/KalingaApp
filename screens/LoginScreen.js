@@ -63,6 +63,8 @@ export default function LoginScreen({ navigation, onLogin }) {
   const [isLocked, setIsLocked] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [sessionToken, setSessionToken] = useState(null);
+  const sessionTimeoutRef = useRef(null);
+  const isLoggedInRef = useRef(false); // track login state for timeout control
 
   useEffect(() => {
     Animated.parallel([
@@ -81,7 +83,15 @@ export default function LoginScreen({ navigation, onLogin }) {
     // Check if account is locked
     checkAccountLockStatus();
     checkNetworkConnectivity();
-    startSessionTimeout();
+    // session timeout will start only after successful login
+
+    // cleanup on unmount: clear any session timeout
+    return () => {
+      if (sessionTimeoutRef.current) {
+        clearTimeout(sessionTimeoutRef.current);
+        sessionTimeoutRef.current = null;
+      }
+    };
   }, []);
 
   const checkAccountLockStatus = async () => {
@@ -113,20 +123,33 @@ export default function LoginScreen({ navigation, onLogin }) {
     }
   };
 
-  const logLoginActivity = async (username, success, userType) => {
-    try {
-      await addDoc(collection(db, "login_activity"), {
-        username: username.trim(),
-        timestamp: serverTimestamp(),
-        success: success,
-        userType: userType || "unknown",
-        ipAddress: "mobile_app", // You can enhance this
-        deviceInfo: Platform.OS,
-      });
-    } catch (error) {
-      console.log("Failed to log login activity:", error);
-    }
-  };
+const getClientIP = async () => {
+  try {
+    const response = await fetch('https://api.ipify.org?format=json');
+    const data = await response.json();
+    return data.ip;
+  } catch (error) {
+    console.log("Failed to fetch IP:", error);
+    return "unavailable";
+  }
+};
+
+const logLoginActivity = async (username, success, userType) => {
+  try {
+    const ipAddress = await getClientIP();
+    
+    await addDoc(collection(db, "login_activity"), {
+      username: username.trim(),
+      timestamp: serverTimestamp(),
+      success: success,
+      userType: userType || "unknown",
+      ipAddress: ipAddress,
+      deviceInfo: Platform.OS,
+    });
+  } catch (error) {
+    console.log("Failed to log login activity:", error);
+  }
+};
 
   const checkNetworkConnectivity = async () => {
     const state = await NetInfo.fetch();
@@ -141,15 +164,24 @@ export default function LoginScreen({ navigation, onLogin }) {
   };
 
   const startSessionTimeout = () => {
-    // Auto-logout after 30 minutes of inactivity
-    const timeout = setTimeout(() => {
+    // start only if not already started and user is logged in
+    if (sessionTimeoutRef.current || !isLoggedInRef.current) return;
+    sessionTimeoutRef.current = setTimeout(() => {
       handleLogout();
     }, 30 * 60 * 1000); // 30 minutes
+  };
 
-    return () => clearTimeout(timeout);
+  const clearSessionTimeout = () => {
+    if (sessionTimeoutRef.current) {
+      clearTimeout(sessionTimeoutRef.current);
+      sessionTimeoutRef.current = null;
+    }
   };
 
   const handleLogout = async () => {
+    // clear timeout when logging out
+    clearSessionTimeout();
+    isLoggedInRef.current = false;
     await AsyncStorage.removeItem("user");
     await AsyncStorage.removeItem("sessionToken");
     Alert.alert("Session Expired", "Your session has expired. Please log in again.");
@@ -362,6 +394,10 @@ export default function LoginScreen({ navigation, onLogin }) {
       const { success, userData } = await loginWithUsernameAndPassword(username, password);
 
       if (success && userData) {
+        // mark logged in and start session timeout
+        isLoggedInRef.current = true;
+        startSessionTimeout();
+
         // Check for suspicious activity
         const isTrusted = await checkSuspiciousActivity(username);
         if (!isTrusted) {
@@ -376,6 +412,9 @@ export default function LoginScreen({ navigation, onLogin }) {
           await AsyncStorage.setItem("sessionToken", token);
           setSessionToken(token);
         }
+        // restart session timeout on successful login (ensure single timer)
+        clearSessionTimeout();
+        startSessionTimeout();
 
         // Reset failed attempts on successful login
         await resetFailedLoginAttempts(username);
@@ -504,15 +543,18 @@ export default function LoginScreen({ navigation, onLogin }) {
                   activeOpacity={0.7}
                   disabled={loading}
                 >
-                  <View
+                  {/* <View
                     style={[styles.checkbox, rememberMe && styles.checkboxChecked]}
                   >
                     {rememberMe && <Icon name="checkmark" size={16} color="#fff" />}
                   </View>
-                  <Text style={styles.rememberMeText}>Remember me</Text>
+                  <Text style={styles.rememberMeText}>Remember me</Text> */}
                 </TouchableOpacity>
 
-                <TouchableOpacity disabled={loading}>
+                <TouchableOpacity
+                  disabled={loading}
+                  onPress={() => navigation.navigate("ForgotPassword")}
+                >
                   <Text style={styles.forgotPasswordText}>Forgot password?</Text>
                 </TouchableOpacity>
               </View>

@@ -39,6 +39,29 @@ export default function PrivacyScreen({ navigation }) {
   const [loginHistory, setLoginHistory] = useState([]);
   const [loginLoading, setLoginLoading] = useState(false);
 
+  // password validation + visibility toggles
+  const [passwordChecks, setPasswordChecks] = useState({
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    digit: false,
+    special: false,
+  });
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  useEffect(() => {
+    const checks = {
+      length: newPassword.length >= 8,
+      uppercase: /[A-Z]/.test(newPassword),
+      lowercase: /[a-z]/.test(newPassword),
+      digit: /\d/.test(newPassword),
+      special: /[!@#$%^&*(),.?":{}|<>]/.test(newPassword),
+    };
+    setPasswordChecks(checks);
+  }, [newPassword]);
+
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmNewPassword) {
       Alert.alert("Error", "Please fill in all fields.");
@@ -46,6 +69,13 @@ export default function PrivacyScreen({ navigation }) {
     }
     if (newPassword !== confirmNewPassword) {
       Alert.alert("Error", "New passwords do not match.");
+      return;
+    }
+    if (!Object.values(passwordChecks).every(Boolean)) {
+      Alert.alert(
+        "Error",
+        "New password does not meet requirements. See the checklist below."
+      );
       return;
     }
 
@@ -273,27 +303,102 @@ export default function PrivacyScreen({ navigation }) {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <Text style={styles.modalHeader}>Change Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Current Password"
-                value={currentPassword}
-                onChangeText={setCurrentPassword}
-                secureTextEntry
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="New Password"
-                value={newPassword}
-                onChangeText={setNewPassword}
-                secureTextEntry
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Confirm New Password"
-                value={confirmNewPassword}
-                onChangeText={setConfirmNewPassword}
-                secureTextEntry
-              />
+
+              <View style={styles.passwordRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="Current Password"
+                  value={currentPassword}
+                  onChangeText={setCurrentPassword}
+                  secureTextEntry={!showCurrentPassword}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowCurrentPassword(!showCurrentPassword)}
+                  style={{ marginLeft: 8 }}
+                >
+                  <Icon
+                    name={showCurrentPassword ? "eye-outline" : "eye-off-outline"}
+                    size={22}
+                    color="#333"
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.passwordRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="New Password"
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  secureTextEntry={!showNewPassword}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowNewPassword(!showNewPassword)}
+                  style={{ marginLeft: 8 }}
+                >
+                  <Icon
+                    name={showNewPassword ? "eye-outline" : "eye-off-outline"}
+                    size={22}
+                    color="#333"
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.passwordRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="Confirm New Password"
+                  value={confirmNewPassword}
+                  onChangeText={setConfirmNewPassword}
+                  secureTextEntry={!showConfirmPassword}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={{ marginLeft: 8 }}
+                >
+                  <Icon
+                    name={showConfirmPassword ? "eye-outline" : "eye-off-outline"}
+                    size={22}
+                    color="#333"
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.requirementsSmall}>
+                <Text
+                  style={
+                    passwordChecks.length
+                      ? styles.okText
+                      : styles.failText
+                  }
+                >
+                  • Minimum 8 characters
+                </Text>
+                <Text
+                  style={
+                    passwordChecks.uppercase
+                      ? styles.okText
+                      : styles.failText
+                  }
+                >
+                  • At least one uppercase letter
+                </Text>
+                <Text
+                  style={
+                    passwordChecks.lowercase
+                      ? styles.okText
+                      : styles.failText
+                  }
+                >
+                  • At least one lowercase letter
+                </Text>
+                <Text style={passwordChecks.digit ? styles.okText : styles.failText}>
+                  • At least one digit
+                </Text>
+                <Text style={passwordChecks.special ? styles.okText : styles.failText}>
+                  • At least one special character (e.g. !@#$%)
+                </Text>
+              </View>
 
               {/* Action Buttons */}
               <View style={styles.buttonRow}>
@@ -439,6 +544,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     fontSize: 16,
   },
+  passwordRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  requirementsSmall: {
+    marginBottom: 12,
+  },
   buttonRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -477,4 +590,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#333",
   },
+  okText: { color: "green", fontSize: 14 },
+  failText: { color: "red", fontSize: 14 },
 });

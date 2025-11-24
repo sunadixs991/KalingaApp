@@ -22,7 +22,7 @@ import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
 } from "react-native-responsive-screen";
-import { sendOTPSMS, verifyOTP } from "../services/notification";
+import { sendOTPSMS, verifyOTP, formatPhoneNumber } from "../services/notification";
 
 export default function SignUp({ navigation }) {
   const [step, setStep] = useState(1);
@@ -51,10 +51,28 @@ export default function SignUp({ navigation }) {
   const [purok, setPurok] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
+  
   // Error states
   const [stepOneErrors, setStepOneErrors] = useState({});
   const [stepTwoErrors, setStepTwoErrors] = useState({});
+  
+  // New states for username check and password rules
+  const [usernameAvailable, setUsernameAvailable] = useState(null); // null = unknown, true = available, false = taken
+  const [checkingUsername, setCheckingUsername] = useState(false);
+  // Phone duplication check
+  const [phoneAvailable, setPhoneAvailable] = useState(null); // null = unknown, true = available, false = taken
+  const [checkingPhone, setCheckingPhone] = useState(false);
+  // phone format/validity + debounce state
+  const [phoneValid, setPhoneValid] = useState(false);
+  const [phoneInvalid, setPhoneInvalid] = useState(false);
+  const PHONE_DEBOUNCE_MS = 700;
+  const [passwordChecks, setPasswordChecks] = useState({
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    digit: false,
+    special: false,
+  });
 
   // Fetch barangay list
   useEffect(() => {
@@ -153,6 +171,18 @@ export default function SignUp({ navigation }) {
     return true;
   };
 
+  // validate password strength live
+  useEffect(() => {
+    const checks = {
+      length: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      digit: /\d/.test(password),
+      special: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+    };
+    setPasswordChecks(checks);
+  }, [password]);
+
   const validateStepTwo = () => {
     const errors = {};
     if (!username.trim()) errors.username = true;
@@ -160,10 +190,23 @@ export default function SignUp({ navigation }) {
     if (!password.trim()) errors.password = true;
     if (!confirmPassword.trim()) errors.confirmPassword = true;
     if (password !== confirmPassword) errors.passwordMismatch = true;
+    // strict password enforcement
+    const passwordValid = Object.values(passwordChecks).every((v) => v === true);
+    if (!passwordValid) errors.passwordRules = true;
+    // username availability check
+    if (usernameAvailable === false) errors.usernameTaken = true;
     setStepTwoErrors(errors);
 
     if (errors.passwordMismatch) {
       Alert.alert("Password Error", "Passwords do not match.");
+      return false;
+    }
+    if (errors.usernameTaken) {
+      Alert.alert("Username Unavailable", "Please choose a different username.");
+      return false;
+    }
+    if (errors.passwordRules) {
+      Alert.alert("Password Error", "Password does not meet requirements. See tips below.");
       return false;
     }
     if (Object.keys(errors).length > 0) {
@@ -179,8 +222,108 @@ export default function SignUp({ navigation }) {
     return `USER${timestamp}${random}`;
   };
 
+  // Check username availability (call onBlur or before signup)
+  const checkUsernameAvailability = async (value) => {
+    const trimmed = (value || "").trim();
+    if (!trimmed) {
+      setUsernameAvailable(null);
+      return;
+    }
+    setCheckingUsername(true);
+    try {
+      const q = query(collection(db, "users"), where("username", "==", trimmed));
+      const snap = await getDocs(q);
+      setUsernameAvailable(snap.empty);
+    } catch (err) {
+      console.error("Username check error:", err);
+      setUsernameAvailable(null);
+    } finally {
+      setCheckingUsername(false);
+    }
+  };
+
+  // Check phone availability (call onBlur or before sending OTP / signup)
+  const checkPhoneAvailability = async (value) => {
+    const trimmed = (value || "").trim();
+    if (!trimmed) {
+      setPhoneAvailable(null);
+      return;
+    }
+    setCheckingPhone(true);
+    try {
+      const q = query(collection(db, "users"), where("phone", "==", trimmed));
+      const snap = await getDocs(q);
+      setPhoneAvailable(snap.empty);
+    } catch (err) {
+      console.error("Phone check error:", err);
+      setPhoneAvailable(null);
+    } finally {
+      setCheckingPhone(false);
+    }
+  };
+ 
+  // Auto-check phone validity and availability after user stops typing
+  useEffect(() => {
+    setPhoneValid(false);
+    setPhoneAvailable(null);
+    setPhoneInvalid(false);
+    if (!phone || !phone.trim()) return;
+
+    const timer = setTimeout(async () => {
+      // normalize digits-only for length/start checks
+      const digits = (phone || "").replace(/\D/g, "");
+      // invalid if less than 11 digits or does not start with 09
+      if (digits.length < 11 || !digits.startsWith("09")) {
+        setPhoneValid(false);
+        setPhoneAvailable(null);
+        setPhoneInvalid(true);
+        return;
+      }
+
+      // Use project's formatPhoneNumber for consistent formatting/DB matching
+      const formatted = formatPhoneNumber(phone);
+      if (!formatted) {
+        setPhoneValid(false);
+        setPhoneAvailable(null);
+        setPhoneInvalid(true);
+        return;
+      }
+
+      setPhoneInvalid(false);
+      setPhoneValid(true);
+      // check availability using the formatted value (DB must use same format)
+      await checkPhoneAvailability(formatted);
+    }, PHONE_DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [phone]);
+
   const handleSignUp = async () => {
     if (!validateStepTwo()) return;
+
+    // Ensure username availability final check
+    if (usernameAvailable !== true) {
+      await checkUsernameAvailability(username);
+      if (usernameAvailable !== true) {
+        Alert.alert("Error", "Username already exists or could not be verified. Choose another username.");
+        return;
+      }
+    }
+
+    // Ensure phone availability final check
+    if (phoneAvailable !== true) {
+      await checkPhoneAvailability(phone);
+      if (phoneAvailable !== true) {
+        Alert.alert("Error", "Phone number already exists or could not be verified. Use another phone number.");
+        return;
+      }
+    }
+
+    // Ensure strong password
+    if (!Object.values(passwordChecks).every(Boolean)) {
+      Alert.alert("Error", "Password does not meet the required complexity.");
+      return;
+    }
 
     try {
       const usernameQuery = query(
@@ -191,6 +334,13 @@ export default function SignUp({ navigation }) {
 
       if (!usernameSnapshot.empty) {
         Alert.alert("Error", "Username already exists");
+        return;
+      }
+      // Final phone duplication check
+      const phoneQuery = query(collection(db, "users"), where("phone", "==", phone));
+      const phoneSnapshot = await getDocs(phoneQuery);
+      if (!phoneSnapshot.empty) {
+        Alert.alert("Error", "Phone number already registered");
         return;
       }
 
@@ -230,6 +380,15 @@ export default function SignUp({ navigation }) {
     if (!phone.trim()) {
       Alert.alert("Error", "Please enter a phone number first.");
       return;
+    }
+
+    // Ensure phone not already used
+    if (phoneAvailable !== true) {
+      await checkPhoneAvailability(phone);
+      if (phoneAvailable === false) {
+        Alert.alert("Phone In Use", "This phone number is already registered.");
+        return;
+      }
     }
 
     setOtpLoading(true);
@@ -361,26 +520,44 @@ export default function SignUp({ navigation }) {
                       onChangeText={(text) => {
                         setPhone(text);
                         setStepOneErrors((prev) => ({ ...prev, phone: false }));
+                        setPhoneAvailable(null); // reset while user edits
+                        setPhoneValid(false);
                       }}
                       editable={!otpSent}
+                      onBlur={() => checkPhoneAvailability(phone)}
                     />
-                    <TouchableOpacity
-                      onPress={handleSendOTP}
-                      disabled={otpLoading || !phone.trim()}
-                      style={{ opacity: otpLoading || !phone.trim() ? 0.5 : 1 }}
-                    >
-                      <Text
-                        style={{
-                          color: "#EC6135",
-                          fontSize: wp("3.5%"),
-                          fontWeight: "bold",
-                        }}
+                    {/* Show Send button only when phone is valid and available */}
+                    {phoneValid && phoneAvailable === true && !otpSent ? (
+                      <TouchableOpacity
+                        onPress={handleSendOTP}
+                        disabled={otpLoading}
+                        style={{ opacity: otpLoading ? 0.5 : 1 }}
                       >
-                        {otpLoading ? "..." : "Send"}
-                      </Text>
-                    </TouchableOpacity>
+                        <Text
+                          style={{
+                            color: "#EC6135",
+                            fontSize: wp("3.5%"),
+                            fontWeight: "bold",
+                          }}
+                        >
+                          {otpLoading ? "..." : "Send"}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      // reserve space so layout doesn't jump
+                      <View style={{ minWidth: wp("12%"), alignItems: "center" }}>
+                        {checkingPhone ? (
+                          <Text style={{ color: "#666", fontSize: wp("3%") }}>...</Text>
+                        ) : null}
+                      </View>
+                    )}
                   </View>
                 </View>
+    
+                {checkingPhone && <Text style={{color:'#666', marginTop:4}}>Checking phone...</Text>}
+                {phoneValid && phoneAvailable === true && <Text style={{color:'green', marginTop:4}}>Phone is not used</Text>}
+                {phoneAvailable === false && <Text style={{color:'red', marginTop:4}}>Phone already in use</Text>}
+                {phoneInvalid && <Text style={{color:'red', marginTop:4}}>Invalid phone number</Text>}
 
                 {/* OTP */}
                 {otpSent && (
@@ -670,12 +847,14 @@ export default function SignUp({ navigation }) {
                     value={username}
                     onChangeText={(text) => {
                       setUsername(text);
-                      setStepTwoErrors((prev) => ({
-                        ...prev,
-                        username: false,
-                      }));
+                      setStepTwoErrors((prev) => ({ ...prev, username: false }));
+                      setUsernameAvailable(null); // reset while user edits
                     }}
+                    onBlur={() => checkUsernameAvailability(username)}
                   />
+                  {checkingUsername && <Text style={{color:'#666', marginTop:4}}>Checking username...</Text>}
+                  {usernameAvailable === true && <Text style={{color:'green', marginTop:4}}>Username is available</Text>}
+                  {usernameAvailable === false && <Text style={{color:'red', marginTop:4}}>Username is already taken</Text>}
                 </View>
 
                 {/* Email */}
@@ -742,6 +921,15 @@ export default function SignUp({ navigation }) {
                       color="#225B64"
                     />
                   </TouchableOpacity>
+                </View>
+
+                <View style={{backgroundColor:'#f6f6f6', padding:10, borderRadius:8, marginBottom:12}}>
+                  <Text style={{fontWeight:'600', marginBottom:6}}>Password requirements:</Text>
+                  <Text style={passwordChecks.length ? styles.okText : styles.failText}>• Minimum 8 characters</Text>
+                  <Text style={passwordChecks.uppercase ? styles.okText : styles.failText}>• At least one uppercase letter</Text>
+                  <Text style={passwordChecks.lowercase ? styles.okText : styles.failText}>• At least one lowercase letter</Text>
+                  <Text style={passwordChecks.digit ? styles.okText : styles.failText}>• At least one digit</Text>
+                  <Text style={passwordChecks.special ? styles.okText : styles.failText}>• At least one special character (e.g. !@#$%)</Text>
                 </View>
 
                 {/* Confirm Password */}
@@ -918,5 +1106,13 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: wp("3.5%"),
     fontWeight: "bold",
+  },
+  okText: {
+    color: "green",
+    fontSize: wp("3.5%"),
+  },
+  failText: {
+    color: "red",
+    fontSize: wp("3.5%"),
   },
 });
