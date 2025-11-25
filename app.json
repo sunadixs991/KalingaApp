@@ -45,11 +45,11 @@
         }
       ]
     ],
+    "scheme": "kalingaapp",
     "extra": {
       "eas": {
-        "projectId": "0829c385-79fd-4724-b36b-c62a29cd8aa5"
+        "projectId": "904fe2b7-45b7-421e-8f31-bbe09a78e69d"
       }
-    },
-    "scheme": "kalingaapp"
+    }
   }
 }
