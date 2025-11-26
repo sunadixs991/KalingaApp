@@ -80,7 +80,7 @@ function getMapHtml(
           ) +
         '">' +
           '<i class="' + (p.iconClass || 'fas fa-map-marker-alt') + '" ' +
-            'style="font-size:' + (isCurrent ? 36 : (p.size ? Math.floor(p.size / 2) : 18)) + 'px;' + // <-- 40px for current location
+            'style="font-size:' + (isCurrent ? 36 : (p.size ? Math.floor(p.size / 2) : 18)) + 'px;' +
             (isCurrent ? 'color:red !important;' : '') +
           '"></i>' +
         '</div>';
@@ -215,6 +215,34 @@ function getMapHtml(
                   latitude: center.lat,
                   longitude: center.lng
                 }));
+              }
+              // 👉 NEW: Handle live location updates
+              if(msg?.type === 'updateUserLocation'){
+                const currentMarker = markers['__current_location'];
+                if(currentMarker){
+                  // Update existing marker position smoothly
+                  currentMarker.setLatLng([msg.latitude, msg.longitude]);
+                } else {
+                  // Create new marker if it doesn't exist
+                  const iconHtml = '<div class="pin" style="background:transparent !important;border:none !important;outline:none !important;box-shadow:none !important;padding:0;">' +
+                    '<i class="fas fa-map-marker-alt" style="font-size:36px;color:red !important;"></i>' +
+                    '</div>';
+                  const myIcon = L.divIcon({
+                    html: iconHtml,
+                    className: 'custom-pin',
+                    iconSize: [36, 36],
+                    iconAnchor: [18, 36],
+                  });
+                  const newMarker = L.marker([msg.latitude, msg.longitude], { icon: myIcon }).addTo(map);
+                  newMarker.on('click', ()=> window.ReactNativeWebView.postMessage(JSON.stringify({type:'markerClick', id: '__current_location'})));
+                  markers['__current_location'] = newMarker;
+                }
+              }
+              // 👉 NEW: Handle crosshair mode
+              if(msg?.type === 'setCrosshairMode'){
+                // You can add visual crosshair overlay here if needed
+                // For now, just track the state
+                window._crosshairMode = !!msg.enabled;
               }
             }catch(e){}
           }

@@ -46,6 +46,7 @@ import ManageFeedback from "./screens/ManageFeedback";
 import Admin2Utils from "./screens/Admin2Utils";
 import SecurityLogs from "./screens/SecurityLogs";
 import ForgotPassword from "./screens/ForgotPassword";
+import ManagePurokLeaders from "./screens/ManagePurokLeaders";
 
 
 // ✅ Import Feedback Modal
@@ -139,6 +140,7 @@ export default function App() {
             <Stack.Screen name="Admin2Utils" component={Admin2Utils} />
             <Stack.Screen name="SecurityLogs" component={SecurityLogs} />
             <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
+            <Stack.Screen name="ManagePurokLeaders" component={ManagePurokLeaders} />
           </Stack.Navigator>
 
           {/* ✅ Pass username to Feedback Modal */}

@@ -75,14 +75,17 @@ export default function SupplyRequestModal({
       Alert.alert("No contact", "No contact information provided.");
       return;
     }
-    const tel = `tel:${contact}`;
-    const mail = `mailto:${contact}`;
+
+    // normalize to a phone-friendly string (keep digits and plus)
+    const phone = String(contact).replace(/[^\d+]/g, "");
+    const tel = `tel:${phone}`;
+
     try {
-      if (await Linking.canOpenURL(tel)) {
-        Linking.openURL(tel);
-      } else if (await Linking.canOpenURL(mail)) {
-        Linking.openURL(mail);
+      // prefer opening the phone dialer
+      if (phone.length >= 3 && (await Linking.canOpenURL(tel))) {
+        await Linking.openURL(tel);
       } else {
+        // couldn't open dialer — show a simple alert instead of opening mail
         Alert.alert("Contact", contact);
       }
     } catch (e) {

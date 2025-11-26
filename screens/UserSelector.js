@@ -13,6 +13,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function UserSelector() {
   const navigation = useNavigation();
 
+  const goToRoot = (name, params) => {
+    const parent = navigation.getParent();
+    if (parent && typeof parent.navigate === "function") parent.navigate(name, params);
+    else navigation.navigate(name, params);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <StatusBar barStyle="light-content" backgroundColor="#2d98da" />
@@ -34,6 +40,15 @@ export default function UserSelector() {
           <Icon name="person-outline" size={28} color="#e67e22" style={styles.icon} />
           <Text style={styles.optionText}>LGU Admin</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.option}
+          onPress={() => goToRoot("ManagePurokLeaders")}
+        >
+          <Icon name="people-circle-outline" size={28} color="#49A5A2" style={styles.icon} />
+          <Text style={styles.optionText}>Purok Leaders</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.option}
           onPress={() => navigation.navigate("ManageUsers")}

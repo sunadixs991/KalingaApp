@@ -25,6 +25,12 @@ export default function ManageUsers() {
   const [selectedUser, setSelectedUser] = useState(null);
   const navigation = useNavigation();
 
+  const goToRoot = (name, params) => {
+    const parent = navigation.getParent();
+    if (parent && typeof parent.navigate === "function") parent.navigate(name, params);
+    else navigation.navigate(name, params);
+  };
+
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -183,9 +189,35 @@ export default function ManageUsers() {
             >
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
+            {selectedUser?.userType === "Purok Leader" && (
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => {
+                  setDetailsModalVisible(false);
+                  goToRoot("ManagePurokLeaders", { userId: selectedUser.id });
+                }}
+              >
+                <Text style={styles.editButtonText}>Edit in Purok Leaders</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
+      <View style={styles.manageButtonsRow}>
+        <TouchableOpacity
+          style={styles.manageButton}
+          onPress={() => goToRoot("ManageLGUAdmins")}
+        >
+          <Text style={styles.manageButtonText}>LGU Admins</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.manageButton}
+          onPress={() => goToRoot("ManagePurokLeaders")}
+        >
+          <Text style={styles.manageButtonText}>Purok Leaders</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -291,6 +323,39 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   closeButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 15,
+  },
+  manageButtonsRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+  },
+  manageButton: {
+    backgroundColor: "#007bff",
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    elevation: 3,
+  },
+  manageButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
+    textAlign: "center",
+  },
+  editButton: {
+    backgroundColor: "#ffc107",
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 12,
+    alignSelf: "center",
+  },
+  editButtonText: {
     color: "#fff",
     fontWeight: "bold",
     fontSize: 15,

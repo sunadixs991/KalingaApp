@@ -49,6 +49,15 @@ export default function Admin2Utils() {
           <Icon name="calendar-outline" size={28} color="#007AFF" style={styles.icon} />
           <Text style={styles.optionText}>Food Distribution Schedules</Text>
         </TouchableOpacity>
+
+        {/* Purok Leaders */}
+        <TouchableOpacity
+          style={styles.option}
+          onPress={() => navigation.navigate("ManagePurokLeaders")}
+        >
+          <Icon name="people-circle-outline" size={28} color="#49A5A2" style={styles.icon} />
+          <Text style={styles.optionText}>Purok Leaders</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
