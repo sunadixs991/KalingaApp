@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Kalinga App",
-    "slug": "Kalinga App",
-    "version": "1.0.3",
+    "name": "Kalinga_App",
+    "slug": "Kalinga_App",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/Kalinga_logo.png",
     "userInterfaceStyle": "light",
