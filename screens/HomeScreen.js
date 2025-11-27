@@ -149,7 +149,9 @@ export default function HomeScreen({ route, navigation }) {
           if (!mounted) return;
           setCurrentLocation(null);
           setPlaceName("");
-          setLocationMessage("Location is turned off — please enable location services.");
+          setLocationMessage(
+            "Location services are turned off. Please enable Location in your device settings so you can see nearby resources and receive timely alerts."
+          );
           return;
         }
 
@@ -158,7 +160,9 @@ export default function HomeScreen({ route, navigation }) {
           if (!mounted) return;
           setCurrentLocation(null);
           setPlaceName("");
-          setLocationMessage("Location permission denied — please enable location permission.");
+          setLocationMessage(
+            "Location permission denied. Please allow location access in Settings so the app can find nearby resources and send important alerts."
+          );
           return;
         }
 
@@ -380,7 +384,7 @@ export default function HomeScreen({ route, navigation }) {
         setCurrentLocation(null);
         setPlaceName("");
         setLocationMessage(
-          "Location is turned off — tap to enable location services"
+          "Location services are turned off. Please enable Location in your device settings so you can see nearby resources and receive timely alerts."
         );
         return;
       }
@@ -390,7 +394,7 @@ export default function HomeScreen({ route, navigation }) {
         setCurrentLocation(null);
         setPlaceName("");
         setLocationMessage(
-          "Location permission denied — tap to allow location access"
+          "Location permission denied. Please allow location access in Settings so the app can find nearby resources and send important alerts."
         );
         return;
       }
@@ -470,32 +474,9 @@ export default function HomeScreen({ route, navigation }) {
             <Icon name="location-outline" size={20} color="#fff" />
             {/* If there's a location message make the text tappable to re-request */}
             {locationMessage ? (
-              <TouchableOpacity
-                onPress={async () => {
-                  // try to open settings if message indicates permission denied
-                  if (locationMessage.toLowerCase().includes("denied")) {
-                    Alert.alert(
-                      "Location Permission",
-                      "Allow location access from settings to enable nearby resources.",
-                      [
-                        { text: "Cancel", style: "cancel" },
-                        {
-                          text: "Open Settings",
-                          onPress: () => Linking.openSettings(),
-                        },
-                      ]
-                    );
-                    return;
-                  }
-                  // otherwise try to start watcher / request permission
-                  await startLocationWatcher();
-                }}
-                style={styles.locationPromptButton}
-                activeOpacity={0.8}
-              >
+              <View style={styles.locationPromptButton}>
                 <Text style={styles.locationPromptText}>{locationMessage}</Text>
-                <Text style={styles.locationPromptCTA}>Tap to enable</Text>
-              </TouchableOpacity>
+              </View>
             ) : (
               <Text style={styles.locationText}>
                 {placeName || "Fetching your location..."}

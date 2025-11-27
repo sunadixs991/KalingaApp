@@ -17,7 +17,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../services/supabaseClient"; // adjust path if your supabase client is exported elsewhere
-import { notifyUsers } from "../services/notification";
+import { sendScheduleNotification } from "../services/schedNotifications";
 import {
   addDoc,
   collection,
@@ -364,15 +364,18 @@ export default function AddScheduleScreen({ navigation, route }) {
 
       // Send notification to users (best-effort)
       try {
-        const notificationMessage =
-          `[Kalinga App]\nNew Food Distribution Schedule\n` +
-          `Barangay: ${newItem.title}\n` +
-          `Date: ${newItem.date}\n` +
-          `Time: ${newItem.time}\n` +
-          `Landmark: ${newItem.location}`;
+        // determine current user id (supports stored userInfo shape)
+        let currentUserId = null;
+        try {
+          const s = await AsyncStorage.getItem("userInfo");
+          if (s) {
+            const u = JSON.parse(s);
+            currentUserId = u?.id || u?.uid || u?.userId || null;
+          }
+        } catch {}
 
-        const notifyResult = await notifyUsers(notificationMessage);
-        console.log("notifyUsers result:", notifyResult);
+        const notifyResult = await sendScheduleNotification(newItem, currentUserId);
+        console.log("sendScheduleNotification result:", notifyResult);
       } catch (notifyErr) {
         console.error("Notification error:", notifyErr);
       }

@@ -113,6 +113,29 @@ export function startPinListener(db, currentUserId = null, onNewNotification = n
   stopPinListener();
   const seenAt = Date.now();
 
+  // normalize currentUserId param (accept object/user record or string)
+  const normalizeCurrentUserId = (v) => {
+    if (!v) return null;
+    if (typeof v === 'string') return v;
+    if (typeof v === 'object') {
+      return v.id || v.uid || v.userId || (v.user && (v.user.id || v.user.uid)) || null;
+    }
+    return null;
+  };
+  const meId = normalizeCurrentUserId(currentUserId);
+
+  const extractOwnerIdFromDoc = (docData) => {
+    if (!docData) return null;
+    return (
+      docData.userId ||
+      docData.ownerId ||
+      docData.createdBy ||
+      (docData.user && (docData.user.id || docData.user.uid)) ||
+      (docData.owner && (docData.owner.id || docData.owner.uid)) ||
+      null
+    );
+  };
+
   const listenToCollection = (colName, friendlyTitle) => {
     try {
       const q = query(collection(db, colName), orderBy('createdAt', 'desc'));
@@ -132,7 +155,9 @@ export function startPinListener(db, currentUserId = null, onNewNotification = n
 
           // ignore historical docs present before listener start
           if (createdAtMs <= seenAt - 1000) return;
-          if (currentUserId && data?.userId && data.userId === currentUserId) return;
+          // determine owner id from doc and skip if owner is the current user
+          const ownerId = extractOwnerIdFromDoc(data);
+          if (meId && ownerId && String(ownerId) === String(meId)) return;
 
           const title =
             colName === 'request_pins' ? 'New supply request' : friendlyTitle || 'New location pinned';
@@ -142,7 +167,10 @@ export function startPinListener(db, currentUserId = null, onNewNotification = n
             data?.category ||
             (colName === 'request_pins' ? 'Someone requested supplies nearby' : 'A new pin was added nearby');
 
-          if (data?.barangay) body += ` — ${data.barangay}`;
+          // append category as suffix if not already present
+          if (data?.category && !body.includes(data.category)) {
+            body += ` — ${data.category}`;
+          }
 
           const payload = {
             id: change.doc.id,
@@ -153,6 +181,7 @@ export function startPinListener(db, currentUserId = null, onNewNotification = n
               latitude: data?.latitude,
               longitude: data?.longitude,
               collection: colName,
+              category: data?.category || null,
             },
             timestamp: createdAtMs,
           };

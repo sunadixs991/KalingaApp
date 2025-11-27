@@ -26,6 +26,7 @@ import Icon from "react-native-vector-icons/Ionicons";
 import GeminiChatUI from "../components/GeminiChatUI";
 import { useNavigation } from "@react-navigation/native";
 import { getUserInfo } from "../services/getinfo";
+import { expiresAt24hFromNow } from "../services/chatNotifications";
 
 const db = getFirestore();
 
@@ -91,6 +92,8 @@ export default function ChatScreen() {
         userId: userInfo,
         userFullName: userFullName,
         createdAt: serverTimestamp(),
+        expiresAt: expiresAt24hFromNow(),
+        // optional: interactions: 0
       });
       setInput("");
       setPostModalVisible(false);
@@ -240,6 +243,11 @@ export default function ChatScreen() {
             editable={!loading}
             autoFocus
           />
+
+          {/* Informational note: simple, clear, professional */}
+          <Text style={styles.postNote}>
+            Note: Posts without any comments will be automatically removed after 24 hours.
+          </Text>
 
           <TouchableOpacity
             style={[
@@ -463,5 +471,12 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "bold",
     fontSize: 16,
+  },
+  postNote: {
+    marginTop: 10,
+    marginBottom: 6,
+    color: "#666",
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

@@ -52,6 +52,8 @@ import ManagePurokLeaders from "./screens/ManagePurokLeaders";
 // ✅ Import Feedback Modal
 import FeedbackModal from "./components/FeedbackModal";
 import CommentsScreen from "./screens/CommentsScreen";
+import { runExpiredPostsCleanup } from "./services/chatNotifications";
+
 
 const Stack = createStackNavigator();
 
@@ -72,6 +74,14 @@ export default function App() {
     };
     loadUsername();
   }, []);
+  
+  useEffect(() => {
+  (async () => {
+    try {
+      await runExpiredPostsCleanup();
+    } catch {}
+  })();
+}, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
