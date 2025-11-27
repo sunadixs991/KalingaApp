@@ -5,22 +5,22 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { FontAwesome5 } from "@expo/vector-icons";
 // import { Video } from "expo-av"; // Uncomment if you use video
 
-export default function PinInfoModal({
+const PinInfoModal = ({
   visible,
   onClose,
   selectedPin,
-  userVoteStatus = {},
-  isVoting = false,
-  handleVote = () => {},
-  setPendingVoteType = () => {},
-  setVoteMessage = () => {},
-  setVoteMessageModalVisible = () => {},
-  fetchRoute = () => {},
-  location = null,
+  userVoteStatus,
+  isVoting,
+  handleVote,
+  setPendingVoteType,
+  setVoteMessage,
+  setVoteMessageModalVisible,
+  fetchRoute,
+  location,
   showMedia,
   setShowMedia,
-  getHoursAgo = () => "",
-}) {
+  getHoursAgo,
+}) => {
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
@@ -35,15 +35,23 @@ export default function PinInfoModal({
 
   return (
     <>
-      <Modal visible={visible} transparent={true} animationType="slide" onRequestClose={onClose}>
+      <Modal
+        visible={visible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={onClose}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeButton}
+            >
               <Icon name="close" size={24} color="#666" />
             </TouchableOpacity>
 
             {selectedPin && (
-              <ScrollView contentContainerStyle={styles.scrollContent}>
+              <>
                 <Text style={styles.modalUser} numberOfLines={0}>
                   {selectedPin.userFirstName}
                 </Text>
@@ -56,7 +64,6 @@ export default function PinInfoModal({
                 <Text style={styles.modalTime}>
                   {getHoursAgo(selectedPin.createdAt)}
                 </Text>
-
                 <View
                   style={[
                     styles.votingContainer,
@@ -89,7 +96,6 @@ export default function PinInfoModal({
                       ⇧
                     </Text>
                   </TouchableOpacity>
-
                   <Text
                     style={[
                       styles.scoreText,
@@ -99,7 +105,6 @@ export default function PinInfoModal({
                   >
                     {(selectedPin.upvotes || 0) - (selectedPin.downvotes || 0)}
                   </Text>
-
                   <TouchableOpacity
                     style={[
                       styles.voteButton,
@@ -126,7 +131,6 @@ export default function PinInfoModal({
                     </Text>
                   </TouchableOpacity>
                 </View>
-
                 <View style={{ alignItems: "center", marginTop: 10 }}>
                   <TouchableOpacity
                     onPress={() => {
@@ -137,57 +141,68 @@ export default function PinInfoModal({
                       onClose();
                     }}
                   >
-                    <MaterialCommunityIcons name="navigation" size={28} color="#1976D2" />
-                    <Text style={{ fontSize: 12, color: "#1976D2" }}>Go To</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.mediaSection}>
-                  <TouchableOpacity
-                    style={[
-                      styles.mediaToggle,
-                      (!selectedPin.media || selectedPin.media.length === 0) && styles.mediaToggleDisabled,
-                    ]}
-                    onPress={() => setShowMedia(!showMedia)}
-                    disabled={!selectedPin.media || selectedPin.media.length === 0}
-                  >
-                    <Text style={styles.mediaToggleText}>
-                      {!selectedPin.media || selectedPin.media.length === 0
-                        ? "No Media Attached"
-                        : showMedia
-                        ? "Hide Media"
-                        : `Show Media (${selectedPin.media.length})`}
+                    <MaterialCommunityIcons
+                      name="navigation"
+                      size={28}
+                      color="#1976D2"
+                    />
+                    <Text style={{ fontSize: 12, color: "#1976D2" }}>
+                      Go To
                     </Text>
                   </TouchableOpacity>
-
-                  {showMedia && selectedPin.media && selectedPin.media.length > 0 && (
-                    <View style={styles.mediaContainer}>
-                      <FlatList
-                        data={selectedPin.media}
-                        keyExtractor={(item, idx) => (item?.url || item?.uri || `media-${idx}`)}
-                        renderItem={({ item, index }) => {
-                          const mediaUrl = item?.url || item?.uri;
-                          return mediaUrl ? (
-                            <TouchableOpacity activeOpacity={0.9} onPress={() => openImage(index)} accessibilityRole="imagebutton">
-                              <Image
-                                source={{ uri: mediaUrl }}
-                                style={{ width: 220, height: 220, borderRadius: 10, marginHorizontal: 8 }}
-                                resizeMode="contain"
-                                onError={(error) => console.log("Image load error:", error)}
-                              />
-                            </TouchableOpacity>
-                          ) : (
-                            <View style={{ width: 220, height: 220, backgroundColor: "#eee", borderRadius: 10 }} />
-                          );
-                        }}
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.mediaScrollContent}
-                      />
-                    </View>
-                  )}
                 </View>
-              </ScrollView>
+                {selectedPin && (
+                  <View style={styles.mediaSection}>
+                    <TouchableOpacity
+                      style={[
+                        styles.mediaToggle,
+                        (!selectedPin.media ||
+                          selectedPin.media.length === 0) &&
+                        styles.mediaToggleDisabled,
+                      ]}
+                      onPress={() => setShowMedia(!showMedia)}
+                      disabled={
+                        !selectedPin.media || selectedPin.media.length === 0
+                      }
+                    >
+                      <Text style={styles.mediaToggleText}>
+                        {!selectedPin.media || selectedPin.media.length === 0
+                          ? "No Media Attached"
+                          : showMedia
+                            ? "Hide Media"
+                            : `Show Media (${selectedPin.media.length})`}
+                      </Text>
+                    </TouchableOpacity>
+                    {showMedia &&
+                      selectedPin.media &&
+                      selectedPin.media.length > 0 && (
+                        <View style={styles.mediaContainer}>
+                          <FlatList
+                            data={selectedPin.media}
+                            keyExtractor={(item, idx) => (item?.url || item?.uri || `media-${idx}`)}
+                            renderItem={({ item, index }) => {
+                              const mediaUrl = item?.url || item?.uri;
+                              return mediaUrl ? (
+                                <TouchableOpacity activeOpacity={0.9} onPress={() => openImage(index)}>
+                                  <Image
+                                    source={{ uri: mediaUrl }}
+                                    style={{ width: 220, height: 220, borderRadius: 10, marginHorizontal: 8 }}
+                                    resizeMode="contain"
+                                    onError={(error) => console.log("Image load error:", error)}
+                                  />
+                                </TouchableOpacity>
+                              ) : (
+                                <View style={{ width: 220, height: 220, backgroundColor: "#eee", borderRadius: 10 }} />
+                              );
+                            }}
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                          />
+                        </View>
+                      )}
+                  </View>
+                )}
+              </>
             )}
           </View>
         </View>
@@ -231,36 +246,10 @@ export default function PinInfoModal({
       </Modal>
     </>
   );
-}
-
-const viewerStyles = StyleSheet.create({
-  viewerOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.95)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 12,
-  },
-  viewerImage: {
-    width: "100%",
-    height: "78%",
-    borderRadius: 8,
-  },
-  viewerClose: { position: "absolute", top: 44, right: 20, zIndex: 40 },
-  viewerNav: {
-    position: "absolute",
-    bottom: 44,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  viewerNavBtn: { paddingHorizontal: 18, paddingVertical: 6 },
-  viewerCounter: { color: "#fff", fontWeight: "700" },
-});
+};
 
 const styles = StyleSheet.create({
+  // Copy the styles for modalOverlay, modalContainer, closeButton, etc. from your MapScreen.js
   modalOverlay: {
     flex: 1,
     justifyContent: "center",
@@ -319,7 +308,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
-    alignSelf: "center", // center the badge horizontally
   },
   modalTime: {
     fontSize: 13,
@@ -330,13 +318,14 @@ const styles = StyleSheet.create({
   votingContainer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center", // center the vote buttons
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    justifyContent: "space-between",
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    minWidth: 120,
     borderRadius: 90,
     borderWidth: 1,
-    borderColor: "rgba(14, 14, 14, 0.08)",
-    alignSelf: "center", // keep container sized to content
+    borderColor: "transparent",
+    borderColor: "rgba(14, 14, 14, 0.3)",
   },
   containerUpvoted: {
     backgroundColor: "rgba(255, 139, 96, 0.15)",
@@ -347,10 +336,11 @@ const styles = StyleSheet.create({
     borderColor: "rgba(148, 148, 255, 0.3)",
   },
   voteButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: 0,
+    paddingHorizontal: 12,
     borderRadius: 90,
-    marginHorizontal: 6,
+    marginHorizontal: 0,
+    paddingBottom: 5,
   },
   activeUpvote: {
     backgroundColor: "#FF8B60",
@@ -431,19 +421,33 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  mediaToggleDisabled: {
-    backgroundColor: "#e0e0e0",
-    opacity: 0.7,
-  },
-  mediaError: {
-    color: "#666",
-    textAlign: "center",
-    padding: 10,
-  },
-  mediaErrorText: {
-    color: "#666",
-    fontSize: 12,
-    textAlign: "center",
-    marginTop: 10,
-  },
 });
+
+const viewerStyles = StyleSheet.create({
+  viewerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 12,
+  },
+  viewerImage: {
+    width: "100%",
+    height: "78%",
+    borderRadius: 8,
+  },
+  viewerClose: { position: "absolute", top: 44, right: 20, zIndex: 40 },
+  viewerNav: {
+    position: "absolute",
+    bottom: 44,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  viewerNavBtn: { paddingHorizontal: 18, paddingVertical: 6 },
+  viewerCounter: { color: "#fff", fontWeight: "700" },
+});
+
+export default PinInfoModal;

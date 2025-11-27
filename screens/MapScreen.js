@@ -93,6 +93,7 @@ export default function MapScreen({ route }) {
   const [categoryStyles, setCategoryStyles] = useState({});
   const mapRef = useRef(null);
   const webviewRef = useRef(null);
+  const [routeDestination, setRouteDestination] = useState(null);
   // keep a ref to pinMode to avoid stale closures in WebView onMessage handler
   const pinModeRef = useRef(pinMode);
   const [evacPinMode, setEvacPinMode] = useState(false);
@@ -108,6 +109,7 @@ export default function MapScreen({ route }) {
   const [pendingMedicalPin, setPendingMedicalPin] = useState(null);
   const [medicalPinMode, setMedicalPinMode] = useState(false);
   const [medicalPins, setMedicalPins] = useState([]);
+  const [htmlContent, setHtmlContent] = useState(null);
 
   // Add new state for facilityName, purok, and sitio
   const [evacFacilityName, setEvacFacilityName] = useState("");
@@ -931,52 +933,42 @@ export default function MapScreen({ route }) {
         closePinInfoModal
       );
 
-      // Save vote to top-level votes collection (not subcollection)
+      // Save vote to top-level votes collection
       if (selectedPin && userInfo) {
-        // Use a composite key for the document ID (e.g. `${pinId}_${userId}`)
         const voteDocId = `${selectedPin.id}_${userInfo}`;
-        await setDoc(
-          doc(db, "votes", voteDocId),
-          {
-            pinId: selectedPin.id,
-            userId: userInfo,
-            userFirstName: userFirstName || "",
-            userLastName:
-              typeof getUserInfo === "function" && userInfo
-                ? (await getUserInfo(userInfo))?.lastName || ""
-                : "",
-            voteType,
-            voteMessage: voteMessage ? voteMessage.trim() : "",
-            createdAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-        console.log("Vote document updated in votes collection:", {
-          pinId: selectedPin.id,
-          userId: userInfo,
-          userFirstName: userFirstName || "",
-          userLastName:
-            typeof getUserInfo === "function" && userInfo
-              ? (await getUserInfo(userInfo))?.lastName || ""
-              : "",
-          voteType,
-          voteMessage: voteMessage ? voteMessage.trim() : "",
-        });
+
+        // If removing vote (nextVoteType is null), delete the document
+        if (nextVoteType === null) {
+          await deleteDoc(doc(db, "votes", voteDocId));
+          console.log("Vote document deleted from votes collection");
+        } else {
+          // Otherwise, save/update the vote
+          await setDoc(
+            doc(db, "votes", voteDocId),
+            {
+              pinId: selectedPin.id,
+              userId: userInfo,
+              userFirstName: userFirstName || "",
+              userLastName:
+                typeof getUserInfo === "function" && userInfo
+                  ? (await getUserInfo(userInfo))?.lastName || ""
+                  : "",
+              voteType: nextVoteType,
+              voteMessage: voteMessage ? voteMessage.trim() : "",
+              createdAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
+          console.log("Vote document updated in votes collection");
+        }
       }
 
       // Get updated pin data
-      // console.log('Getting updated pin data...');
-      // console.log('getUpdatedPinData function check:', typeof getUpdatedPinData);
-
       if (typeof getUpdatedPinData === "function") {
         const updatedPin = await getUpdatedPinData(selectedPin.id);
-        // console.log('Updated pin data:', updatedPin);
 
         if (updatedPin) {
-          // Update selected pin
           setSelectedPin(updatedPin);
-
-          // Update the pin in allPins array
           setAllPins((prevPins) =>
             prevPins.map((pin) =>
               pin.id === selectedPin.id
@@ -991,47 +983,125 @@ export default function MapScreen({ route }) {
         }
       }
 
-      // Update user vote status
-      if (typeof getUserVoteStatus === "function") {
-        const newVoteStatus = await getUserVoteStatus(selectedPin.id, userInfo);
-        console.log("New vote status:", newVoteStatus);
-        setUserVoteStatus(newVoteStatus);
-      }
-      try {
-        const querySnapshot = await getDocs(collection(db, "pins"));
-        const pins = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data.latitude && data.longitude) {
-            pins.push({
-              id: doc.id,
-              latitude: data.latitude,
-              longitude: data.longitude,
-              userId: data.userId,
-              userFirstName: data.userFirstName || "anonymous",
-              description: data.description,
-              category: data.category || "Unknown",
-              media: data.media || [],
-              createdAt: data.createdAt,
-              upvotes: data.upvotes || 0,
-              downvotes: data.downvotes || 0,
-            });
-          }
-        });
-        setAllPins(pins);
-      } catch (error) {
-        console.error("Error fetching pins:", error);
-      }
+      // IMPORTANT: Confirm the vote status after successful vote
+      setUserVoteStatus({
+        hasVoted: !!nextVoteType,
+        voteType: nextVoteType,
+      });
+
     } catch (error) {
       console.error("Error voting:", error);
       Alert.alert("Error", "Failed to record vote. Please try again.");
+
+      // IMPORTANT: Revert optimistic update on error
+      // Fetch fresh data to ensure consistency
+      if (typeof getUpdatedPinData === "function") {
+        const updatedPin = await getUpdatedPinData(selectedPin.id);
+        if (updatedPin) {
+          setSelectedPin(updatedPin);
+          setAllPins((prevPins) =>
+            prevPins.map((pin) =>
+              pin.id === selectedPin.id
+                ? {
+                  ...pin,
+                  upvotes: updatedPin.upvotes,
+                  downvotes: updatedPin.downvotes,
+                }
+                : pin
+            )
+          );
+        }
+      }
+
+      // Revert vote status on error
+      if (typeof getUserVoteStatus === "function") {
+        const voteStatus = await getUserVoteStatus(selectedPin.id, userInfo);
+        setUserVoteStatus(voteStatus);
+      }
     } finally {
       setIsVoting(false);
     }
   };
 
-  // Updated handleSavePin function - Hybrid approach
 
+
+
+  useEffect(() => {
+    let locationSubscription;
+
+    const startLocationTracking = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+
+        locationSubscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 5000,
+            distanceInterval: 10,
+          },
+          (newLocation) => {
+            const newCoords = newLocation.coords;
+            setLocation(newCoords);
+
+            // Update user location marker
+            if (webviewRef.current) {
+              webviewRef.current.postMessage(
+                JSON.stringify({
+                  type: "updateUserLocation",
+                  latitude: newCoords.latitude,
+                  longitude: newCoords.longitude,
+                })
+              );
+            }
+
+            // 👉 If there's an active route destination, recalculate route
+            if (routeDestination) {
+              fetchRoute(newCoords, routeDestination);
+            }
+          }
+        );
+      } catch (error) {
+        console.error("Error tracking location:", error);
+      }
+    };
+
+    if (isFocused) {
+      startLocationTracking();
+    }
+
+    return () => {
+      if (locationSubscription) {
+        locationSubscription.remove();
+      }
+    };
+  }, [isFocused, routeDestination]); // 👉 Watch routeDestination instead
+  // Generate HTML only once on mount or when pins change significantly
+  useEffect(() => {
+    if (location) {
+      const html = getMapHtml(
+        allPinsForMap,
+        location,
+        [] // Start with empty route
+      );
+      setHtmlContent(html);
+    }
+  }, [allPins.length, evacPins.length, medicalPins.length, requestPins.length, location]); // Regenerate when pins change
+
+  // Separately update the route via message (without regenerating HTML)
+  useEffect(() => {
+    if (webviewRef.current && routeCoords.length > 0 && htmlContent) {
+      setTimeout(() => {
+        webviewRef.current.postMessage(
+          JSON.stringify({
+            type: 'updateRoute',
+            route: routeCoords,
+            fitBounds: false
+          })
+        );
+      }, 100);
+    }
+  }, [routeCoords]);
   // --- Add this function inside your component ---
   const fetchRoute = async (startLoc, destLoc) => {
     const apiKey =
@@ -1056,6 +1126,7 @@ export default function MapScreen({ route }) {
           })
         );
         setRouteCoords(coords);
+        setRouteDestination(destLoc); // 👉 Save the destination
       } else {
         Alert.alert("No route found");
       }
@@ -1128,6 +1199,7 @@ export default function MapScreen({ route }) {
 
   const clearRoute = () => {
     setRouteCoords([]);
+    setRouteDestination(null); // 👉 Clear destination too
   };
 
   const evacPinsWithIcons = (evacPins || []).map((p) => {
@@ -1171,33 +1243,33 @@ export default function MapScreen({ route }) {
 
 
   const handleAddPinButton = () => {
-  if (!userInfo) {
-    Alert.alert(
-      "Sign in required",
-      "You need to sign in to add a pin.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Sign in", onPress: () => navigation.navigate("LoginScreen") },
-      ]
-    );
-    return;
-  }
-
-  // Enable pin mode and open pin-type chooser for admins
-  setPinMode(true);
-  setPinTypeModalVisible(true);
-
-  // Inform WebView (keeps UI in sync)
-  if (webviewRef.current) {
-    try {
-      webviewRef.current.postMessage(
-        JSON.stringify({ type: "setPinMode", enabled: true })
+    if (!userInfo) {
+      Alert.alert(
+        "Sign in required",
+        "You need to sign in to add a pin.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Sign in", onPress: () => navigation.navigate("LoginScreen") },
+        ]
       );
-    } catch (e) {
-      console.log("Failed to post setPinMode to WebView", e);
+      return;
     }
-  }
-};
+
+    // Enable pin mode and open pin-type chooser for admins
+    setPinMode(true);
+    setPinTypeModalVisible(true);
+
+    // Inform WebView (keeps UI in sync)
+    if (webviewRef.current) {
+      try {
+        webviewRef.current.postMessage(
+          JSON.stringify({ type: "setPinMode", enabled: true })
+        );
+      } catch (e) {
+        console.log("Failed to post setPinMode to WebView", e);
+      }
+    }
+  };
   const medicalPinsWithIcons = (medicalPins || []).map((p) => {
     const categoryKey = (p.category || "Medical Support").trim().toLowerCase();
     const category = evacCategoryStyles[categoryKey] ||
@@ -1239,11 +1311,7 @@ export default function MapScreen({ route }) {
         ref={webviewRef}
         originWhitelist={["*"]}
         source={{
-          html: getMapHtml(
-            allPinsForMap,
-            location || { latitude: 0, longitude: 0 },
-            routeCoords
-          ),
+          html: htmlContent || getMapHtml(allPinsForMap, location || { latitude: 0, longitude: 0 }, []),
         }}
         style={{ flex: 1, backgroundColor: "transparent" }}
         onMessage={(event) => {
@@ -1846,7 +1914,7 @@ export default function MapScreen({ route }) {
       />
 
       {/* Supply Request view modal (open when tapping request_pins on map) */}
-     <SupplyRequestModal
+      <SupplyRequestModal
         visible={supplyRequestModalVisible}
         onClose={() => {
           setSupplyRequestModalVisible(false);
@@ -1889,7 +1957,7 @@ async function getBarangayFromCoords(latitude, longitude) {
     const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}`;
     const response = await fetch(url);
     const data = await response.json();
-    
+
     if (data.results && data.results.length > 0) {
       const addressComponents = data.results[0].address_components;
       // Find administrative_area_level_3 (barangay in Philippines)
