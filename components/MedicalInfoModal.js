@@ -1,11 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
 import { Modal, View, Text, TouchableOpacity, ScrollView, Image, StyleSheet, FlatList } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { FontAwesome5 } from "@expo/vector-icons";
 // import { Video } from "expo-av"; // Uncomment if you use video
 
-const MedicalInfoModal = ({
+function MedicalInfoModal({
   visible,
   onClose,
   selectedPin,
@@ -13,119 +13,170 @@ const MedicalInfoModal = ({
   location,
   showMedia,
   setShowMedia,
-}) => (
-  <Modal
-    visible={visible}
-    transparent={true}
-    animationType="slide"
-    onRequestClose={onClose}
-  >
-    <View style={styles.modalOverlay}>
-      <View style={styles.modalContainer}>
-        <TouchableOpacity
-          onPress={onClose}
-          style={styles.closeButton}
-        >
-          <Icon name="close" size={24} color="#666" />
-        </TouchableOpacity>
+}) {
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-        {selectedPin && (
-          <ScrollView contentContainerStyle={styles.scrollContent}>
-            {/* Category */}
-            <Text style={styles.category}>
-              {selectedPin.category || "Medical Support"}
-            </Text>
-            {/* Facility Name */}
-            {selectedPin.facilityName ? (
-              <Text style={styles.facilityName}>
-                {selectedPin.facilityName}
-              </Text>
-            ) : null}
-            {/* Open Time */}
-            {selectedPin.openTime ? (
-              <View style={styles.infoRow}>
-                <MaterialCommunityIcons name="clock-outline" size={18} color="#1976D2" />
-                <Text style={styles.infoText}>
-                  Open: <Text style={styles.infoHighlight}>{selectedPin.openTime}</Text>
+  const openImage = (index) => {
+    setCurrentImageIndex(index);
+    setImageViewerVisible(true);
+  };
+  const closeImageViewer = () => {
+    setImageViewerVisible(false);
+    setCurrentImageIndex(0);
+  };
+
+  return (
+    <>
+      <Modal visible={visible} transparent={true} animationType="slide" onRequestClose={onClose}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Icon name="close" size={24} color="#666" />
+            </TouchableOpacity>
+
+            {selectedPin && (
+              <ScrollView contentContainerStyle={styles.scrollContent}>
+                {/* Category */}
+                <Text style={styles.category}>
+                  {selectedPin.category || "Medical Support"}
                 </Text>
-              </View>
-            ) : null}
-            {/* Description */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Description</Text>
-              <Text style={styles.description}>
-                {selectedPin.description || "No description provided."}
-              </Text>
-            </View>
-            {/* Go To Button */}
-            <View style={styles.section}>
-              <TouchableOpacity
-                style={styles.goToButton}
-                onPress={() => {
-                  fetchRoute(location, {
-                    latitude: selectedPin.latitude,
-                    longitude: selectedPin.longitude,
-                  });
-                  onClose();
-                }}
-              >
-                <MaterialCommunityIcons
-                  name="navigation"
-                  size={22}
-                  color="#fff"
-                  style={{ marginRight: 8 }}
-                />
-                <Text style={styles.goToText}>Go To Location</Text>
-              </TouchableOpacity>
-            </View>
-            {/* Media Section */}
-            <View style={styles.section}>
-              <TouchableOpacity
-                style={[
-                  styles.mediaToggle,
-                  (!selectedPin.media || selectedPin.media.length === 0) && styles.mediaToggleDisabled,
-                ]}
-                onPress={() => setShowMedia(!showMedia)}
-                disabled={!selectedPin.media || selectedPin.media.length === 0}
-              >
-                <Text style={styles.mediaToggleText}>
-                  {!selectedPin.media || selectedPin.media.length === 0
-                    ? "No Media Attached"
-                    : showMedia
-                      ? "Hide Media"
-                      : `Show Media (${selectedPin.media.length})`}
-                </Text>
-              </TouchableOpacity>
-              {showMedia &&
-                selectedPin.media &&
-                selectedPin.media.length > 0 && (
-                  <FlatList
-                    data={selectedPin.media}
-                    keyExtractor={(item, idx) => (item?.url || item?.uri || `media-${idx}`)}
-                    renderItem={({ item }) => {
-                      const mediaUrl = item?.url || item?.uri;
-                      return mediaUrl ? (
-                        <Image
-                          source={{ uri: mediaUrl }}
-                          style={{ width: 220, height: 220, borderRadius: 10, marginHorizontal: 8 }}
-                          resizeMode="contain"
-                          onError={(error) => console.log("Image load error:", error)}
-                        />
-                      ) : (
-                        <View style={{ width: 220, height: 220, backgroundColor: "#eee", borderRadius: 10 }} />
-                      );
+                {/* Facility Name */}
+                {selectedPin.facilityName ? (
+                  <Text style={styles.facilityName}>{selectedPin.facilityName}</Text>
+                ) : null}
+                {/* Open Time */}
+                {selectedPin.openTime ? (
+                  <View style={styles.infoRow}>
+                    <MaterialCommunityIcons name="clock-outline" size={18} color="#1976D2" />
+                    <Text style={styles.infoText}>
+                      Open: <Text style={styles.infoHighlight}>{selectedPin.openTime}</Text>
+                    </Text>
+                  </View>
+                ) : null}
+
+                {/* Description */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Description</Text>
+                  <Text style={styles.description}>
+                    {selectedPin.description || "No description provided."}
+                  </Text>
+                </View>
+
+                {/* Go To Button */}
+                <View style={styles.section}>
+                  <TouchableOpacity
+                    style={styles.goToButton}
+                    onPress={() => {
+                      fetchRoute(location, {
+                        latitude: selectedPin.latitude,
+                        longitude: selectedPin.longitude,
+                      });
+                      onClose();
                     }}
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                  />
-                )}
+                  >
+                    <MaterialCommunityIcons
+                      name="navigation"
+                      size={22}
+                      color="#fff"
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text style={styles.goToText}>Go To Location</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Media Section - images are clickable to open viewer */}
+                <View style={styles.section}>
+                  <TouchableOpacity
+                    style={[
+                      styles.mediaToggle,
+                      (!selectedPin.media || selectedPin.media.length === 0) && styles.mediaToggleDisabled,
+                    ]}
+                    onPress={() => setShowMedia(!showMedia)}
+                    disabled={!selectedPin.media || selectedPin.media.length === 0}
+                  >
+                    <Text style={styles.mediaToggleText}>
+                      {!selectedPin.media || selectedPin.media.length === 0
+                        ? "No Media Attached"
+                        : showMedia
+                        ? "Hide Media"
+                        : `Show Media (${selectedPin.media.length})`}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {showMedia && selectedPin.media && selectedPin.media.length > 0 && (
+                    <FlatList
+                      data={selectedPin.media}
+                      keyExtractor={(item, idx) => (item?.url || item?.uri || `media-${idx}`)}
+                      renderItem={({ item, index }) => {
+                        const mediaUrl = item?.url || item?.uri;
+                        return mediaUrl ? (
+                          <TouchableOpacity
+                            onPress={() => openImage(index)}
+                            activeOpacity={0.9}
+                            accessibilityRole="imagebutton"
+                          >
+                            <Image
+                              source={{ uri: mediaUrl }}
+                              style={{ width: 220, height: 220, borderRadius: 10, marginHorizontal: 8 }}
+                              resizeMode="contain"
+                              onError={(error) => console.log("Image load error:", error)}
+                            />
+                          </TouchableOpacity>
+                        ) : (
+                          <View style={{ width: 220, height: 220, backgroundColor: "#eee", borderRadius: 10 }} />
+                        );
+                      }}
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                    />
+                  )}
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Image viewer modal */}
+      <Modal visible={imageViewerVisible} transparent animationType="fade" onRequestClose={closeImageViewer}>
+        <View style={viewerStyles.viewerOverlay}>
+          <TouchableOpacity style={viewerStyles.viewerClose} onPress={closeImageViewer} accessibilityLabel="Close image">
+            <Icon name="close" size={28} color="#fff" />
+          </TouchableOpacity>
+
+          <Image
+            source={{ uri: selectedPin?.media?.[currentImageIndex]?.url || selectedPin?.media?.[currentImageIndex]?.uri }}
+            style={viewerStyles.viewerImage}
+            resizeMode="contain"
+          />
+
+          {selectedPin?.media?.length > 1 && (
+            <View style={viewerStyles.viewerNav}>
+              <TouchableOpacity
+                onPress={() => setCurrentImageIndex((i) => (i === 0 ? selectedPin.media.length - 1 : i - 1))}
+                style={viewerStyles.viewerNavBtn}
+                accessibilityLabel="Previous image"
+              >
+                <Icon name="chevron-back" size={28} color="#fff" />
+              </TouchableOpacity>
+              <Text style={viewerStyles.viewerCounter}>
+                {currentImageIndex + 1}/{selectedPin.media.length}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setCurrentImageIndex((i) => (i === selectedPin.media.length - 1 ? 0 : i + 1))}
+                style={viewerStyles.viewerNavBtn}
+                accessibilityLabel="Next image"
+              >
+                <Icon name="chevron-forward" size={28} color="#fff" />
+              </TouchableOpacity>
             </View>
-          </ScrollView>
-        )}
-      </View>
-    </View>
-  </Modal>
-);
+          )}
+        </View>
+      </Modal>
+    </>
+  );
+}
 
 const styles = StyleSheet.create({
   modalOverlay: {
@@ -309,6 +360,34 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 10,
   },
+});
+
+// viewer styles separate to keep main styles small
+const viewerStyles = StyleSheet.create({
+  viewerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 12,
+  },
+  viewerImage: {
+    width: "100%",
+    height: "78%",
+    borderRadius: 8,
+  },
+  viewerClose: { position: "absolute", top: 44, right: 20, zIndex: 40 },
+  viewerNav: {
+    position: "absolute",
+    bottom: 44,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  viewerNavBtn: { paddingHorizontal: 18, paddingVertical: 6 },
+  viewerCounter: { color: "#fff", fontWeight: "700" },
 });
 
 export default MedicalInfoModal;

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Modal } from "react-native";
 import {
   View,
@@ -81,6 +81,7 @@ export default function HomeScreen({ route, navigation }) {
   const { isDarkMode } = useTheme();
   const [notificationModalVisible, setNotificationModalVisible] =
     useState(false);
+  const [locationMessage, setLocationMessage] = useState("");
 
   // const colors = {
   //   background: isDarkMode ? "#121212" : "#fff",
@@ -119,43 +120,118 @@ export default function HomeScreen({ route, navigation }) {
     }
   }, [username]);
 
-  // Fetch device location and place name
+  // Fetch device location and keep updating (watcher). Shows message when location
+  // is disabled or permission is denied. Uses timeInterval (ms) for update frequency.
   useEffect(() => {
-    (async () => {
+    const watchRef = { current: null };
+    let mounted = true;
+    const timeIntervalMs = 5000; // change to 10000 for 10s updates
+    const distanceIntervalMeters = 10; // optional: only update when moved this far
+
+    const startWatcher = async () => {
       try {
-        let { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
-          Alert.alert(
-            "Location Permission",
-            "Location permission is required to show nearby resources."
-          );
+        // check if location services (GPS) are enabled on device
+        const servicesEnabled = await Location.hasServicesEnabledAsync();
+        if (!servicesEnabled) {
+          if (!mounted) return;
+          setCurrentLocation(null);
+          setPlaceName("");
+          setLocationMessage("Location is turned off — please enable location services.");
           return;
         }
 
-        let loc = await Location.getCurrentPositionAsync({});
-        setCurrentLocation(loc.coords);
-
-        // Reverse geocode to get place name
-        let places = await Location.reverseGeocodeAsync(loc.coords);
-        if (places && places.length > 0) {
-          const place = places[0];
-          setPlaceName(
-            [
-              place.street,
-              place.district,
-              place.city,
-              place.subregion,
-              place.country,
-            ]
-              .filter(Boolean)
-              .join(", ")
-          );
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          if (!mounted) return;
+          setCurrentLocation(null);
+          setPlaceName("");
+          setLocationMessage("Location permission denied — please enable location permission.");
+          return;
         }
-      } catch (error) {
-        // console.error("Error getting location:", error);
-        Alert.alert("Error", "Failed to get your location. Please try again.");
+
+        // clear any previous message
+        setLocationMessage("");
+
+        // initial one-off fetch
+        const initial = await Location.getCurrentPositionAsync({});
+        if (mounted && initial?.coords) {
+          setCurrentLocation(initial.coords);
+          try {
+            const places = await Location.reverseGeocodeAsync(initial.coords);
+            if (places && places.length > 0) {
+              const place = places[0];
+              setPlaceName(
+                [
+                  place.street,
+                  place.district,
+                  place.city,
+                  place.subregion,
+                  place.country,
+                ]
+                  .filter(Boolean)
+                  .join(", ")
+              );
+            }
+          } catch {
+            // ignore reverse geocode errors
+          }
+        }
+
+        // start watcher with configured interval/distance
+        const sub = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Highest,
+            timeInterval: timeIntervalMs,
+            distanceInterval: distanceIntervalMeters,
+          },
+          async (pos) => {
+            if (!mounted || !pos?.coords) return;
+            setCurrentLocation(pos.coords);
+            // update placeName (optional; may be rate limited)
+            try {
+              const places = await Location.reverseGeocodeAsync(pos.coords);
+              if (places && places.length > 0) {
+                const place = places[0];
+                setPlaceName(
+                  [
+                    place.street,
+                    place.district,
+                    place.city,
+                    place.subregion,
+                    place.country,
+                  ]
+                    .filter(Boolean)
+                    .join(", ")
+                );
+              }
+            } catch {
+              // ignore reverse geocode errors
+            }
+          }
+        );
+
+        watchRef.current = sub;
+      } catch (err) {
+        if (!mounted) return;
+        console.warn("Location watcher error", err);
+        setLocationMessage("Unable to access location. Please check device settings.");
       }
-    })();
+    };
+
+    startWatcher();
+
+    return () => {
+      mounted = false;
+      try {
+        if (watchRef.current && watchRef.current.remove) {
+          watchRef.current.remove();
+        } else if (typeof watchRef.current === "function") {
+          watchRef.current();
+        }
+      } catch {
+        /* ignore cleanup errors */
+      }
+    };
   }, []);
 
   // Fetch nearby pins when location is available
@@ -258,7 +334,7 @@ export default function HomeScreen({ route, navigation }) {
           <View style={styles.locationRow}>
             <Icon name="location-outline" size={20} color="#fff" />
             <Text style={styles.locationText}>
-              {placeName ? placeName : "Getting your location..."}
+              {placeName || locationMessage || "Fetching your location..."}
             </Text>
           </View>
 

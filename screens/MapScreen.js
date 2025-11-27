@@ -46,7 +46,9 @@ import {
   getUserVoteStatus,
   getUpdatedPinData,
 } from "../utils/voteHandlers";
-import { MaterialIcons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { FontAwesome5 } from "@expo/vector-icons"; // Expo
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 // import { Video } from "expo-av";
 import { WebView } from "react-native-webview";
 
@@ -112,7 +114,6 @@ export default function MapScreen({ route }) {
   const [evacPurok, setEvacPurok] = useState("");
   const [evacSitio, setEvacSitio] = useState("");
   const [facilityName, setFacilityName] = useState("");
-  const [isTrackingLocation, setIsTrackingLocation] = useState(false);
 
   // NEW: User contact state
   const [userContact, setUserContact] = useState(""); // <-- NEW
@@ -1028,87 +1029,13 @@ export default function MapScreen({ route }) {
       setIsVoting(false);
     }
   };
-  useEffect(() => {
-    let locationSubscription = null;
 
-    const startLocationTracking = async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
-
-      // Watch position with high accuracy
-      locationSubscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 5000, // Update every 5 seconds
-          distanceInterval: 10, // Or every 10 meters moved
-        },
-        (newLocation) => {
-          const newCoords = newLocation.coords;
-          setLocation(newCoords);
-
-          // Update map center to follow user
-          if (webviewRef.current && isTrackingLocation) {
-            webviewRef.current.postMessage(
-              JSON.stringify({
-                type: "flyTo",
-                latitude: newCoords.latitude,
-                longitude: newCoords.longitude,
-                zoom: 16,
-              })
-            );
-          }
-
-          // Recalculate route if user has moved significantly and route exists
-          if (routeCoords.length > 0 && selectedPin) {
-            const distanceMoved = calculateDistance(
-              location.latitude,
-              location.longitude,
-              newCoords.latitude,
-              newCoords.longitude
-            );
-
-            // Recalculate if moved more than 50 meters
-            if (distanceMoved > 0.05) {
-              fetchRoute(
-                { latitude: newCoords.latitude, longitude: newCoords.longitude },
-                { latitude: selectedPin.latitude, longitude: selectedPin.longitude }
-              );
-            }
-          }
-        }
-      );
-    };
-
-    if (isFocused) {
-      startLocationTracking();
-    }
-
-    // Cleanup on unmount
-    return () => {
-      if (locationSubscription) {
-        locationSubscription.remove();
-      }
-    };
-  }, [isFocused, routeCoords.length, selectedPin, isTrackingLocation]);
   // Updated handleSavePin function - Hybrid approach
-  // Calculate distance between two coordinates in kilometers
-  function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; // Earth's radius in km
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  }
 
   // --- Add this function inside your component ---
   const fetchRoute = async (startLoc, destLoc) => {
-    const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImZhZDQ4YmVlNmQ3ODRiMjM5NWQxMDQ4ZTUxMTQ3MTE2IiwiaCI6Im11cm11cjY0In0=";
+    const apiKey =
+      "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImZhZDQ4YmVlNmQ3ODRiMjM5NWQxMDQ4ZTUxMTQ3MTE2IiwiaCI6Im11cm11cjY0In0=";
     const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}&start=${startLoc.longitude},${startLoc.latitude}&end=${destLoc.longitude},${destLoc.latitude}`;
 
     try {
@@ -1121,6 +1048,7 @@ export default function MapScreen({ route }) {
         json.features[0].geometry &&
         json.features[0].geometry.coordinates
       ) {
+        // Convert [lng, lat] to {latitude, longitude}
         const coords = json.features[0].geometry.coordinates.map(
           ([lng, lat]) => ({
             latitude: lat,
@@ -1128,7 +1056,6 @@ export default function MapScreen({ route }) {
           })
         );
         setRouteCoords(coords);
-        setIsTrackingLocation(true); // Enable tracking when route is set
       } else {
         Alert.alert("No route found");
       }
@@ -1201,7 +1128,6 @@ export default function MapScreen({ route }) {
 
   const clearRoute = () => {
     setRouteCoords([]);
-    setIsTrackingLocation(false); // Stop tracking when route is cleared
   };
 
   const evacPinsWithIcons = (evacPins || []).map((p) => {
@@ -1245,33 +1171,33 @@ export default function MapScreen({ route }) {
 
 
   const handleAddPinButton = () => {
-    if (!userInfo) {
-      Alert.alert(
-        "Sign in required",
-        "You need to sign in to add a pin.",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Sign in", onPress: () => navigation.navigate("LoginScreen") },
-        ]
+  if (!userInfo) {
+    Alert.alert(
+      "Sign in required",
+      "You need to sign in to add a pin.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Sign in", onPress: () => navigation.navigate("LoginScreen") },
+      ]
+    );
+    return;
+  }
+
+  // Enable pin mode and open pin-type chooser for admins
+  setPinMode(true);
+  setPinTypeModalVisible(true);
+
+  // Inform WebView (keeps UI in sync)
+  if (webviewRef.current) {
+    try {
+      webviewRef.current.postMessage(
+        JSON.stringify({ type: "setPinMode", enabled: true })
       );
-      return;
+    } catch (e) {
+      console.log("Failed to post setPinMode to WebView", e);
     }
-
-    // Enable pin mode and open pin-type chooser for admins
-    setPinMode(true);
-    setPinTypeModalVisible(true);
-
-    // Inform WebView (keeps UI in sync)
-    if (webviewRef.current) {
-      try {
-        webviewRef.current.postMessage(
-          JSON.stringify({ type: "setPinMode", enabled: true })
-        );
-      } catch (e) {
-        console.log("Failed to post setPinMode to WebView", e);
-      }
-    }
-  };
+  }
+};
   const medicalPinsWithIcons = (medicalPins || []).map((p) => {
     const categoryKey = (p.category || "Medical Support").trim().toLowerCase();
     const category = evacCategoryStyles[categoryKey] ||
@@ -1920,7 +1846,7 @@ export default function MapScreen({ route }) {
       />
 
       {/* Supply Request view modal (open when tapping request_pins on map) */}
-      <SupplyRequestModal
+     <SupplyRequestModal
         visible={supplyRequestModalVisible}
         onClose={() => {
           setSupplyRequestModalVisible(false);
@@ -1963,7 +1889,7 @@ async function getBarangayFromCoords(latitude, longitude) {
     const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}`;
     const response = await fetch(url);
     const data = await response.json();
-
+    
     if (data.results && data.results.length > 0) {
       const addressComponents = data.results[0].address_components;
       // Find administrative_area_level_3 (barangay in Philippines)

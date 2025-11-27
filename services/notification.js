@@ -4,7 +4,10 @@ import { Alert } from 'react-native';
 
 // Replace with your real IPROG API token and endpoint
 const IPROG_API_TOKEN = "41ff414342d8ecaf2e4ebfaa7ead67690679b976";
+// bulk send endpoint (used by sendIprogSMS)
 const IPROG_BASE_URL = "https://sms.iprogtech.com/api/v1/sms_messages/send_bulk";
+// OTP-specific endpoint (use this for single OTP requests)
+const IPROG_OTP_URL = "https://www.iprogsms.com/api/v1/sms_messages";
 
 // Format phone to +63XXXXXXXXXX or return null
 export const formatPhoneNumber = (phoneNumber) => {
@@ -229,7 +232,8 @@ export const sendOTPSMS = async (phoneNumber, otp = null) => {
 
     console.log(`sendOTPSMS: sending OTP to ${formatted}`);
 
-    const res = await fetch(IPROG_BASE_URL, {
+    // use OTP-specific endpoint
+    const res = await fetch(IPROG_OTP_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
