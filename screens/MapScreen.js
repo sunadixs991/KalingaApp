@@ -31,7 +31,11 @@ import {
   deleteField,
 } from "firebase/firestore";
 import SupplyRequestModal from "../components/SupplyRequestModalDisplay";
-
+import {
+  registerForLocalNotificationsAsync,
+  startPinListener,
+  stopPinListener,
+} from "../services/pinNotifications";
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -109,7 +113,6 @@ export default function MapScreen({ route }) {
   const [pendingMedicalPin, setPendingMedicalPin] = useState(null);
   const [medicalPinMode, setMedicalPinMode] = useState(false);
   const [medicalPins, setMedicalPins] = useState([]);
-  const [htmlContent, setHtmlContent] = useState(null);
 
   // Add new state for facilityName, purok, and sitio
   const [evacFacilityName, setEvacFacilityName] = useState("");
@@ -910,6 +913,27 @@ export default function MapScreen({ route }) {
       };
     });
 
+    useEffect(() => {
+      let mounted = true;
+      if (!userInfo) return;
+
+      (async () => {
+        try {
+          await registerForLocalNotificationsAsync();
+        } catch (e) {
+          // ignore permission errors — OS notif optional
+        }
+
+        // No UI callback here because HomeScreen reads AsyncStorage for badge/list
+        startPinListener(db, userInfo);
+      })();
+
+      return () => {
+        mounted = false;
+        stopPinListener();
+      };
+    }, [userInfo]);
+
     // Optimistically update userVoteStatus for instant color feedback
     setUserVoteStatus({
       hasVoted: !!nextVoteType,
@@ -1024,8 +1048,9 @@ export default function MapScreen({ route }) {
   };
 
 
-
-
+  // Add this new useEffect for continuous location tracking
+  // Update this useEffect for continuous location tracking with route updates
+  // BETTER VERSION: Update location tracking useEffect
   useEffect(() => {
     let locationSubscription;
 
@@ -1076,32 +1101,7 @@ export default function MapScreen({ route }) {
       }
     };
   }, [isFocused, routeDestination]); // 👉 Watch routeDestination instead
-  // Generate HTML only once on mount or when pins change significantly
-  useEffect(() => {
-    if (location) {
-      const html = getMapHtml(
-        allPinsForMap,
-        location,
-        [] // Start with empty route
-      );
-      setHtmlContent(html);
-    }
-  }, [allPins.length, evacPins.length, medicalPins.length, requestPins.length, location]); // Regenerate when pins change
 
-  // Separately update the route via message (without regenerating HTML)
-  useEffect(() => {
-    if (webviewRef.current && routeCoords.length > 0 && htmlContent) {
-      setTimeout(() => {
-        webviewRef.current.postMessage(
-          JSON.stringify({
-            type: 'updateRoute',
-            route: routeCoords,
-            fitBounds: false
-          })
-        );
-      }, 100);
-    }
-  }, [routeCoords]);
   // --- Add this function inside your component ---
   const fetchRoute = async (startLoc, destLoc) => {
     const apiKey =
@@ -1311,7 +1311,11 @@ export default function MapScreen({ route }) {
         ref={webviewRef}
         originWhitelist={["*"]}
         source={{
-          html: htmlContent || getMapHtml(allPinsForMap, location || { latitude: 0, longitude: 0 }, []),
+          html: getMapHtml(
+            allPinsForMap,
+            location || { latitude: 0, longitude: 0 },
+            routeCoords
+          ),
         }}
         style={{ flex: 1, backgroundColor: "transparent" }}
         onMessage={(event) => {

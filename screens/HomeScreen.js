@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Linking, // <-- added
 } from "react-native";
 import Swiper from "react-native-swiper";
 import { useTheme } from "../context/ThemeContext";
@@ -28,6 +29,11 @@ import {
 
 // Import functions individually to test
 import { fetchNearbyPins } from "../services/PinService";
+import {
+  registerForLocalNotificationsAsync,
+  startPinListener,
+  stopPinListener,
+} from "../services/pinNotifications";
 import boyProfile from "../assets/boy.png";
 import womanProfile from "../assets/woman.png";
 import userProfile from "../assets/user.png";
@@ -81,7 +87,14 @@ export default function HomeScreen({ route, navigation }) {
   const { isDarkMode } = useTheme();
   const [notificationModalVisible, setNotificationModalVisible] =
     useState(false);
+
+  // new in-app notifications state
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // NEW: location user-facing message and watcher ref
   const [locationMessage, setLocationMessage] = useState("");
+  const locationWatcherRef = useRef(null);
 
   // const colors = {
   //   background: isDarkMode ? "#121212" : "#fff",
@@ -325,6 +338,128 @@ export default function HomeScreen({ route, navigation }) {
     );
   };
 
+  // start pin listener when userInfo is known
+  useEffect(() => {
+    let mounted = true;
+    if (!userInfo) return;
+
+    (async () => {
+      try {
+        await registerForLocalNotificationsAsync();
+      } catch (e) {
+        // ignore permission failures for local UI feed
+      }
+
+      // callback invoked by service for each new pin/request_pin
+      const handleIncomingNotification = (payload) => {
+        if (!mounted) return;
+        setNotifications((prev) => [payload, ...prev].slice(0, 50));
+        setUnreadCount((c) => c + 1);
+      };
+
+      startPinListener(db, userInfo?.id || userInfo?.uid || null, handleIncomingNotification);
+    })();
+
+    return () => {
+      mounted = false;
+      stopPinListener();
+    };
+  }, [userInfo]);
+
+  // open modal and mark as read
+  const onOpenNotifications = () => {
+    setNotificationModalVisible(true);
+    setUnreadCount(0);
+  };
+
+  // centralized start watcher so UI tap can re-request permissions
+  const startLocationWatcher = async () => {
+    try {
+      const servicesEnabled = await Location.hasServicesEnabledAsync();
+      if (!servicesEnabled) {
+        setCurrentLocation(null);
+        setPlaceName("");
+        setLocationMessage(
+          "Location is turned off — tap to enable location services"
+        );
+        return;
+      }
+
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setCurrentLocation(null);
+        setPlaceName("");
+        setLocationMessage(
+          "Location permission denied — tap to allow location access"
+        );
+        return;
+      }
+
+      // clear message and fetch initial location
+      setLocationMessage("");
+      const initial = await Location.getCurrentPositionAsync({});
+      if (initial?.coords) {
+        setCurrentLocation(initial.coords);
+        try {
+          const places = await Location.reverseGeocodeAsync(initial.coords);
+          if (places && places.length > 0) {
+            const place = places[0];
+            setPlaceName(
+              [
+                place.street,
+                place.district,
+                place.city,
+                place.subregion,
+                place.country,
+              ]
+                .filter(Boolean)
+                .join(", ")
+            );
+          }
+        } catch {
+          // ignore reverse geocode errors
+        }
+      }
+
+      // start watcher if not already running
+      if (!locationWatcherRef.current) {
+        const sub = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Highest,
+            timeInterval: 5000,
+            distanceInterval: 10,
+          },
+          (pos) => {
+            if (!pos?.coords) return;
+            setCurrentLocation(pos.coords);
+          }
+        );
+        locationWatcherRef.current = sub;
+      }
+    } catch (err) {
+      console.warn("Location error", err);
+      setLocationMessage("Unable to access location. Tap to retry.");
+    }
+  };
+
+  useEffect(() => {
+    // run on mount
+    startLocationWatcher();
+
+    return () => {
+      // cleanup watcher if we created one
+      try {
+        if (locationWatcherRef.current && locationWatcherRef.current.remove) {
+          locationWatcherRef.current.remove();
+        } else if (typeof locationWatcherRef.current === "function") {
+          locationWatcherRef.current();
+        }
+      } catch {
+        /* ignore cleanup errors */
+      }
+    };
+  }, []);
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <StatusBar barStyle="light-content" backgroundColor="#e75e33" />
@@ -333,19 +468,57 @@ export default function HomeScreen({ route, navigation }) {
         <View style={styles.header}>
           <View style={styles.locationRow}>
             <Icon name="location-outline" size={20} color="#fff" />
-            <Text style={styles.locationText}>
-              {placeName || locationMessage || "Fetching your location..."}
-            </Text>
+            {/* If there's a location message make the text tappable to re-request */}
+            {locationMessage ? (
+              <TouchableOpacity
+                onPress={async () => {
+                  // try to open settings if message indicates permission denied
+                  if (locationMessage.toLowerCase().includes("denied")) {
+                    Alert.alert(
+                      "Location Permission",
+                      "Allow location access from settings to enable nearby resources.",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Open Settings",
+                          onPress: () => Linking.openSettings(),
+                        },
+                      ]
+                    );
+                    return;
+                  }
+                  // otherwise try to start watcher / request permission
+                  await startLocationWatcher();
+                }}
+                style={styles.locationPromptButton}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.locationPromptText}>{locationMessage}</Text>
+                <Text style={styles.locationPromptCTA}>Tap to enable</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.locationText}>
+                {placeName || "Fetching your location..."}
+              </Text>
+            )}
           </View>
 
           {/*Notification Button */}
           <TouchableOpacity
             style={styles.notificationButton}
-            onPress={() => setNotificationModalVisible(true)}
+            onPress={onOpenNotifications}
           >
             <Icon name="notifications-outline" size={24} color="#000" />
-            {/* Red Badge for new notifications */}
-            <View style={styles.notificationBadge} />
+            {/* show count badge when there are unread notifications */}
+            {unreadCount > 0 ? (
+              <View style={styles.notificationBadgeCount}>
+                <Text style={styles.notificationBadgeText}>
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.notificationBadge} />
+            )}
           </TouchableOpacity>
 
           <Modal
@@ -360,20 +533,26 @@ export default function HomeScreen({ route, navigation }) {
               onPressOut={() => setNotificationModalVisible(false)}
             >
               <View style={styles.bubbleWrapper}>
-                {/* Pointer / Arrow */}
                 <View style={styles.bubblePointer} />
 
-                {/* Bubble Body */}
                 <View style={styles.bubbleContainer}>
                   <Text style={styles.bubbleTitle}>Notifications</Text>
                   <View style={styles.bubbleContent}>
-                    <Text style={styles.bubbleItem}>📌 New pin near you</Text>
-                    <Text style={styles.bubbleItem}>
-                      ✅ Your request was approved
-                    </Text>
-                    <Text style={styles.bubbleItem}>
-                      ⚠️ Emergency alert in your area
-                    </Text>
+                    {notifications.length === 0 ? (
+                      <Text style={styles.bubbleItem}>No notifications yet</Text>
+                    ) : (
+                      notifications.map((n) => (
+                        <View key={n.id} style={{ paddingVertical: 8 }}>
+                          <Text style={[styles.bubbleItem, { fontWeight: '600' }]}>
+                            {n.title}
+                          </Text>
+                          <Text style={styles.bubbleItem}>{n.body}</Text>
+                          <Text style={[styles.bubbleItem, { color: '#999', fontSize: 12 }]}>
+                            {new Date(n.timestamp).toLocaleString()}
+                          </Text>
+                        </View>
+                      ))
+                    )}
                   </View>
                 </View>
               </View>
@@ -628,6 +807,23 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
+  },
+  notificationBadgeCount: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "red",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
   },
   notificationBadge: {
     position: "absolute",
@@ -1011,5 +1207,26 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 14,
+  },
+  locationPromptButton: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: "column",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    marginLeft: 4,
+  },
+  locationPromptText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  locationPromptCTA: {
+    color: "#e75e33",
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 4,
   },
 });
