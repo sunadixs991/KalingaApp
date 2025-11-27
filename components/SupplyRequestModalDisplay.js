@@ -13,6 +13,7 @@ import {
   Alert,
   Dimensions,
   Share,
+  Platform, // <-- added Platform
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -68,53 +69,263 @@ export default function SupplyRequestModal({
     setCurrentImageIndex(0);
   };
 
-  if (!pin) return null;
+  // --- helpers moved to component scope (was nested inside openContact) ---
+  const normalizePhone = (raw) => {
+    if (!raw) return "";
+    return String(raw).trim().replace(/[^\d+]/g, "");
+  };
 
-  const openContact = async (contact) => {
+  // replace with simple behaviour like ContactScreen (open tel/sms directly)
+  const openDialer = async (contact) => {
     if (!contact) {
-      Alert.alert("No contact", "No contact information provided.");
+      Alert.alert("No phone number", "No contact information provided.");
+      return;
+    }
+    const raw = String(contact || "").trim();
+    if (raw.includes("@")) {
+      Alert.alert("No phone number", "This contact is an email address.");
+      return;
+    }
+    const phone = normalizePhone(raw);
+    if (!phone || phone.length < 3) {
+      Alert.alert("No phone number", "No valid phone number provided.");
+      return;
+    }
+    try {
+      await Linking.openURL(`tel:${phone}`);
+    } catch (e) {
+      console.warn("openDialer error", e);
+      Alert.alert("Cannot open dialer", phone);
+    }
+  };
+
+  const openSms = async (contact) => {
+    if (!contact) {
+      Alert.alert("No phone number", "No contact information provided.");
+      return;
+    }
+    const raw = String(contact || "").trim();
+    if (raw.includes("@")) {
+      const mailto = `mailto:${raw}`;
+      try {
+        await Linking.openURL(mailto);
+      } catch {
+        Alert.alert("Contact", raw);
+      }
+      return;
+    }
+    const phone = normalizePhone(raw);
+    if (!phone || phone.length < 3) {
+      Alert.alert("No phone number", "No valid phone number provided.");
+      return;
+    }
+    try {
+      await Linking.openURL(`sms:${phone}`);
+    } catch (e) {
+      console.warn("openSms error", e);
+      Alert.alert("Cannot open messaging app", phone);
+    }
+  };
+
+  // add this share handler (uses existing `pin`)
+  const handleShare = async () => {
+    if (!pin) {
+      Alert.alert("Nothing to share", "No request selected.");
       return;
     }
 
-    // normalize to a phone-friendly string (keep digits and plus)
-    const phone = String(contact).replace(/[^\d+]/g, "");
-    const tel = `tel:${phone}`;
-
-    try {
-      // prefer opening the phone dialer
-      if (phone.length >= 3 && (await Linking.canOpenURL(tel))) {
-        await Linking.openURL(tel);
-      } else {
-        // couldn't open dialer — show a simple alert instead of opening mail
-        Alert.alert("Contact", contact);
-      }
-    } catch (e) {
-      Alert.alert("Contact error", contact);
+    const parts = [];
+    if (pin.supplyType) parts.push(`Request: ${pin.supplyType}`);
+    if (pin.numberOfPeople) parts.push(`People: ${pin.numberOfPeople}`);
+    if (pin.description) parts.push(`Notes: ${pin.description}`);
+    if (pin.contact) parts.push(`Contact: ${pin.contact}`);
+    if (pin.latitude && pin.longitude) {
+      parts.push(
+        `Location: https://www.google.com/maps/search/?api=1&query=${pin.latitude},${pin.longitude}`
+      );
     }
-  };
 
-  const handleShare = async () => {
+    const message = parts.join("\n\n") || "Supply request details";
+
     try {
-      const text = `${pin.supplyType || pin.category || "Supply Request"} — ${pin.description || ""}\nLocation: ${
-        pin.barangay || "Unknown Location"
-      }`;
-      await Share.share({ message: text });
+      await Share.share({ message });
     } catch (e) {
       console.warn("Share failed", e);
+      Alert.alert("Share error", "Unable to share this request.");
     }
   };
 
-  const handleGoTo = () => {
-    if (typeof fetchRoute === "function" && location) {
-      fetchRoute(location, {
-        latitude: pin.latitude,
-        longitude: pin.longitude,
-      });
-      onClose();
-    } else {
-      Alert.alert("Navigation", "Unable to start navigation.");
-    }
-  };
+  // --- move styles before return so they exist during render ---
+  const styles = StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: "rgba(6,12,20,0.55)",
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 16,
+    },
+    card: {
+      width: Math.min(720, SCREEN_W - 32),
+      backgroundColor: "#fff",
+      borderRadius: 14,
+      padding: 14,
+      maxHeight: "86%",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 14 },
+      shadowOpacity: 0.16,
+      shadowRadius: 24,
+      elevation: 12,
+    },
+    headerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 8,
+    },
+    iconWrap: {
+      width: 46,
+      height: 46,
+      borderRadius: 12,
+      backgroundColor: "#e75e33",
+      justifyContent: "center",
+      alignItems: "center",
+      marginRight: 12,
+    },
+    title: { fontSize: 17, fontWeight: "800", color: "#111" },
+    subTitle: { fontSize: 12, color: "#666", marginTop: 2 },
+    dot: { color: "#999", marginHorizontal: 6 },
+    metaRow: { flexDirection: "row", alignItems: "center" },
+    closeTouch: { 
+      backgroundColor: "rgba(255, 255, 255, 0.9)",
+      borderRadius: 8,
+      padding: 3,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 3,
+      elevation: 3, },
+
+    content: {
+      paddingVertical: 8,
+    },
+
+    row: { marginBottom: 10 },
+    infoLabel: { fontSize: 11, color: "#788", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
+    infoValue: { fontSize: 15, color: "#222", fontWeight: "700" },
+    infoValueSmall: { fontSize: 14, color: "#333", fontWeight: "600" },
+
+    contactRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 12,
+    },
+    contactPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "#f1fff8",
+      borderRadius: 18,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      minWidth: 140,
+    },
+    contactText: { color: "#087f5b", fontWeight: "700", fontSize: 13 },
+
+    smallIconBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 10,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+
+    shareBtn: { padding: 8, marginLeft: 8 },
+
+    actionButtonsRow: {
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 12,
+      marginTop: 6,
+    },
+    goToButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "#1976d2",
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 8,
+    },
+    goToText: {
+      color: "#fff",
+      fontWeight: "700",
+      fontSize: 12,
+      marginLeft: 6,
+    },
+
+    mediaScroll: { marginTop: 6, marginBottom: 6 },
+    mediaWrap: {
+      width: 150,
+      height: 110,
+      borderRadius: 12,
+      overflow: "hidden",
+      marginRight: 10,
+      backgroundColor: "#eee",
+    },
+    mediaImage: { width: "100%", height: "100%" },
+
+    notes: {
+      color: "#444",
+      backgroundColor: "#fff8f3",
+      padding: 12,
+      borderRadius: 10,
+      marginTop: 6,
+      fontSize: 14,
+    },
+
+    ctaRow: {
+      marginTop: 12,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingHorizontal: 4,
+    },
+    ctaBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 12,
+      borderRadius: 12,
+      flex: 1,
+      marginHorizontal: 6,
+    },
+    contactBtn: { backgroundColor: "#49A5A2" },
+    ctaText: { color: "#fff", fontWeight: "800" },
+
+    viewerOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.95)",
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 12,
+    },
+    viewerImage: {
+      width: "100%",
+      height: "78%",
+      borderRadius: 8,
+    },
+    viewerClose: { position: "absolute", top: 44, right: 20, zIndex: 40 },
+    viewerNav: {
+      position: "absolute",
+      bottom: 44,
+      left: 0,
+      right: 0,
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    viewerNavBtn: { paddingHorizontal: 18, paddingVertical: 6 },
+    viewerCounter: { color: "#fff", fontWeight: "700" },
+  });
+  
+  if (!pin) return null;
 
   return (
     <>
@@ -161,16 +372,18 @@ export default function SupplyRequestModal({
 
                 <View style={styles.contactRow}>
                   <Text style={styles.infoLabel}>Contact</Text>
-                  <TouchableOpacity
-                    onPress={() => openContact(pin.contact)}
-                    style={styles.contactPill}
-                    accessibilityLabel="Contact"
-                  >
-                    <Icon name="call" size={14} color="#0a7" style={{ marginRight: 8 }} />
-                    <Text numberOfLines={1} style={styles.contactText}>
-                      {pin.contact || "Not provided"}
-                    </Text>
-                  </TouchableOpacity>
+
+                  <View style={{ flexDirection: "row", alignItems: "center", flex: 1, justifyContent: "space-between" }}>
+                    <View style={styles.contactPill}>
+                      <Icon name="call" size={14} color="#0a7" style={{ marginRight: 8 }} />
+                      <Text numberOfLines={1} style={styles.contactText}>
+                        {pin.contact || "Not provided"}
+                      </Text>
+                    </View>
+
+                    {/* removed inline small call/message buttons (they were duplicated and causing wrong behavior) */}
+                    <View style={{ width: 8 }} />
+                  </View>
 
                   <TouchableOpacity onPress={handleShare} style={styles.shareBtn} accessibilityLabel="Share request">
                     <Icon name="share-social-outline" size={18} color="#2b7" />
@@ -180,7 +393,17 @@ export default function SupplyRequestModal({
                 <View style={styles.actionButtonsRow}>
                   <TouchableOpacity
                     style={styles.goToButton}
-                    onPress={handleGoTo}
+                    onPress={() => {
+                      if (typeof fetchRoute === "function" && location) {
+                        fetchRoute(location, {
+                          latitude: pin.latitude,
+                          longitude: pin.longitude,
+                        });
+                        onClose();
+                      } else {
+                        Alert.alert("Navigation", "Unable to start navigation.");
+                      }
+                    }}
                     accessibilityLabel="Navigate to location"
                   >
                     <MaterialCommunityIcons name="navigation" size={20} color="#fff" />
@@ -216,14 +439,23 @@ export default function SupplyRequestModal({
                 ) : null}
               </ScrollView>
 
-              <View style={styles.ctaRowSingle}>
+              <View style={styles.ctaRow}>
                 <TouchableOpacity
-                  style={[styles.ctaBtnSingle, styles.contactBtn]}
-                  onPress={() => openContact(pin.contact)}
-                  accessibilityLabel="Call or email poster"
+                  style={[styles.ctaBtn, { backgroundColor: "#1976d2" }]}
+                  onPress={() => openDialer(pin.contact)}
+                  accessibilityLabel="Call"
                 >
                   <Icon name="call-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
-                  <Text style={styles.ctaText}>Contact</Text>
+                  <Text style={styles.ctaText}>Call</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.ctaBtn, { backgroundColor: "#49A5A2" }]}
+                  onPress={() => openSms(pin.contact)}
+                  accessibilityLabel="Message"
+                >
+                  <Icon name="chatbubble-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+                  <Text style={styles.ctaText}>Message</Text>
                 </TouchableOpacity>
               </View>
             </Pressable>
@@ -270,162 +502,3 @@ export default function SupplyRequestModal({
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(6,12,20,0.55)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 16,
-  },
-  card: {
-    width: Math.min(720, SCREEN_W - 32),
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 14,
-    maxHeight: "86%",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.16,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  iconWrap: {
-    width: 46,
-    height: 46,
-    borderRadius: 12,
-    backgroundColor: "#e75e33",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  title: { fontSize: 17, fontWeight: "800", color: "#111" },
-  subTitle: { fontSize: 12, color: "#666", marginTop: 2 },
-  dot: { color: "#999", marginHorizontal: 6 },
-  metaRow: { flexDirection: "row", alignItems: "center" },
-  closeTouch: { 
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    borderRadius: 8,
-    padding: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3, },
-
-  content: {
-    paddingVertical: 8,
-  },
-
-  row: { marginBottom: 10 },
-  infoLabel: { fontSize: 11, color: "#788", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
-  infoValue: { fontSize: 15, color: "#222", fontWeight: "700" },
-  infoValueSmall: { fontSize: 14, color: "#333", fontWeight: "600" },
-
-  contactRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  contactPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f1fff8",
-    borderRadius: 18,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    minWidth: 140,
-  },
-  contactText: { color: "#087f5b", fontWeight: "700", fontSize: 13 },
-
-  shareBtn: { padding: 8, marginLeft: 8 },
-
-  actionButtonsRow: {
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 12,
-    marginTop: 6,
-  },
-  goToButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1976d2",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  goToText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 12,
-    marginLeft: 6,
-  },
-
-  mediaScroll: { marginTop: 6, marginBottom: 6 },
-  mediaWrap: {
-    width: 150,
-    height: 110,
-    borderRadius: 12,
-    overflow: "hidden",
-    marginRight: 10,
-    backgroundColor: "#eee",
-  },
-  mediaImage: { width: "100%", height: "100%" },
-
-  notes: {
-    color: "#444",
-    backgroundColor: "#fff8f3",
-    padding: 12,
-    borderRadius: 10,
-    marginTop: 6,
-    fontSize: 14,
-  },
-
-  ctaRowSingle: {
-    marginTop: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ctaBtnSingle: {
-    width: "60%",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  contactBtn: { backgroundColor: "#49A5A2" },
-  ctaText: { color: "#fff", fontWeight: "800" },
-
-  viewerOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.95)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 12,
-  },
-  viewerImage: {
-    width: "100%",
-    height: "78%",
-    borderRadius: 8,
-  },
-  viewerClose: { position: "absolute", top: 44, right: 20, zIndex: 40 },
-  viewerNav: {
-    position: "absolute",
-    bottom: 44,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  viewerNavBtn: { paddingHorizontal: 18, paddingVertical: 6 },
-  viewerCounter: { color: "#fff", fontWeight: "700" },
-});

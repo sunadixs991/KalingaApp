@@ -19,41 +19,127 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { db } from "../firebase";
 import { collection, getDocs } from "firebase/firestore";
 
+// NEW imports
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import NetInfo from "@react-native-community/netinfo";
+
+// Optional: bundled fallback (create assets/contacts.json if you want)
+// const bundledContacts = require("../assets/contacts.json");
+
 export default function ContactScreen() {
   const [contacts, setContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(true);
+  const CACHE_KEY = "cachedContacts_v1";
 
-  // Fetch contacts from Firestore
   useEffect(() => {
-    async function fetchContacts() {
+    let mounted = true;
+
+    const loadCached = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(CACHE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (mounted) {
+            setContacts(parsed);
+            setContactsLoading(false);
+          }
+          return true;
+        }
+      } catch (e) {
+        console.warn("Load cache failed", e);
+      }
+      return false;
+    };
+
+    const saveCache = async (data) => {
+      try {
+        await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(data));
+      } catch (e) {
+        console.warn("Save cache failed", e);
+      }
+    };
+
+    const fetchContactsFromFirestore = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "contacts"));
+        const fetched = [];
+        querySnapshot.forEach((doc) => {
+          fetched.push({ id: doc.id, ...doc.data() });
+        });
+
+        // sort alphabetically
+        fetched.sort((a, b) => {
+          const nameA = (a.name || "").toUpperCase();
+          const nameB = (b.name || "").toUpperCase();
+          if (nameA < nameB) return -1;
+          if (nameA > nameB) return 1;
+          return 0;
+        });
+
+        if (mounted) {
+          setContacts(fetched);
+          setContactsLoading(false);
+        }
+        // update cache
+        saveCache(fetched);
+      } catch (err) {
+        console.warn("Firestore fetch failed", err);
+        // try to load cache or bundled fallback
+        const hadCache = await loadCached();
+        if (!hadCache) {
+          // Optional: use bundled fallback if present
+          // if (bundledContacts) { setContacts(bundledContacts); setContactsLoading(false); }
+          if (mounted) setContactsLoading(false);
+        }
+      }
+    };
+
+    const checkAndLoad = async () => {
       setContactsLoading(true);
-      const querySnapshot = await getDocs(collection(db, "contacts"));
-      const fetched = [];
-      querySnapshot.forEach((doc) => {
-        fetched.push({ id: doc.id, ...doc.data() });
-      });
+      const state = await NetInfo.fetch();
+      if (state.isConnected) {
+        // online -> fetch fresh list
+        await fetchContactsFromFirestore();
+      } else {
+        // offline -> load cache (or bundled fallback)
+        const hadCache = await loadCached();
+        if (!hadCache) {
+          // Optional bundled fallback:
+          // if (bundledContacts) { setContacts(bundledContacts); }
+          // else show empty list
+          setContacts([]);
+          setContactsLoading(false);
+        }
+      }
+    };
 
-      // Sort alphabetically by name
-      fetched.sort((a, b) => {
-        const nameA = a.name.toUpperCase(); // ignore case
-        const nameB = b.name.toUpperCase();
-        if (nameA < nameB) return -1;
-        if (nameA > nameB) return 1;
-        return 0;
-      });
+    checkAndLoad();
 
-      setContacts(fetched);
-      setContactsLoading(false);
-    }
-    fetchContacts();
+    // Also subscribe to connectivity changes to auto-refresh when back online
+    const unsubscribeNet = NetInfo.addEventListener((state) => {
+      if (state.isConnected) {
+        fetchContactsFromFirestore();
+      }
+    });
+
+    return () => {
+      mounted = false;
+      unsubscribeNet();
+    };
   }, []);
 
   const handleCall = (number) => {
-    Linking.openURL(`tel:${number}`);
+    if (!number) return;
+    Linking.openURL(`tel:${number}`).catch((e) =>
+      console.warn("Call open failed", e)
+    );
   };
 
   const handleSMS = (number) => {
-    Linking.openURL(`sms:${number}`);
+    if (!number) return;
+    Linking.openURL(`sms:${number}`).catch((e) =>
+      console.warn("SMS open failed", e)
+    );
   };
 
   return (
@@ -74,7 +160,7 @@ export default function ContactScreen() {
       ) : (
         <FlatList
           data={contacts}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.id?.toString() || item.number}
           showsVerticalScrollIndicator={true}
           contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (

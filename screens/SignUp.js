@@ -464,6 +464,7 @@ export default function SignUp({ navigation }) {
                       stepOneErrors.firstName && { borderColor: "red" },
                     ]}
                     placeholder="First Name"
+                    placeholderTextColor="#666"
                     value={firstName}
                     onChangeText={(text) => {
                       setFirstName(text);
@@ -489,6 +490,7 @@ export default function SignUp({ navigation }) {
                       stepOneErrors.lastName && { borderColor: "red" },
                     ]}
                     placeholder="Last Name"
+                    placeholderTextColor="#666"
                     value={lastName}
                     onChangeText={(text) => {
                       setLastName(text);
@@ -515,6 +517,7 @@ export default function SignUp({ navigation }) {
                         stepOneErrors.phone && { borderColor: "red" },
                       ]}
                       placeholder="Phone"
+                      placeholderTextColor="#666"
                       keyboardType="phone-pad"
                       value={phone}
                       onChangeText={(text) => {
@@ -577,6 +580,7 @@ export default function SignUp({ navigation }) {
                       <TextInput
                         style={styles.inputField}
                         placeholder="Enter 6-digit OTP"
+                        placeholderTextColor="#666"
                         keyboardType="number-pad"
                         maxLength={6}
                         value={otpCode}
@@ -697,6 +701,8 @@ export default function SignUp({ navigation }) {
                       setStepOneErrors((prev) => ({ ...prev, gender: false }));
                     }}
                     style={styles.picker}
+                    dropdownIconColor="#000"
+                    itemStyle={{ color: "#000" }}
                   >
                     <Picker.Item label="Select Gender" value="" />
                     <Picker.Item label="Male" value="Male" />
@@ -726,6 +732,8 @@ export default function SignUp({ navigation }) {
                       setStepOneErrors((prev) => ({ ...prev, status: false }));
                     }}
                     style={styles.picker}
+                    dropdownIconColor="#000"
+                    itemStyle={{ color: "#000" }}
                   >
                     <Picker.Item label="Select Status" value="" />
                     <Picker.Item label="Single" value="Single" />
@@ -758,6 +766,8 @@ export default function SignUp({ navigation }) {
                       }));
                     }}
                     style={styles.picker}
+                    dropdownIconColor="#000"
+                    itemStyle={{ color: "#000" }}
                   >
                     <Picker.Item label="Select Barangay" value="" />
                     {barangayList.map((name, idx) => (
@@ -789,11 +799,11 @@ export default function SignUp({ navigation }) {
                     }}
                     style={styles.picker}
                     enabled={!!barangay}
+                    dropdownIconColor="#000"
+                    itemStyle={{ color: "#000" }}
                   >
                     <Picker.Item
-                      label={
-                        barangay ? "Select Purok" : "Select Barangay first"
-                      }
+                      label={barangay ? "Select Purok" : "Select Barangay first"}
                       value=""
                     />
                     {purokList.map((name, idx) => (
@@ -844,6 +854,7 @@ export default function SignUp({ navigation }) {
                   <TextInput
                     style={styles.inputField}
                     placeholder="Username"
+                    placeholderTextColor="#666"
                     value={username}
                     onChangeText={(text) => {
                       setUsername(text);
@@ -875,6 +886,7 @@ export default function SignUp({ navigation }) {
                   <TextInput
                     style={styles.inputField}
                     placeholder="Email"
+                    placeholderTextColor="#666"
                     value={email}
                     onChangeText={(text) => {
                       setEmail(text);
@@ -901,6 +913,7 @@ export default function SignUp({ navigation }) {
                   <TextInput
                     style={styles.inputField}
                     placeholder="Password"
+                    placeholderTextColor="#666"
                     value={password}
                     secureTextEntry={!showPassword}
                     onChangeText={(text) => {
@@ -951,6 +964,7 @@ export default function SignUp({ navigation }) {
                   <TextInput
                     style={styles.inputField}
                     placeholder="Confirm Password"
+                    placeholderTextColor="#666"
                     value={confirmPassword}
                     secureTextEntry={!showConfirmPassword}
                     onChangeText={(text) => {
@@ -1038,6 +1052,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: wp("4%"),
     paddingVertical: hp("1.5%"),
+    color: "#000",           // <-- ensure input text/placeholder contrast
   },
   icon: {
     marginRight: wp("2%"),
@@ -1057,6 +1072,7 @@ const styles = StyleSheet.create({
   },
   picker: {
     flex: 1,
+    color: "#000",           // <-- ensure selected picker text is visible
   },
   button: {
     backgroundColor: "#225B64",
