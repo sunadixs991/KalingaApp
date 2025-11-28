@@ -247,14 +247,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#1976D2",
+    color: "#000",
     marginBottom: 16,
     textAlign: "center",
     letterSpacing: 0.5,
   },
   sectionLabel: {
     fontWeight: "bold",
-    color: "#1976D2",
+    color: "#000",
     marginBottom: 6,
     fontSize: 15,
     letterSpacing: 0.2,
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   saveBtn: {
-    backgroundColor: "#1976D2",
+    backgroundColor: "#49A5A2",
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 24,
