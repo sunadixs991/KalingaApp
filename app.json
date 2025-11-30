@@ -17,9 +17,9 @@
       "bundleIdentifier": "com.yourcompany.kalingaapp"
     },
     "android": {
-      "icon": "./assets/Kalinga_logo.png",
+      "icon": "./assets/kalinga-icon.png",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/kalinga-icon.png",
         "backgroundColor": "#4A9B9B"
       },
       "edgeToEdgeEnabled": true,
