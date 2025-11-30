@@ -19,7 +19,7 @@
     "android": {
       "icon": "./assets/Kalinga_logo.png",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/Kalinga_logo.png",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#4A9B9B"
       },
       "edgeToEdgeEnabled": true,
