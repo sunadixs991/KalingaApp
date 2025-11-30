@@ -20,11 +20,10 @@
       "icon": "./assets/Kalinga_logo.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/Kalinga_logo.png",
-        "backgroundColor": "#4A9B9B"
+        "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.yourcompany.kalingaapp",
-      "versionCode": 2,
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "NOTIFICATIONS",
