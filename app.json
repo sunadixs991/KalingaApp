@@ -33,15 +33,14 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-  "plugins": [
-  [
-    "expo-notifications",
-    {
-      "icon": "./assets/notification-icon.png",
-      "color": "#ffffff"
-    }
-  ],
-  "expo-asset"
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "color": "#ffffff"
+        }
+      ],
+      "expo-asset"
     ],
     "scheme": "kalingaapp",
     "extra": {
