@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
 import { getGeminiResponse } from "../services/geminiChatService";
 import { getUserInfo } from "../services/getinfo";
+import { getChatbotContext, formatContextForPrompt } from "../services/chatbotDataService";
 import * as Location from "expo-location";
 import {
   widthPercentageToDP as wp,
@@ -22,11 +23,13 @@ import {
 } from "react-native-responsive-screen";
 
 const FAQS = [
-  "What services are available in my area?",
-  "How do I request for medical assistance?",
-  "Where is the nearest evacuation center?",
-  "How do I report an emergency?",
+  "Where are evacuation centers in my barangay?",
+  "Show me nearby medical facilities",
   "What are the food distribution schedules?",
+  "Give me emergency contact numbers",
+  "What community services are available?",
+  "How do I report an emergency?",
+  "Show me all available services",
 ];
 
 export default function GeminiChatUI({ route }) {
@@ -126,20 +129,38 @@ My location is ${locationText}
     setMessages((prev) => [...prev, userMessage]);
     setLoading(true);
 
-    const prompt = USER_INFO + "\nUser: " + text;
-    const botText = await getGeminiResponse(prompt);
+    try {
+      // Fetch database context based on the user's question
+      const context = await getChatbotContext(username, text);
+      const databaseContext = formatContextForPrompt(context);
 
-    setMessages((prev) => [
-      ...prev,
-      { id: Date.now().toString() + "_bot", sender: "bot", text: botText },
-    ]);
-    setInput("");
-    setLoading(false);
+      const prompt = USER_INFO + databaseContext + "\nUser: " + text;
+      
+      // Get response from Gemini with database context
+      const botText = await getGeminiResponse(prompt);
+
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now().toString() + "_bot", sender: "bot", text: botText },
+      ]);
+    } catch (error) {
+      console.error('Error getting response:', error);
+      setMessages((prev) => [
+        ...prev,
+        { 
+          id: Date.now().toString() + "_bot", 
+          sender: "bot", 
+          text: "Sorry, I encountered an error. Please try again." 
+        },
+      ]);
+    } finally {
+      setInput("");
+      setLoading(false);
+    }
   }
 
   async function sendMessage() {
     if (!input.trim()) return;
-
     sendMessageWithText(input);
   }
 
