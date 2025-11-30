@@ -46,6 +46,11 @@
       ],
       "expo-asset"
     ],
-    "scheme": "kalingaapp"
+    "scheme": "kalingaapp",
+    "extra": {
+      "eas": {
+        "projectId": "a00ebb60-4678-4296-acd5-82fde80bea41"
+      }
+    }
   }
 }
