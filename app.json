@@ -14,7 +14,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.kalingaapp"
+      "bundleIdentifier": "com.yourcompany.kalingaapp",
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "android": {
       "icon": "./assets/kalinga-icon.png",
@@ -27,8 +30,12 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "NOTIFICATIONS",
+        "SMS",
+        "ACCESS_FINE_LOCATION",
+        "NOTIFICATIONS",
         "SMS"
-      ]
+      ],
+      "runtimeVersion": "1.0.0"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -47,6 +54,9 @@
       "eas": {
         "projectId": "a00ebb60-4678-4296-acd5-82fde80bea41"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/a00ebb60-4678-4296-acd5-82fde80bea41"
     }
   }
 }
