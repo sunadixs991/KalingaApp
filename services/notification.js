@@ -7,7 +7,7 @@ const IPROG_API_TOKEN = "41ff414342d8ecaf2e4ebfaa7ead67690679b976";
 // bulk send endpoint (used by sendIprogSMS)
 const IPROG_BASE_URL = "https://sms.iprogtech.com/api/v1/sms_messages/send_bulk";
 // OTP-specific endpoint (use this for single OTP requests)
-const IPROG_OTP_URL = "https://www.iprogsms.com/api/v1/sms_messages";
+const IPROG_OTP_URL = "https://www.iprogsms.com/api/v1/otp/send_otp";
 
 // Format phone to +63XXXXXXXXXX or return null
 export const formatPhoneNumber = (phoneNumber) => {

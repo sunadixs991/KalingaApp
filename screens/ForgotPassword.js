@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { CommonActions } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -134,7 +135,7 @@ export default function ForgotPassword({ navigation }) {
       }
 
       setStep(2);
-      Alert.alert("OTP Sent", `A reset code was sent to ${phone}.`);
+      Alert.alert("OTP Sent", `A reset code was sent`);
     } catch (err) {
       console.error("findUser error:", err);
       Alert.alert("Error", "Failed to initiate reset. Try again.");
@@ -221,7 +222,13 @@ export default function ForgotPassword({ navigation }) {
       await updateDoc(resetRef, { used: true, usedAt: serverTimestamp() });
 
       Alert.alert("Success", "Password has been reset. You may now log in.");
-      navigation.replace("Login");
+      // Reset navigation stack and go to the correct login screen name
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: "LoginScreen" }], // <- use exact screen name from App.js
+        })
+      );
     } catch (err) {
       console.error("performReset error:", err);
       Alert.alert("Error", err.message || "Failed to reset password.");
