@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Kalinga_App",
-    "slug": "Kalinga_App",
+    "name": "Kalinga App",
+    "slug": "Kalinga App",
     "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/Kalinga_logo.png",
@@ -20,7 +20,7 @@
       "icon": "./assets/Kalinga_logo.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/Kalinga_logo.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#4A9B9B"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.yourcompany.kalingaapp",
@@ -46,11 +46,6 @@
       ],
       "expo-asset"
     ],
-    "scheme": "kalingaapp",
-    "extra": {
-      "eas": {
-        "projectId": "904fe2b7-45b7-421e-8f31-bbe09a78e69d"
-      }
-    }
+    "scheme": "kalingaapp"
   }
 }
