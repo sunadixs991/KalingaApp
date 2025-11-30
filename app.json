@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Kalinga App",
-    "slug": "KalingaApp",
+    "slug": "Kalinga-App",
     "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/Kalinga_logo.png",
@@ -46,11 +46,6 @@
       ],
       "expo-asset"
     ],
-    "scheme": "kalingaapp",
-    "extra": {
-      "eas": {
-        "projectId": "f7ad4b0e-90cb-4bf5-aa86-3cda48f7a876"
-      }
-    }
+    "scheme": "kalingaapp"
   }
 }
