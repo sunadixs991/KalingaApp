@@ -38,7 +38,7 @@ import ActivitySelector from "./screens/ActivitySelector";
 import ManageLandmark from "./screens/ManageLandmark";
 import DeletedPins from "./screens/DeletedPins";
 import UserSelector from "./screens/UserSelector";
-import ManageLGUAdmins from "./screens/ManageLGUAdmins";
+import ManageCSWDAdmins from "./screens/ManageCSWDAdmins";
 import InstructionScreen from "./screens/InstructionScreen";
 import AboutUs from "./screens/AboutUs";
 import PrivacyPolicy from "./screens/PrivacyPolicy";
@@ -47,6 +47,7 @@ import Admin2Utils from "./screens/Admin2Utils";
 import SecurityLogs from "./screens/SecurityLogs";
 import ForgotPassword from "./screens/ForgotPassword";
 import ManagePurokLeaders from "./screens/ManagePurokLeaders";
+import ManageDRRMAdmins from "./screens/ManageDRRMAdmins";
 
 
 // ✅ Import Feedback Modal
@@ -136,11 +137,12 @@ export default function App() {
             <Stack.Screen name="AboutUs" component={AboutUs} />
             <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicy} />
             <Stack.Screen name="ManageFeedback" component={ManageFeedback} />
-            <Stack.Screen name="ManageLGUAdmins" component={ManageLGUAdmins} />
+            <Stack.Screen name="ManageCSWDAdmins" component={ManageCSWDAdmins} />
             <Stack.Screen name="Admin2Utils" component={Admin2Utils} />
             <Stack.Screen name="SecurityLogs" component={SecurityLogs} />
             <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
             <Stack.Screen name="ManagePurokLeaders" component={ManagePurokLeaders} />
+            <Stack.Screen name="ManageDRRMAdmins" component={ManageDRRMAdmins} />
           </Stack.Navigator>
 
           {/* ✅ Pass username to Feedback Modal */}

@@ -206,9 +206,9 @@ export default function ManageUsers() {
       <View style={styles.manageButtonsRow}>
         <TouchableOpacity
           style={styles.manageButton}
-          onPress={() => goToRoot("ManageLGUAdmins")}
+          onPress={() => goToRoot("ManageCSWDAdmins")}
         >
-          <Text style={styles.manageButtonText}>LGU Admins</Text>
+          <Text style={styles.manageButtonText}>CSWD Admins</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

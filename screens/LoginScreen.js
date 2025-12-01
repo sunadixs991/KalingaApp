@@ -440,14 +440,17 @@ const logLoginActivity = async (username, success, userType) => {
 
         if (onLogin) onLogin();
 
-        Alert.alert(
-          "✅ Success",
-          userData.userType === "LGU Admin"
-            ? "Welcome back, LGU Admin! 🎉"
-            : userData.isAdmin
-            ? "Welcome back, Administrator! 🎉"
-            : "Welcome back! 🎉"
-        );
+  Toast.show({
+  type: 'success',
+  text1: 'Login Successful',
+  text2: userData.userType === "LGU Admin"
+    ? "Logged in as LGU Admin"
+    : userData.isAdmin
+    ? "Logged in as Administrator"
+    : "Welcome back",
+  position: 'top',
+  visibilityTime: 3000,
+});
 
         navigation.replace("MainTabs", {
           username,

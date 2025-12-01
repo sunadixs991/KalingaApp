@@ -33,6 +33,7 @@ export default function ManagePins() {
   const [activeTab, setActiveTab] = useState(0);
   const [mediaModalVisible, setMediaModalVisible] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState([]);
+  const [selectedPinId, setSelectedPinId] = useState(null);
   const [filter, setFilter] = useState("All");
   const navigation = useNavigation();
 
@@ -110,7 +111,12 @@ export default function ManagePins() {
   };
 
   const handlePinPress = (item) => {
-    setSelectedMedia(item.media || []);
+    // normalize media entries to objects with a url field (matches SupplyRequestModalDisplay)
+    const list = Array.isArray(item.media)
+      ? item.media.map((m) => (typeof m === "string" ? { url: m } : m))
+      : [];
+    setSelectedMedia(list);
+    setSelectedPinId(item.id);
     setMediaModalVisible(true);
   };
 
@@ -272,17 +278,7 @@ export default function ManagePins() {
                 No media data.
               </Text>
             )}
-            <TouchableOpacity
-              style={styles.showMessagesBtn}
-              onPress={() => {
-                setMediaModalVisible(false);
-                navigation.navigate("PinMessages", {
-                  pinId: pins.find((p) => p.media === selectedMedia)?.id,
-                });
-              }}
-            >
-              <Text style={styles.showMessagesText}>Show Messages</Text>
-            </TouchableOpacity>
+            {/* Removed "Show Messages" button for requests; only Close remains */}
             <TouchableOpacity
               style={styles.closeMediaBtn}
               onPress={() => setMediaModalVisible(false)}
@@ -427,18 +423,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   closeMediaText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-  showMessagesBtn: {
-    marginTop: 10,
-    backgroundColor: "#49A5A2",
-    paddingVertical: 10,
-    paddingHorizontal: 30,
-    borderRadius: 8,
-  },
-  showMessagesText: {
     color: "#fff",
     fontWeight: "bold",
     fontSize: 16,

@@ -6,7 +6,7 @@ import { db } from "../firebase";
 import { collection, getDocs, updateDoc, doc } from "firebase/firestore";
 import { useNavigation } from "@react-navigation/native";
 
-export default function ManageLGUAdmins() {
+export default function ManageDRRMAdmins() {
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -81,7 +81,7 @@ export default function ManageLGUAdmins() {
         >
           <Icon name="chevron-back" size={26} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.topBarTitle}>Manage LGU Admins</Text>
+        <Text style={styles.topBarTitle}>Manage DRRM Admins</Text>
         <View style={styles.backButton} />
       </View>
       <View style={styles.container}>
@@ -103,7 +103,7 @@ export default function ManageLGUAdmins() {
             keyExtractor={item => item.id}
             renderItem={({ item }) => {
              let bgColor = "#f7f7f7"; // default
-             if (item.userType === "LGU Admin") bgColor = "#d4edda"; // green for LGU Admin
+             if (item.userType === "DRRM Admin") bgColor = "#d4edda"; // green for DRRM Admin
 
               return (
                 <TouchableOpacity
@@ -155,11 +155,11 @@ export default function ManageLGUAdmins() {
               <TouchableOpacity
                 style={[
                   styles.userTypeButton,
-                  userType === "LGU Admin" && styles.userTypeSelected,
+                  userType === "DRRM Admin" && styles.userTypeSelected,
                 ]}
-                onPress={() => setUserType("LGU Admin")}
+                onPress={() => setUserType("DRRM Admin")}
               >
-                <Text style={styles.userTypeText}>LGU Admin</Text>
+                <Text style={styles.userTypeText}>DRRM Admin</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.modalActions}>

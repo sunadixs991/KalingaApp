@@ -35,10 +35,18 @@ export default function UserSelector() {
       <View style={styles.container}>
         <TouchableOpacity
           style={styles.option}
-          onPress={() => navigation.navigate("ManageLGUAdmins")}
+          onPress={() => navigation.navigate("ManageCSWDAdmins")}
         >
           <Icon name="person-outline" size={28} color="#e67e22" style={styles.icon} />
-          <Text style={styles.optionText}>LGU Admin</Text>
+          <Text style={styles.optionText}>CSWD Admin</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.option}
+          onPress={() => navigation.navigate("ManageDRRMAdmins")}
+        >
+          <Icon name="shield-outline" size={28} color="#c0392b" style={styles.icon} />
+          <Text style={styles.optionText}>DRRM Admin</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
