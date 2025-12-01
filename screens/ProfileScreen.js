@@ -23,8 +23,6 @@ import boyProfile from "../assets/boy.png";
 import userProfile from "../assets/user.png";
 import adminProfile from "../assets/admin.png";
 import { useTheme } from "../context/ThemeContext";
-import * as ImagePicker from "expo-image-picker";
-import { supabase } from "../services/supabaseClient";
 import { db } from "../firebase";
 
 import {
@@ -376,191 +374,84 @@ export default function ProfileScreen() {
   };
 
   // --- FIXED Profile Picture Logic with expo-image-picker ---
-  const handleSetProfilePicture = async () => {
-    Alert.alert(
-      "Select Photo",
-      "Choose how you want to select your profile picture",
-      [
-        {
-          text: "Camera",
-          onPress: () => pickFromCamera(),
-        },
-        {
-          text: "Gallery",
-          onPress: () => pickFromGallery(),
-        },
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-      ]
-    );
-  };
+  // const handleSetProfilePicture = async () => {
+  //   Alert.alert(
+  //     "Select Photo",
+  //     "Choose how you want to select your profile picture",
+  //     [
+  //       {
+  //         text: "Camera",
+  //         onPress: () => pickFromCamera(),
+  //       },
+  //       {
+  //         text: "Gallery",
+  //         onPress: () => pickFromGallery(),
+  //       },
+  //       {
+  //         text: "Cancel",
+  //         style: "cancel",
+  //       },
+  //     ]
+  //   );
+  // };
 
-  const pickFromCamera = async () => {
-    try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission Required", "Please allow camera access.");
-        return;
-      }
+  // const pickFromCamera = async () => {
+  //   try {
+  //     const { status } = await ImagePicker.requestCameraPermissionsAsync();
+  //     if (status !== "granted") {
+  //       Alert.alert("Permission Required", "Please allow camera access.");
+  //       return;
+  //     }
 
-      setUploading(true);
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.7,
-      });
+  //     setUploading(true);
+  //     const result = await ImagePicker.launchCameraAsync({
+  //       mediaTypes: ImagePicker.MediaTypeOptions.Images,
+  //       allowsEditing: true,
+  //       aspect: [1, 1],
+  //       quality: 0.7,
+  //     });
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        await uploadProfilePicture(result.assets[0]);
-      }
-    } catch (error) {
-      console.error("Error taking photo:", error);
-      Alert.alert("Error", "Failed to take photo. Please try again.");
-    }
-    setUploading(false);
-  };
+  //     if (!result.canceled && result.assets && result.assets.length > 0) {
+  //       await uploadProfilePicture(result.assets[0]);
+  //     }
+  //   } catch (error) {
+  //     console.error("Error taking photo:", error);
+  //     Alert.alert("Error", "Failed to take photo. Please try again.");
+  //   }
+  //   setUploading(false);
+  // };
 
-  const pickFromGallery = async () => {
-    try {
-      const { status } =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert(
-          "Permission Required",
-          "Please allow access to your photos."
-        );
-        return;
-      }
+  // const pickFromGallery = async () => {
+  //   try {
+  //     const { status } =
+  //       await ImagePicker.requestMediaLibraryPermissionsAsync();
+  //     if (status !== "granted") {
+  //       Alert.alert(
+  //         "Permission Required",
+  //         "Please allow access to your photos."
+  //       );
+  //       return;
+  //     }
 
-      setUploading(true);
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: "Images",
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.7,
-      });
+  //     setUploading(true);
+  //     const result = await ImagePicker.launchImageLibraryAsync({
+  //       mediaTypes: "Images",
+  //       allowsEditing: true,
+  //       aspect: [1, 1],
+  //       quality: 0.7,
+  //     });
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        await uploadProfilePicture(result.assets[0]);
-      }
-    } catch (error) {
-      console.error("Error picking from gallery:", error);
-      Alert.alert("Error", "Failed to open gallery. Please try again.");
-    }
-    setUploading(false);
-  };
+  //     if (!result.canceled && result.assets && result.assets.length > 0) {
+  //       await uploadProfilePicture(result.assets[0]);
+  //     }
+  //   } catch (error) {
+  //     console.error("Error picking from gallery:", error);
+  //     Alert.alert("Error", "Failed to open gallery. Please try again.");
+  //   }
+  //   setUploading(false);
+  // };
 
-  const uploadProfilePicture = async (asset) => {
-    try {
-      // Upload to Supabase Storage
-      const fileExt = asset.uri.split(".").pop();
-      const fileName = `profile_${Date.now()}.${fileExt}`;
-
-      // Fetch the image as blob
-      const response = await fetch(asset.uri);
-      const blob = await response.blob();
-
-      const { data, error } = await supabase.storage
-        .from("profile-pictures")
-        .upload(fileName, blob, {
-          cacheControl: "3600",
-          upsert: false,
-        });
-
-      if (error) throw error;
-
-      // Get public URL - FIXED: Use getPublicUrl correctly
-      const { data: urlData } = supabase.storage
-        .from("profile-pictures")
-        .getPublicUrl(fileName);
-
-      const publicURL = urlData.publicUrl; // Fixed property name
-
-      setProfilePicUrl(publicURL);
-
-      // Save URL to Firestore user profile
-      let userIdentifier = await AsyncStorage.getItem("user");
-      if (!userIdentifier) return;
-
-      let cleanIdentifier = userIdentifier;
-      try {
-        const parsed = JSON.parse(userIdentifier);
-        if (typeof parsed === "object" && parsed !== null) {
-          cleanIdentifier =
-            parsed.username || parsed.email || parsed.id || userIdentifier;
-        }
-      } catch (e) {}
-      cleanIdentifier = cleanIdentifier.toString().trim();
-
-      // Query Firestore for user document
-      const userQuery = query(
-        collection(db, "users"),
-        where("username", "==", cleanIdentifier)
-      );
-      const userSnap = await getDocs(userQuery);
-      if (!userSnap.empty) {
-        const userDocId = userSnap.docs[0].id;
-        await updateDoc(doc(db, "users", userDocId), {
-          profilePicUrl: publicURL,
-        });
-        const updatedInfo = await getUserInfo(cleanIdentifier);
-        setUserInfo(updatedInfo);
-        try {
-          await AsyncStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(updatedInfo));
-        } catch (e) {}
-      }
-
-      setImageModalVisible(false);
-      Alert.alert("Success", "Profile picture updated!");
-    } catch (error) {
-      console.error("Upload error:", error);
-      Alert.alert("Error", error.message || "Failed to set profile picture.");
-    }
-  };
-
-  const removeProfilePicture = async () => {
-    try {
-      setProfilePicUrl(null);
-
-      // Update Firestore to remove profile picture URL
-      let userIdentifier = await AsyncStorage.getItem("user");
-      if (!userIdentifier) return;
-
-      let cleanIdentifier = userIdentifier;
-      try {
-        const parsed = JSON.parse(userIdentifier);
-        if (typeof parsed === "object" && parsed !== null) {
-          cleanIdentifier =
-            parsed.username || parsed.email || parsed.id || userIdentifier;
-        }
-      } catch (e) {}
-      cleanIdentifier = cleanIdentifier.toString().trim();
-
-      const userQuery = query(
-        collection(db, "users"),
-        where("username", "==", cleanIdentifier)
-      );
-      const userSnap = await getDocs(userQuery);
-      if (!userSnap.empty) {
-        const userDocId = userSnap.docs[0].id;
-        await updateDoc(doc(db, "users", userDocId), { profilePicUrl: null });
-        const updatedInfo = await getUserInfo(cleanIdentifier);
-        setUserInfo(updatedInfo);
-        try {
-          await AsyncStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(updatedInfo));
-        } catch (e) {}
-      }
-
-      setImageModalVisible(false);
-      Alert.alert("Success", "Profile picture removed!");
-    } catch (error) {
-      console.error("Remove error:", error);
-      Alert.alert("Error", "Failed to remove profile picture.");
-    }
-  };
+  // image upload / removal functionality removed — profile image comes from userInfo only
 
   // Show loading screen until profile is hydrated/fetched
   if (profileLoading) {
@@ -581,33 +472,25 @@ export default function ProfileScreen() {
         <View style={styles.container}>
           {/* Profile Picture */}
           <View style={styles.profileSection}>
-            <TouchableOpacity onPress={() => setImageModalVisible(true)}>
-              {profilePicUrl ? (
-                <Image
-                  source={{ uri: profilePicUrl }}
-                  style={styles.profileImage}
-                />
-              ) : (
-                <Image
-                  source={
-                    userInfo
-                      ? userInfo.gender === "Female"
-                        ? womanProfile
-                        : userInfo.gender === "Male"
-                          ? boyProfile
-                             : userInfo.gender === "admin"
-                          ? adminProfile
-                          : userProfile
+            {/* profile image (read-only) */}
+            <View>
+              <Image
+                source={
+                  userInfo
+                    ? userInfo.profilePicUrl
+                      ? { uri: userInfo.profilePicUrl }
+                      : userInfo.gender === "Female"
+                      ? womanProfile
+                      : userInfo.gender === "Male"
+                      ? boyProfile
+                      : userInfo.gender === "admin"
+                      ? adminProfile
                       : userProfile
-                  }
-                  style={styles.profileImage}
-                />
-              )}
-              {/* Camera Icon Overlay */}
-              <View style={styles.cameraIconWrapper}>
-                <Icon name="camera" size={18} color="#fff" />
-              </View>
-            </TouchableOpacity>
+                    : userProfile
+                }
+                style={styles.profileImage}
+              />
+            </View>
             <Text style={styles.name}>
               {userInfo
                 ? `${String(userInfo.firstName || "Citizen")} ${String(userInfo.lastName || "")}`
@@ -666,12 +549,12 @@ export default function ProfileScreen() {
                   <Text style={styles.settingText}>Settings</Text>
                 </TouchableOpacity>
 
-                {/* Admin Utilities - visible for admin or LGU Admin */}
+                {/* Admin Utilities - visible for admin or CSWD Admin */}
                 {isAdmin && (
                   <TouchableOpacity
                     style={styles.settingItem}
                     onPress={() => {
-                      if (userType === "LGU Admin") {
+                      if (userType === "CSWD Admin") {
                         navigation.navigate("Admin2Utils");
                       } else {
                         navigation.navigate("AdminUtils");
@@ -743,288 +626,218 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* IMPROVED Modal for Profile Picture Actions */}
+        {/* Edit Account Modal */}
         <Modal
-          visible={imageModalVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setImageModalVisible(false)}
-        >
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPressOut={() => setImageModalVisible(false)}
-          >
-            <View style={styles.actionSheet}>
-              <Text style={styles.actionSheetTitle}>Profile Picture</Text>
-
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={handleSetProfilePicture}
-                disabled={uploading}
-              >
-                <Icon
-                  name="camera-outline"
-                  size={21}
-                  color="#fff"
-                  style={{ marginRight: 6 }}
-                />
-                <Text style={styles.actionText}>
-                  {uploading
-                    ? "Uploading..."
-                    : profilePicUrl
-                      ? "Update Profile Picture"
-                      : "Set Profile Picture"}
-                </Text>
-                {uploading && (
-                  <ActivityIndicator
-                    size="small"
-                    color="#e75e33"
-                    style={{ marginLeft: 10 }}
-                  />
-                )}
-              </TouchableOpacity>
-
-              {profilePicUrl && (
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={removeProfilePicture}
-                >
-                  <Icon
-                    name="trash-outline"
-                    size={20}
-                    color="red"
-                    style={{ marginRight: 10 }}
-                  />
-                  <Text style={[styles.actionText, { color: "red" }]}>
-                    Remove Profile Picture
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity
-                style={[styles.cancelActionButton]}
-                onPress={() => setImageModalVisible(false)}
-              >
-                <Text style={[styles.actionText, { color: "#666" }]}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
-      </ScrollView>
-
-      {/* Edit Account Modal */}
-      <Modal
-        visible={editModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={handleModalClose}
-      >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.3)",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
+          visible={editModalVisible}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={handleModalClose}
         >
           <View
             style={{
-              backgroundColor: "#fff",
-              borderRadius: 16,
-              padding: 24,
-              width: "85%",
-              maxHeight: "70%",
-              elevation: 5,
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.3)",
+              justifyContent: "center",
+              alignItems: "center",
             }}
           >
-            <ScrollView showsVerticalScrollIndicator={true}>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: 16,
-                }}
-              >
-                <Text
-                  style={{ fontSize: 18, fontWeight: "bold", color: "#e75e33" }}
-                >
-                  {isEditing
-                    ? "Edit Account Information"
-                    : "Account Information"}
-                </Text>
-                <TouchableOpacity onPress={handleModalClose}>
-                  <Icon
-                    name="close"
-                    size={20}
-                    color="#333"
-                    style={{
-                      padding: 4,
-                      backgroundColor: "#fff",
-                      borderRadius: 6,
-                      shadowColor: "#000",
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.1,
-                      shadowRadius: 3,
-                      elevation: 3,
-                      marginRight: 5,
-                    }}
-                  />
-                </TouchableOpacity>
-              </View>
-              <TextInput
-                style={styles.input}
-                placeholder="First Name"
-                value={editInfo.firstName}
-                onChangeText={(text) =>
-                  setEditInfo({ ...editInfo, firstName: text })
-                }
-                editable={isEditing}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Last Name"
-                value={editInfo.lastName}
-                onChangeText={(text) =>
-                  setEditInfo({ ...editInfo, lastName: text })
-                }
-                editable={isEditing}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Email"
-                value={editInfo.email}
-                onChangeText={(text) =>
-                  setEditInfo({ ...editInfo, email: text })
-                }
-                keyboardType="email-address"
-                editable={isEditing}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Phone"
-                value={editInfo.phone}
-                onChangeText={(text) =>
-                  setEditInfo({ ...editInfo, phone: text })
-                }
-                keyboardType="phone-pad"
-                editable={isEditing}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Gender"
-                value={editInfo.gender}
-                onChangeText={(text) =>
-                  setEditInfo({ ...editInfo, gender: text })
-                }
-                editable={isEditing}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Birthdate (YYYY-MM-DD)"
-                value={editInfo.dob}
-                onChangeText={(text) => setEditInfo({ ...editInfo, dob: text })}
-                editable={isEditing}
-              />
-              {/* Status Dropdown */}
-              <View style={styles.input}>
-                <Text style={{ marginBottom: 5, color: "#333" }}>Status</Text>
-                <Picker
-                  selectedValue={editInfo.status}
-                  onValueChange={(itemValue) =>
-                    setEditInfo({ ...editInfo, status: itemValue })
-                  }
-                  enabled={isEditing}
-                >
-                  <Picker.Item label="Select Status" value="" />
-                  <Picker.Item label="Single" value="Single" />
-                  <Picker.Item label="Married" value="Married" />
-                </Picker>
-              </View>
-              {/* Remove Province and City fields */}
-              {/* Barangay Picker */}
-              <View style={styles.input}>
-                <Text style={{ marginBottom: 5, color: "#333" }}>Barangay</Text>
-                <Picker
-                  selectedValue={editInfo.barangay}
-                  onValueChange={(itemValue) => {
-                    setEditInfo((prev) => ({
-                      ...prev,
-                      barangay: itemValue,
-                      purok: "", // Reset purok when barangay changes
-                    }));
+            <View
+              style={{
+                backgroundColor: "#fff",
+                borderRadius: 16,
+                padding: 24,
+                width: "85%",
+                maxHeight: "70%",
+                elevation: 5,
+              }}
+            >
+              <ScrollView showsVerticalScrollIndicator={true}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 16,
                   }}
-                  enabled={isEditing}
                 >
-                  <Picker.Item label="Select Barangay" value="" />
-                  {barangayList.map((name, idx) => (
-                    <Picker.Item key={idx} label={name} value={name} />
-                  ))}
-                </Picker>
-              </View>
-              {/* Purok Picker */}
-              <View style={styles.input}>
-                <Text style={{ marginBottom: 5, color: "#333" }}>Purok</Text>
-                <Picker
-                  selectedValue={editInfo.purok || ""}
-                  onValueChange={(itemValue) =>
-                    setEditInfo((prev) => ({
-                      ...prev,
-                      purok: itemValue,
-                    }))
-                  }
-                  enabled={isEditing && !!editInfo.barangay}
-                >
-                  <Picker.Item
-                    label={
-                      editInfo.barangay
-                        ? "Select Purok"
-                        : "Select Barangay first"
-                    }
-                    value=""
-                  />
-                  {purokList.map((name, idx) => (
-                    <Picker.Item key={idx} label={name} value={name} />
-                  ))}
-                </Picker>
-              </View>
-
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "flex-end",
-                  marginTop: 18,
-                }}
-              >
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={handleEditToggle}
-                >
-                  <Text style={styles.cancelButtonText}>
-                    {isEditing ? "Cancel" : "Edit"}
-                  </Text>
-                </TouchableOpacity>
-                {isEditing && (
-                  <TouchableOpacity
-                    style={styles.saveButton}
-                    onPress={handleSaveEdit}
+                  <Text
+                    style={{ fontSize: 18, fontWeight: "bold", color: "#e75e33" }}
                   >
-                    <Text style={styles.saveButtonText}>Save</Text>
+                    {isEditing
+                      ? "Edit Account Information"
+                      : "Account Information"}
+                  </Text>
+                  <TouchableOpacity onPress={handleModalClose}>
+                    <Icon
+                      name="close"
+                      size={20}
+                      color="#333"
+                      style={{
+                        padding: 4,
+                        backgroundColor: "#fff",
+                        borderRadius: 6,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 3,
+                        elevation: 3,
+                        marginRight: 5,
+                      }}
+                    />
                   </TouchableOpacity>
-                )}
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
-  );
-}
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="First Name"
+                  value={editInfo.firstName}
+                  onChangeText={(text) =>
+                    setEditInfo({ ...editInfo, firstName: text })
+                  }
+                  editable={isEditing}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Last Name"
+                  value={editInfo.lastName}
+                  onChangeText={(text) =>
+                    setEditInfo({ ...editInfo, lastName: text })
+                  }
+                  editable={isEditing}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email"
+                  value={editInfo.email}
+                  onChangeText={(text) =>
+                    setEditInfo({ ...editInfo, email: text })
+                  }
+                  keyboardType="email-address"
+                  editable={isEditing}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Phone"
+                  value={editInfo.phone}
+                  onChangeText={(text) =>
+                    setEditInfo({ ...editInfo, phone: text })
+                  }
+                  keyboardType="phone-pad"
+                  editable={isEditing}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Gender"
+                  value={editInfo.gender}
+                  onChangeText={(text) =>
+                    setEditInfo({ ...editInfo, gender: text })
+                  }
+                  editable={isEditing}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Birthdate (YYYY-MM-DD)"
+                  value={editInfo.dob}
+                  onChangeText={(text) => setEditInfo({ ...editInfo, dob: text })}
+                  editable={isEditing}
+                />
+                {/* Status Dropdown */}
+                <View style={styles.input}>
+                  <Text style={{ marginBottom: 5, color: "#333" }}>Status</Text>
+                  <Picker
+                    selectedValue={editInfo.status}
+                    onValueChange={(itemValue) =>
+                      setEditInfo({ ...editInfo, status: itemValue })
+                    }
+                    enabled={isEditing}
+                  >
+                    <Picker.Item label="Select Status" value="" />
+                    <Picker.Item label="Single" value="Single" />
+                    <Picker.Item label="Married" value="Married" />
+                  </Picker>
+                </View>
+                {/* Remove Province and City fields */}
+                {/* Barangay Picker */}
+                <View style={styles.input}>
+                  <Text style={{ marginBottom: 5, color: "#333" }}>Barangay</Text>
+                  <Picker
+                    selectedValue={editInfo.barangay}
+                    onValueChange={(itemValue) => {
+                      setEditInfo((prev) => ({
+                        ...prev,
+                        barangay: itemValue,
+                        purok: "", // Reset purok when barangay changes
+                      }));
+                    }}
+                    enabled={isEditing}
+                  >
+                    <Picker.Item label="Select Barangay" value="" />
+                    {barangayList.map((name, idx) => (
+                      <Picker.Item key={idx} label={name} value={name} />
+                    ))}
+                  </Picker>
+                </View>
+                {/* Purok Picker */}
+                <View style={styles.input}>
+                  <Text style={{ marginBottom: 5, color: "#333" }}>Purok</Text>
+                  <Picker
+                    selectedValue={editInfo.purok || ""}
+                    onValueChange={(itemValue) =>
+                      setEditInfo((prev) => ({
+                        ...prev,
+                        purok: itemValue,
+                      }))
+                    }
+                    enabled={isEditing && !!editInfo.barangay}
+                  >
+                    <Picker.Item
+                      label={
+                        editInfo.barangay
+                          ? "Select Purok"
+                          : "Select Barangay first"
+                      }
+                      value=""
+                    />
+                    {purokList.map((name, idx) => (
+                      <Picker.Item key={idx} label={name} value={name} />
+                    ))}
+                  </Picker>
+                </View>
 
-const styles = StyleSheet.create({
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "flex-end",
+                    marginTop: 18,
+                  }}
+                >
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={handleEditToggle}
+                  >
+                    <Text style={styles.cancelButtonText}>
+                      {isEditing ? "Cancel" : "Edit"}
+                    </Text>
+                  </TouchableOpacity>
+                  {isEditing && (
+                    <TouchableOpacity
+                      style={styles.saveButton}
+                      onPress={handleSaveEdit}
+                    >
+                      <Text style={styles.saveButtonText}>Save</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+      </ScrollView>
+     </SafeAreaView>
+   );
+ }
+ 
+ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#fff",

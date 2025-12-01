@@ -61,8 +61,6 @@ async function getUserFirstName() {
 }
 
 export default function ManageSchedule({ navigation }) {
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [newSchedule, setNewSchedule] = useState({
     title: "",
@@ -83,41 +81,9 @@ export default function ManageSchedule({ navigation }) {
   const [purokList, setPurokList] = useState([]);
 
   useEffect(() => {
-    checkAdminStatus();
+    // only fetch schedules here (admin detection removed)
     fetchSchedules();
   }, []);
-
-  // Add this after your existing useEffect
-  useEffect(() => {
-    checkAdminStatus(); // Initial check
-
-    // Listen for storage changes
-    const unsubscribe = navigation.addListener("focus", () => {
-      checkAdminStatus(); // Check when screen comes into focus
-    });
-
-    return unsubscribe;
-  }, [navigation]);
-
-  const checkAdminStatus = async () => {
-    try {
-      const userInfo = await AsyncStorage.getItem("userInfo");
-      const user = await AsyncStorage.getItem("user");
-
-      if (userInfo && user) {
-        const parsedInfo = JSON.parse(userInfo);
-        setIsLoggedIn(true);
-        setIsAdmin(parsedInfo.isAdmin === true); // Strict boolean check
-      } else {
-        setIsLoggedIn(false);
-        setIsAdmin(false);
-      }
-    } catch (error) {
-      console.error("Error checking admin status:", error);
-      setIsLoggedIn(false);
-      setIsAdmin(false);
-    }
-  };
 
   const fetchSchedules = async () => {
     try {
@@ -740,226 +706,219 @@ export default function ManageSchedule({ navigation }) {
                     )}
                   </View>
 
-                  {isLoggedIn && isAdmin ? (
-                    <View style={styles.adminActions}>
-                      <TouchableOpacity
-                        onPress={() => handleEditSchedule(item)}
-                        style={styles.actionButton}
-                      >
-                        <Icon name="create-outline" size={22} color="#666" />
-                      </TouchableOpacity>
-                      {/* ❌ Removed the delete button from here */}
-                    </View>
-                  ) : null}
+                  {/* Admin actions are available (admin checking removed) */}
+                  <View style={styles.adminActions}>
+                    <TouchableOpacity
+                      onPress={() => handleEditSchedule(item)}
+                      style={styles.actionButton}
+                    >
+                      <Icon name="create-outline" size={22} color="#666" />
+                    </TouchableOpacity>
+                    {/* delete action intentionally handled via swipe (kept removed here) */}
+                  </View>
                 </View>
               </Swipeable>
             );
           }}
         />
 
-        {isLoggedIn && isAdmin ? (
-          <TouchableOpacity
-            style={styles.adminButton}
-            onPress={() => navigation.navigate("AddSchedule")}
-          >
-            <Icon name="add" size={30} color="#fff" />
-            {/* <Text style={styles.adminButtonText}>Add New Schedule</Text> */}
-          </TouchableOpacity>
-        ) : null}
+        {/* Add schedule button (visible to all; admin gating removed) */}
+        <TouchableOpacity
+          style={styles.adminButton}
+          onPress={() => navigation.navigate("AddSchedule")}
+        >
+          <Icon name="add" size={30} color="#fff" />
+        </TouchableOpacity>
 
-        {isAdmin && (
-          <Modal
-            animationType="fade"
-            transparent={true}
-            visible={modalVisible}
-            onRequestClose={() => setModalVisible(false)}
-          >
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={modalVisible}
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <View style={[styles.modalOverlay, { opacity: modalVisible ? 1 : 0 }]}>
             <View
-              style={[styles.modalOverlay, { opacity: modalVisible ? 1 : 0 }]}
+              style={[
+                styles.modalContent,
+                { transform: [{ scale: modalVisible ? 1 : 0.9 }] },
+              ]}
             >
-              <View
-                style={[
-                  styles.modalContent,
-                  { transform: [{ scale: modalVisible ? 1 : 0.9 }] },
-                ]}
+              <ScrollView
+                contentContainerStyle={{ paddingBottom: 20 }}
+                showsVerticalScrollIndicator={true}
               >
-                <ScrollView
-                  contentContainerStyle={{ paddingBottom: 20 }}
-                  showsVerticalScrollIndicator={true}
-                >
-                  <Text style={styles.modalTitle}>
-                    {isEditMode ? "Edit Schedule" : "Add New Schedule"}
+                <Text style={styles.modalTitle}>
+                  {isEditMode ? "Edit Schedule" : "Add New Schedule"}
+                </Text>
+
+                {/* Barangay Picker */}
+                <View style={styles.input}>
+                  <Text style={{ marginBottom: 5, color: "#333" }}>
+                    Barangay
                   </Text>
+                  <Picker
+                    selectedValue={newSchedule.title}
+                    onValueChange={(itemValue) => {
+                      setNewSchedule((prev) => ({
+                        ...prev,
+                        title: itemValue,
+                        purok: "",
+                      }));
+                    }}
+                    enabled={isEditMode}
+                  >
+                    <Picker.Item label="Select Barangay" value="" />
+                    {barangayList.map((name, idx) => (
+                      <Picker.Item key={idx} label={name} value={name} />
+                    ))}
+                  </Picker>
+                </View>
 
-                  {/* Barangay Picker */}
-                  <View style={styles.input}>
-                    <Text style={{ marginBottom: 5, color: "#333" }}>
-                      Barangay
-                    </Text>
-                    <Picker
-                      selectedValue={newSchedule.title}
-                      onValueChange={(itemValue) => {
-                        setNewSchedule((prev) => ({
-                          ...prev,
-                          title: itemValue,
-                          purok: "",
-                        }));
-                      }}
-                      enabled={isEditMode}
-                    >
-                      <Picker.Item label="Select Barangay" value="" />
-                      {barangayList.map((name, idx) => (
-                        <Picker.Item key={idx} label={name} value={name} />
-                      ))}
-                    </Picker>
-                  </View>
-
-                  {/* Purok Picker */}
-                  <View style={styles.input}>
-                    <Text style={{ marginBottom: 5, color: "#333" }}>
-                      Purok
-                    </Text>
-                    <Picker
-                      selectedValue={newSchedule.purok || ""}
-                      onValueChange={(itemValue) =>
-                        setNewSchedule((prev) => ({
-                          ...prev,
-                          purok: itemValue,
-                        }))
-                      }
-                      enabled={isEditMode && !!newSchedule.title}
-                    >
-                      <Picker.Item
-                        label={
-                          newSchedule.title
-                            ? "Select Purok"
-                            : "Select Barangay first"
-                        }
-                        value=""
-                      />
-                      {purokList.map((name, idx) => (
-                        <Picker.Item key={idx} label={name} value={name} />
-                      ))}
-                    </Picker>
-                  </View>
-
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Location"
-                    value={newSchedule.location}
-                    onChangeText={(text) =>
-                      setNewSchedule({ ...newSchedule, location: text })
+                {/* Purok Picker */}
+                <View style={styles.input}>
+                  <Text style={{ marginBottom: 5, color: "#333" }}>
+                    Purok
+                  </Text>
+                  <Picker
+                    selectedValue={newSchedule.purok || ""}
+                    onValueChange={(itemValue) =>
+                      setNewSchedule((prev) => ({
+                        ...prev,
+                        purok: itemValue,
+                      }))
                     }
+                    enabled={isEditMode && !!newSchedule.title}
+                  >
+                    <Picker.Item
+                      label={
+                        newSchedule.title
+                          ? "Select Purok"
+                          : "Select Barangay first"
+                      }
+                      value=""
+                    />
+                    {purokList.map((name, idx) => (
+                      <Picker.Item key={idx} label={name} value={name} />
+                    ))}
+                  </Picker>
+                </View>
+
+                <TextInput
+                  style={styles.input}
+                  placeholder="Location"
+                  value={newSchedule.location}
+                  onChangeText={(text) =>
+                    setNewSchedule({ ...newSchedule, location: text })
+                  }
+                />
+
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <Text style={styles.dateButtonText}>
+                    Select Date: {newSchedule.date.toLocaleDateString()}
+                  </Text>
+                </TouchableOpacity>
+
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={newSchedule.date}
+                    mode="date"
+                    onChange={(event, selectedDate) => {
+                      setShowDatePicker(false);
+                      if (selectedDate) {
+                        setNewSchedule({
+                          ...newSchedule,
+                          date: selectedDate,
+                        });
+                      }
+                    }}
                   />
+                )}
 
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowTimePicker(true)}
+                >
+                  <Text style={styles.dateButtonText}>
+                    Select Time: {newSchedule.time.toLocaleTimeString()}
+                  </Text>
+                </TouchableOpacity>
+
+                {showTimePicker && (
+                  <DateTimePicker
+                    value={newSchedule.time}
+                    mode="time"
+                    onChange={(event, selectedTime) => {
+                      setShowTimePicker(false);
+                      if (selectedTime) {
+                        setNewSchedule({
+                          ...newSchedule,
+                          time: selectedTime,
+                        });
+                      }
+                    }}
+                  />
+                )}
+
+                {/* File Upload */}
+                <View style={styles.fileSection}>
+                  <Text style={styles.fileLabel}>
+                    List of Names (Excel File)
+                  </Text>
                   <TouchableOpacity
-                    style={styles.dateButton}
-                    onPress={() => setShowDatePicker(true)}
+                    style={[
+                      styles.fileButton,
+                      selectedFile && styles.fileButtonSelected,
+                    ]}
+                    onPress={handleFilePick}
                   >
-                    <Text style={styles.dateButtonText}>
-                      Select Date: {newSchedule.date.toLocaleDateString()}
+                    <Icon name="document-attach" size={24} color="#666" />
+                    <Text style={styles.fileButtonText} numberOfLines={1}>
+                      {selectedFile ? selectedFile.name : "Select Excel File"}
                     </Text>
                   </TouchableOpacity>
-
-                  {showDatePicker && (
-                    <DateTimePicker
-                      value={newSchedule.date}
-                      mode="date"
-                      onChange={(event, selectedDate) => {
-                        setShowDatePicker(false);
-                        if (selectedDate) {
-                          setNewSchedule({
-                            ...newSchedule,
-                            date: selectedDate,
-                          });
-                        }
-                      }}
-                    />
-                  )}
-
-                  <TouchableOpacity
-                    style={styles.dateButton}
-                    onPress={() => setShowTimePicker(true)}
-                  >
-                    <Text style={styles.dateButtonText}>
-                      Select Time: {newSchedule.time.toLocaleTimeString()}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {showTimePicker && (
-                    <DateTimePicker
-                      value={newSchedule.time}
-                      mode="time"
-                      onChange={(event, selectedTime) => {
-                        setShowTimePicker(false);
-                        if (selectedTime) {
-                          setNewSchedule({
-                            ...newSchedule,
-                            time: selectedTime,
-                          });
-                        }
-                      }}
-                    />
-                  )}
-
-                  {/* File Upload */}
-                  <View style={styles.fileSection}>
-                    <Text style={styles.fileLabel}>
-                      List of Names (Excel File)
-                    </Text>
-                    <TouchableOpacity
-                      style={[
-                        styles.fileButton,
-                        selectedFile && styles.fileButtonSelected,
-                      ]}
-                      onPress={handleFilePick}
-                    >
-                      <Icon name="document-attach" size={24} color="#666" />
-                      <Text style={styles.fileButtonText} numberOfLines={1}>
-                        {selectedFile ? selectedFile.name : "Select Excel File"}
+                  {selectedFile && (
+                    <View style={styles.selectedFileInfo}>
+                      <Icon
+                        name="checkmark-circle"
+                        size={16}
+                        color="#4CAF50"
+                      />
+                      <Text style={styles.selectedFileText}>
+                        File selected
                       </Text>
-                    </TouchableOpacity>
-                    {selectedFile && (
-                      <View style={styles.selectedFileInfo}>
-                        <Icon
-                          name="checkmark-circle"
-                          size={16}
-                          color="#4CAF50"
-                        />
-                        <Text style={styles.selectedFileText}>
-                          File selected
-                        </Text>
-                        <TouchableOpacity
-                          style={styles.removeFileButton}
-                          onPress={() => setSelectedFile(null)}
-                        >
-                          <Icon name="close-circle" size={20} color="#FF5252" />
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
+                      <TouchableOpacity
+                        style={styles.removeFileButton}
+                        onPress={() => setSelectedFile(null)}
+                      >
+                        <Icon name="close-circle" size={20} color="#FF5252" />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
 
-                  {/* Buttons */}
-                  <View style={styles.modalButtons}>
-                    <TouchableOpacity
-                      style={[styles.modalButton, styles.cancelButton]}
-                      onPress={() => setModalVisible(false)}
-                    >
-                      <Text style={styles.buttonText}>Cancel</Text>
-                    </TouchableOpacity>
+                {/* Buttons */}
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={() => setModalVisible(false)}
+                  >
+                    <Text style={styles.buttonText}>Cancel</Text>
+                  </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={[styles.modalButton, styles.saveButton]}
-                      onPress={handleSaveSchedule}
-                    >
-                      <Text style={styles.buttonText}>Save</Text>
-                    </TouchableOpacity>
-                  </View>
-                </ScrollView>
-              </View>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.saveButton]}
+                    onPress={handleSaveSchedule}
+                  >
+                    <Text style={styles.buttonText}>Save</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             </View>
-          </Modal>
-        )}
+          </View>
+        </Modal>
 
         {fileViewerVisible && selectedFileUrl && (
           <Modal

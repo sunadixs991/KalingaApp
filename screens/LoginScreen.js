@@ -98,11 +98,11 @@ export default function LoginScreen({ navigation, onLogin }) {
     try {
       const lockStatus = await AsyncStorage.getItem("accountLocked");
       const lockTime = await AsyncStorage.getItem("lockTime");
-      
+
       if (lockStatus && lockTime) {
         const timeDiff = Date.now() - parseInt(lockTime);
         const lockDurationMs = 0 * 60 * 1000; // 15 minutes
-        
+
         if (timeDiff < lockDurationMs) {
           setIsLocked(true);
           const remainingMinutes = Math.ceil((lockDurationMs - timeDiff) / 60000);
@@ -123,38 +123,38 @@ export default function LoginScreen({ navigation, onLogin }) {
     }
   };
 
-const getClientIP = async () => {
-  try {
-    const response = await fetch('https://api.ipify.org?format=json');
-    const data = await response.json();
-    return data.ip;
-  } catch (error) {
-    console.log("Failed to fetch IP:", error);
-    return "unavailable";
-  }
-};
+  const getClientIP = async () => {
+    try {
+      const response = await fetch('https://api.ipify.org?format=json');
+      const data = await response.json();
+      return data.ip;
+    } catch (error) {
+      console.log("Failed to fetch IP:", error);
+      return "unavailable";
+    }
+  };
 
-const logLoginActivity = async (username, success, userType) => {
-  try {
-    const ipAddress = await getClientIP();
-    
-    await addDoc(collection(db, "login_activity"), {
-      username: username.trim(),
-      timestamp: serverTimestamp(),
-      success: success,
-      userType: userType || "unknown",
-      ipAddress: ipAddress,
-      deviceInfo: Platform.OS,
-    });
-  } catch (error) {
-    console.log("Failed to log login activity:", error);
-  }
-};
+  const logLoginActivity = async (username, success, userType) => {
+    try {
+      const ipAddress = await getClientIP();
+
+      await addDoc(collection(db, "login_activity"), {
+        username: username.trim(),
+        timestamp: serverTimestamp(),
+        success: success,
+        userType: userType || "unknown",
+        ipAddress: ipAddress,
+        deviceInfo: Platform.OS,
+      });
+    } catch (error) {
+      console.log("Failed to log login activity:", error);
+    }
+  };
 
   const checkNetworkConnectivity = async () => {
     const state = await NetInfo.fetch();
     setIsOnline(state.isConnected ?? true);
-    
+
     if (!state.isConnected) {
       Alert.alert(
         "⚠️ No Internet Connection",
@@ -246,10 +246,10 @@ const logLoginActivity = async (username, success, userType) => {
       if (querySnapshot.size > 0) {
         const lastLogin = querySnapshot.docs[querySnapshot.size - 1].data();
         const lastDevice = lastLogin.deviceInfo;
-        
+
         if (lastDevice !== Platform.OS) {
           await logSecurityEvent("suspicious_activity", username, `Login from different device: ${Platform.OS}`);
-          
+
           // Optional: Ask for additional verification
           return new Promise((resolve) => {
             Alert.alert(
@@ -440,18 +440,21 @@ const logLoginActivity = async (username, success, userType) => {
 
         if (onLogin) onLogin();
 
-  Toast.show({
-  type: 'success',
-  text1: 'Login Successful',
-  text2: userData.userType === "LGU Admin"
-    ? "Logged in as LGU Admin"
-    : userData.isAdmin
-    ? "Logged in as Administrator"
-    : "Welcome back",
-  position: 'top',
-  visibilityTime: 3000,
-});
+        Alert.alert(
+          "Login Successful",
+          userData.userType === "CSWD Admin"
+            ? "You have successfully logged in as CSWD Admin."
+            : userData.isAdmin
+              ? "You have successfully logged in as Administrator."
+              : userData.userType === "DRRM Admin"
+                ? "You have successfully logged in as DRRM Admin."
+                : userData.userType === "Purok Leader"
+                  ? "You have successfully logged in as Purok Leader."
+                  : "You have successfully logged in."
+        );
 
+
+   
         navigation.replace("MainTabs", {
           username,
           isAdmin: userData.isAdmin,
