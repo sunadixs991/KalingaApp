@@ -21,6 +21,7 @@ import { useNavigation } from "@react-navigation/native";
 import womanProfile from "../assets/woman.png";
 import boyProfile from "../assets/boy.png";
 import userProfile from "../assets/user.png";
+import adminProfile from "../assets/admin.png";
 import { useTheme } from "../context/ThemeContext";
 import * as ImagePicker from "expo-image-picker";
 import { supabase } from "../services/supabaseClient";
@@ -38,12 +39,16 @@ import {
 import { Picker } from "@react-native-picker/picker"; // Add this import if not present
 import { checkAdminStatus, isUserAdmin } from "../utils/adminUtils";
 
+// Local cache key for quick profile hydrate to avoid UI flicker
+const PROFILE_CACHE_KEY = "user_profile_cache_v1";
+
 export default function ProfileScreen() {
   const navigation = useNavigation();
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
   const { isDarkMode, toggleDarkMode } = useTheme();
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true); // ADDED
   const [isEditing, setIsEditing] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editInfo, setEditInfo] = useState({
@@ -162,11 +167,48 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     async function fetchProfile() {
+      setProfileLoading(true); // ADDED
       const username = await AsyncStorage.getItem("user");
-      if (username) {
+      if (!username) {
+        setIsLoggedIn(false);
+        setProfileLoading(false); // ADDED
+        return;
+      }
+
+      // mark as logged in as we have a stored user identifier
+      setIsLoggedIn(true);
+
+      // 1) Hydrate UI immediately from local cache (if any)
+      try {
+        const cached = await AsyncStorage.getItem(PROFILE_CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed) {
+            setUserInfo(parsed);
+            if (parsed.profilePicUrl) setProfilePicUrl(parsed.profilePicUrl);
+          }
+        }
+      } catch (e) {
+        // ignore cache errors
+      }
+
+      // 2) Fetch fresh profile in background and update cache/state
+      try {
         const info = await getUserInfo(username);
-        setUserInfo(info);
-        if (info?.profilePicUrl) setProfilePicUrl(info.profilePicUrl);
+        if (info) {
+          setUserInfo(info);
+          if (info.profilePicUrl) setProfilePicUrl(info.profilePicUrl);
+          try {
+            await AsyncStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(info));
+          } catch (e) {
+            // ignore cache write errors
+          }
+        }
+      } catch (err) {
+        // keep cached info if fetch fails
+        console.log("Failed to refresh profile:", err);
+      } finally {
+        setProfileLoading(false); // ADDED
       }
     }
     fetchProfile();
@@ -323,6 +365,9 @@ export default function ProfileScreen() {
         });
         const info = await getUserInfo(cleanIdentifier);
         setUserInfo(info);
+        try {
+          await AsyncStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(info));
+        } catch (e) {}
         Alert.alert("Success", "Account information updated!");
       }
     } catch (error) {
@@ -461,7 +506,11 @@ export default function ProfileScreen() {
         await updateDoc(doc(db, "users", userDocId), {
           profilePicUrl: publicURL,
         });
-        setUserInfo((prev) => ({ ...prev, profilePicUrl: publicURL }));
+        const updatedInfo = await getUserInfo(cleanIdentifier);
+        setUserInfo(updatedInfo);
+        try {
+          await AsyncStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(updatedInfo));
+        } catch (e) {}
       }
 
       setImageModalVisible(false);
@@ -498,7 +547,11 @@ export default function ProfileScreen() {
       if (!userSnap.empty) {
         const userDocId = userSnap.docs[0].id;
         await updateDoc(doc(db, "users", userDocId), { profilePicUrl: null });
-        setUserInfo((prev) => ({ ...prev, profilePicUrl: null }));
+        const updatedInfo = await getUserInfo(cleanIdentifier);
+        setUserInfo(updatedInfo);
+        try {
+          await AsyncStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(updatedInfo));
+        } catch (e) {}
       }
 
       setImageModalVisible(false);
@@ -508,6 +561,18 @@ export default function ProfileScreen() {
       Alert.alert("Error", "Failed to remove profile picture.");
     }
   };
+
+  // Show loading screen until profile is hydrated/fetched
+  if (profileLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color="#e75e33" />
+          <Text style={{ marginTop: 12, color: "#333" }}>Loading profile…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -530,6 +595,8 @@ export default function ProfileScreen() {
                         ? womanProfile
                         : userInfo.gender === "Male"
                           ? boyProfile
+                             : userInfo.gender === "admin"
+                          ? adminProfile
                           : userProfile
                       : userProfile
                   }
@@ -560,74 +627,108 @@ export default function ProfileScreen() {
 
           {/* Settings Options */}
           <View style={styles.settingsList}>
-            <TouchableOpacity
-              style={styles.settingItem}
-              onPress={() =>
-                navigation.navigate("AccountInfoScreen", {
-                  userInfo: userInfo,
-                  onUpdate: (updatedInfo) => setUserInfo(updatedInfo), // callback to update Profile screen
-                })
-              }
-            >
-              <Icon name="person-outline" size={22} color="#555" />
-              <Text style={styles.settingText}>Account Information</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.settingItem}
-              onPress={() => navigation.navigate("PinLogs")}
-            >
-              <Icon name="location-outline" size={22} color="#555" />
-              <Text style={styles.settingText}>Pin Logs</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.settingItem}
-              onPress={() => navigation.navigate("PrivacyScreen")}
-            >
-              <Icon name="lock-closed-outline" size={22} color="#555" />
-              <Text style={styles.settingText}>Privacy</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.settingItem}
-              onPress={() => navigation.navigate("SettingsScreen")}
-            >
-              <Icon name="settings-outline" size={22} color="#555" />
-              <Text style={styles.settingText}>Settings</Text>
-            </TouchableOpacity>
-            {/* Admin Utilities - visible for admin or LGU Admin */}
-            {isLoggedIn && isAdmin && (
-              <TouchableOpacity
-                style={styles.settingItem}
-                onPress={() => {
-                  // Navigate to appropriate admin screen based on userType
-                  if (userType === "LGU Admin") {
-                    navigation.navigate("Admin2Utils");
-                  } else {
-                    navigation.navigate("AdminUtils");
+            {isLoggedIn ? (
+              <>
+                <TouchableOpacity
+                  style={styles.settingItem}
+                  onPress={() =>
+                    navigation.navigate("AccountInfoScreen", {
+                      userInfo: userInfo,
+                      onUpdate: (updatedInfo) => setUserInfo(updatedInfo),
+                    })
                   }
-                }}
-              >
-                <Icon
-                  name="shield-checkmark-outline"
-                  size={22}
-                  color="#e75e33"
-                />
-                <Text
-                  style={[
-                    styles.settingText,
-                    { color: "#e75e33", fontWeight: "bold" },
-                  ]}
                 >
-                  Utilities
-                </Text>
-              </TouchableOpacity>
+                  <Icon name="person-outline" size={22} color="#555" />
+                  <Text style={styles.settingText}>Account Information</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.settingItem}
+                  onPress={() => navigation.navigate("PinLogs")}
+                >
+                  <Icon name="location-outline" size={22} color="#555" />
+                  <Text style={styles.settingText}>Pin Logs</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.settingItem}
+                  onPress={() => navigation.navigate("PrivacyScreen")}
+                >
+                  <Icon name="lock-closed-outline" size={22} color="#555" />
+                  <Text style={styles.settingText}>Privacy</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.settingItem}
+                  onPress={() => navigation.navigate("SettingsScreen")}
+                >
+                  <Icon name="settings-outline" size={22} color="#555" />
+                  <Text style={styles.settingText}>Settings</Text>
+                </TouchableOpacity>
+
+                {/* Admin Utilities - visible for admin or LGU Admin */}
+                {isAdmin && (
+                  <TouchableOpacity
+                    style={styles.settingItem}
+                    onPress={() => {
+                      if (userType === "LGU Admin") {
+                        navigation.navigate("Admin2Utils");
+                      } else {
+                        navigation.navigate("AdminUtils");
+                      }
+                    }}
+                  >
+                    <Icon
+                      name="shield-checkmark-outline"
+                      size={22}
+                      color="#e75e33"
+                    />
+                    <Text
+                      style={[
+                        styles.settingText,
+                        { color: "#e75e33", fontWeight: "bold" },
+                      ]}
+                    >
+                      Utilities
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                  style={styles.settingItem}
+                  onPress={() => navigation.navigate("AboutUs")}
+                >
+                  <Icon
+                    name="information-circle-outline"
+                    size={22}
+                    color="#555"
+                  />
+                  <Text style={styles.settingText}>About us</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={styles.settingItem}
+                  onPress={() => navigation.navigate("SettingsScreen")}
+                >
+                  <Icon name="settings-outline" size={22} color="#555" />
+                  <Text style={styles.settingText}>Settings</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.settingItem}
+                  onPress={() => navigation.navigate("AboutUs")}
+                >
+                  <Icon
+                    name="information-circle-outline"
+                    size={22}
+                    color="#555"
+                  />
+                  <Text style={styles.settingText}>About us</Text>
+                </TouchableOpacity>
+              </>
             )}
-              <TouchableOpacity
-              style={styles.settingItem}
-              onPress={() => navigation.navigate("AboutUs")}
-            >
-              <Icon name="information-circle-outline" size={22} color="#555" />
-              <Text style={styles.settingText}>About us</Text>
-            </TouchableOpacity>
           </View>
 
           {/* Log Out */}

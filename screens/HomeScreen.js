@@ -21,6 +21,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { db } from "../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import * as Location from "expo-location";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import NetInfo from "@react-native-community/netinfo";
 import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
@@ -31,8 +33,38 @@ import { fetchNearbyPins } from "../services/PinService";
 import boyProfile from "../assets/boy.png";
 import womanProfile from "../assets/woman.png";
 import userProfile from "../assets/user.png";
+import adminProfile from "../assets/admin.png";
 
 const { width } = Dimensions.get("window");
+
+// Cache key prefix (bump version if cache format changes)
+const NEARBY_CACHE_PREFIX = "nearby_pins_cache_v1";
+const makeNearbyCacheKey = (coords, radiusKm = 50, max = 10) =>
+  coords
+    ? `${NEARBY_CACHE_PREFIX}_${coords.latitude.toFixed(4)}_${coords.longitude
+        .toFixed(4)
+        .replace(".", "")}_${radiusKm}_${max}`
+    : NEARBY_CACHE_PREFIX;
+
+const saveNearbyPinsToCache = async (key, data) => {
+  try {
+    await AsyncStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }));
+  } catch (e) {
+    console.warn("saveNearbyPinsToCache failed:", e);
+  }
+};
+
+const loadNearbyPinsFromCache = async (key) => {
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.data || null;
+  } catch (e) {
+    console.warn("loadNearbyPinsFromCache failed:", e);
+    return null;
+  }
+};
 
 // Simple PinCard component defined inline to avoid import issues
 const SimplePinCard = ({ pin, onPress }) => (
@@ -237,7 +269,15 @@ export default function HomeScreen({ route, navigation }) {
   // Fetch nearby pins when location is available
   useEffect(() => {
     if (currentLocation) {
-      fetchNearbyPinsData();
+      // load cached immediately for snappy UI, then attempt live fetch
+      (async () => {
+        const cacheKey = makeNearbyCacheKey(currentLocation, 50, 10);
+        const cached = await loadNearbyPinsFromCache(cacheKey);
+        if (cached && cached.length > 0) {
+          setNearbyPins(cached);
+        }
+        await fetchNearbyPinsData();
+      })();
     }
   }, [currentLocation]);
 
@@ -245,21 +285,52 @@ export default function HomeScreen({ route, navigation }) {
     if (!currentLocation) return;
 
     setLoadingPins(true);
+    const cacheKey = makeNearbyCacheKey(currentLocation, 50, 10);
     try {
-      // console.log("About to call fetchNearbyPins...");
+      const netState = await NetInfo.fetch();
+      if (!netState.isConnected) {
+        // offline -> load cache
+        const cached = await loadNearbyPinsFromCache(cacheKey);
+        if (cached) {
+          setNearbyPins(cached);
+        } else {
+          // no cache available
+          setNearbyPins([]);
+          Alert.alert(
+            "Offline",
+            "You're offline and no cached nearby resources are available."
+          );
+        }
+        return;
+      }
+
+      // online -> fetch live and update cache
       const pins = await fetchNearbyPins(currentLocation, 50, 10); // 50km radius, max 10 pins
-      // console.log("fetchNearbyPins returned:", pins);
       setNearbyPins(pins);
+      await saveNearbyPinsToCache(cacheKey, pins);
     } catch (error) {
-      // console.error("Error fetching nearby pins:", error);
-      Alert.alert(
-        "Error",
-        "Failed to load nearby resources. Please try again."
-      );
+      console.error("Error fetching nearby pins:", error);
+      // fallback to cache on error
+      const cached = await loadNearbyPinsFromCache(cacheKey);
+      if (cached) {
+        setNearbyPins(cached);
+      } else {
+        Alert.alert("Error", "Failed to load nearby resources. Please try again.");
+      }
     } finally {
       setLoadingPins(false);
     }
   };
+
+  // When network returns, refresh nearby pins (if location is set)
+  useEffect(() => {
+    const unsub = NetInfo.addEventListener((state) => {
+      if (state.isConnected && currentLocation) {
+        fetchNearbyPinsData();
+      }
+    });
+    return () => unsub();
+  }, [currentLocation]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -401,6 +472,8 @@ export default function HomeScreen({ route, navigation }) {
                     ? womanProfile
                     : userInfo.gender === "Male"
                       ? boyProfile
+                      : userInfo.gender === "admin"
+                      ? adminProfile
                       : userProfile
                   : userProfile
               }
