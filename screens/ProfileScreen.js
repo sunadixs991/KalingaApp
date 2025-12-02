@@ -373,87 +373,7 @@ export default function ProfileScreen() {
     }
   };
 
-  // --- FIXED Profile Picture Logic with expo-image-picker ---
-  // const handleSetProfilePicture = async () => {
-  //   Alert.alert(
-  //     "Select Photo",
-  //     "Choose how you want to select your profile picture",
-  //     [
-  //       {
-  //         text: "Camera",
-  //         onPress: () => pickFromCamera(),
-  //       },
-  //       {
-  //         text: "Gallery",
-  //         onPress: () => pickFromGallery(),
-  //       },
-  //       {
-  //         text: "Cancel",
-  //         style: "cancel",
-  //       },
-  //     ]
-  //   );
-  // };
-
-  // const pickFromCamera = async () => {
-  //   try {
-  //     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-  //     if (status !== "granted") {
-  //       Alert.alert("Permission Required", "Please allow camera access.");
-  //       return;
-  //     }
-
-  //     setUploading(true);
-  //     const result = await ImagePicker.launchCameraAsync({
-  //       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-  //       allowsEditing: true,
-  //       aspect: [1, 1],
-  //       quality: 0.7,
-  //     });
-
-  //     if (!result.canceled && result.assets && result.assets.length > 0) {
-  //       await uploadProfilePicture(result.assets[0]);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error taking photo:", error);
-  //     Alert.alert("Error", "Failed to take photo. Please try again.");
-  //   }
-  //   setUploading(false);
-  // };
-
-  // const pickFromGallery = async () => {
-  //   try {
-  //     const { status } =
-  //       await ImagePicker.requestMediaLibraryPermissionsAsync();
-  //     if (status !== "granted") {
-  //       Alert.alert(
-  //         "Permission Required",
-  //         "Please allow access to your photos."
-  //       );
-  //       return;
-  //     }
-
-  //     setUploading(true);
-  //     const result = await ImagePicker.launchImageLibraryAsync({
-  //       mediaTypes: "Images",
-  //       allowsEditing: true,
-  //       aspect: [1, 1],
-  //       quality: 0.7,
-  //     });
-
-  //     if (!result.canceled && result.assets && result.assets.length > 0) {
-  //       await uploadProfilePicture(result.assets[0]);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error picking from gallery:", error);
-  //     Alert.alert("Error", "Failed to open gallery. Please try again.");
-  //   }
-  //   setUploading(false);
-  // };
-
-  // image upload / removal functionality removed — profile image comes from userInfo only
-
-  // Show loading screen until profile is hydrated/fetched
+ 
   if (profileLoading) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -549,13 +469,17 @@ export default function ProfileScreen() {
                   <Text style={styles.settingText}>Settings</Text>
                 </TouchableOpacity>
 
-                {/* Admin Utilities - visible for admin or CSWD Admin */}
+                {/* Admin Utilities - visible for admin */}
                 {isAdmin && (
                   <TouchableOpacity
                     style={styles.settingItem}
                     onPress={() => {
                       if (userType === "CSWD Admin") {
-                        navigation.navigate("Admin2Utils");
+                        navigation.navigate("AdminUtilsCSWD");
+                      } else if (userType === "DRRM Admin") {
+                        navigation.navigate("AdminUtilsDRRM");
+                      } else if (userType === "Purok Leader") {
+                        navigation.navigate("AdminUtilsPurok");
                       } else {
                         navigation.navigate("AdminUtils");
                       }
@@ -576,6 +500,7 @@ export default function ProfileScreen() {
                     </Text>
                   </TouchableOpacity>
                 )}
+
 
                 <TouchableOpacity
                   style={styles.settingItem}

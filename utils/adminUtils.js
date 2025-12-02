@@ -7,7 +7,8 @@ export const checkAdminStatus = (userId) => {
 
 export const checkLGUAdminStatus = (userType) => {
   console.log("Checking LGU Admin status for userType:", userType);
-  return userType === "CSWD Admin" || userType === "DRRM Admin";
+  return userType === "CSWD Admin" || userType === "DRRM Admin"
+   || userType === "Purok Leader";
 };
 
 export const isUserAdmin = (userId, userType) => {

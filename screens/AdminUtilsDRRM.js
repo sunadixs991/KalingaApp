@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -6,13 +6,12 @@ import {
   StyleSheet,
   StatusBar,
   ScrollView,
-  ActivityIndicator,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function Admin2Utils() {
+export default function AdminUtilsDRRM() {
   const navigation = useNavigation();
 
   return (
@@ -27,12 +26,12 @@ export default function Admin2Utils() {
         >
           <Icon name="chevron-back" size={26} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.topBarTitle}>LGU Admin Utilities</Text>
+        <Text style={styles.topBarTitle}>DRRM Admin</Text>
         <View style={styles.backButton} />
       </View>
 
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Contact Details */}
+        {/* Only show Contact Details and Pinned Facilities for DRRM Admin */}
         <TouchableOpacity
           style={styles.option}
           onPress={() => navigation.navigate("ManageContact")}
@@ -41,22 +40,12 @@ export default function Admin2Utils() {
           <Text style={styles.optionText}>Contact Details</Text>
         </TouchableOpacity>
 
-        {/* Food Distribution Schedules */}
         <TouchableOpacity
           style={styles.option}
-          onPress={() => navigation.navigate("ManageSchedule")}
+          onPress={() => navigation.navigate("ManageEvacuationPins")}
         >
-          <Icon name="calendar-outline" size={28} color="#007AFF" style={styles.icon} />
-          <Text style={styles.optionText}>Food Distribution Schedules</Text>
-        </TouchableOpacity>
-
-        {/* Purok Leaders */}
-        <TouchableOpacity
-          style={styles.option}
-          onPress={() => navigation.navigate("ManagePurokLeaders")}
-        >
-          <Icon name="people-circle-outline" size={28} color="#49A5A2" style={styles.icon} />
-          <Text style={styles.optionText}>Purok Leaders</Text>
+          <Icon name="home-outline" size={28} color="#1976D2" style={styles.icon} />
+          <Text style={styles.optionText}>Pinned Facilities</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
