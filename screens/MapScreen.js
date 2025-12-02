@@ -96,6 +96,8 @@ export default function MapScreen({ route }) {
   const [categoryStyles, setCategoryStyles] = useState({});
   const mapRef = useRef(null);
   const webviewRef = useRef(null);
+  const routeCoordsRef = useRef([]);
+  const [permissionChecked, setPermissionChecked] = useState(false);
   const [routeDestination, setRouteDestination] = useState(null);
   // keep a ref to pinMode to avoid stale closures in WebView onMessage handler
   const pinModeRef = useRef(pinMode);
@@ -375,102 +377,66 @@ export default function MapScreen({ route }) {
   };
   // Replace the first useEffect (around line 234) with this updated version:
 
-useEffect(() => {
-  (async () => {
-    try {
-      // First check current permission status without requesting
-      const { status: currentStatus } = await Location.getForegroundPermissionsAsync();
-      
-      // If already denied, don't request again - just show retry UI
-      if (currentStatus === 'denied') {
-        setLocationPermissionDenied(true);
-        return;
-      }
+  // Replace the first useEffect (around line 234) with this updated version:
 
-      // Check if location services are enabled (if API available)
-      const isLocationEnabled =
-        typeof Location.hasServicesEnabledAsync === "function"
-          ? await Location.hasServicesEnabledAsync()
-          : true;
-
-      if (!isLocationEnabled) {
-        setLocationPermissionDenied(true);
-        return;
-      }
-
-      // Only request permission if status is 'undetermined' or 'granted'
-      if (currentStatus === 'undetermined') {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-
-        if (status !== "granted") {
-          setLocationPermissionDenied(true);
-          return;
-        }
-      }
-
-      // Permission granted - get location
-      setLocationPermissionDenied(false);
+  // ...existing code...
+  useEffect(() => {
+    (async () => {
       try {
-        const loc = await Location.getCurrentPositionAsync({});
-        setLocation(loc.coords);
-      } catch (locErr) {
-        const msg = String(locErr?.message || "").toLowerCase();
-        if (msg.includes("unsatisfied device settings") || msg.includes("location request failed")) {
+        // Silent check only — DO NOT prompt the OS here
+        const { status: currentStatus } = await Location.getForegroundPermissionsAsync();
+
+        // If undetermined or denied, show retry UI and do not auto-request permission
+        if (currentStatus === "denied" || currentStatus === "undetermined") {
           setLocationPermissionDenied(true);
-          console.warn("getCurrentPositionAsync unavailable due to device settings.");
+          setPermissionChecked(true);
           return;
         }
-        console.warn("getCurrentPositionAsync failed:", locErr);
-        setLocationPermissionDenied(true);
-        return;
-      }
 
-      // Continue initialization (user info, pins etc.)
-      const user = await AsyncStorage.getItem("user");
-      setUserInfo(user);
+        // Check device-level location services (no OS prompt)
+        const isLocationEnabled =
+          typeof Location.hasServicesEnabledAsync === "function"
+            ? await Location.hasServicesEnabledAsync()
+            : true;
 
-      // Fetch firstName from Firestore (with cache)
-      if (user) {
-        try {
-          const userCacheKey = `user_info_${user}`;
-          const cachedUser = await readCache(userCacheKey);
-          if (cachedUser.data) {
-            setUserFirstName(cachedUser.data.firstName || null);
-            setUserContact(
-              cachedUser.data.contact || cachedUser.data.phone || ""
-            );
-            setUserType(cachedUser.data.userType || "");
-          }
-          // always fetch fresh in background and update cache
-          const info = await getUserInfo(user);
-          if (info) {
-            setUserFirstName(info?.firstName || null);
-            setUserContact(info?.contact || info?.phone || "");
-            setUserType(info?.userType || "");
-            await writeCache(userCacheKey, info);
-          }
-        } catch (e) {
-          try {
-            const info = await getUserInfo(user);
-            if (info) {
-              setUserFirstName(info?.firstName || null);
-              setUserContact(info?.contact || info?.phone || "");
-              setUserType(info?.userType || "");
-            }
-          } catch (err) {
-            console.warn("Failed to fetch user info:", err);
-          }
+        if (!isLocationEnabled) {
+          setLocationPermissionDenied(true);
+          setPermissionChecked(true);
+          return;
         }
-      }
 
-      // Fetch pins + request pins
-      await fetchPinsAndRequests();
-    } catch (error) {
-      console.warn("Error initializing map (non-fatal):", error);
-      setLocationPermissionDenied(true);
-    }
-  })();
-}, []);
+        // Permission is granted -> get location
+        setLocationPermissionDenied(false);
+        try {
+          const loc = await Location.getCurrentPositionAsync({});
+          setLocation(loc.coords);
+        } catch (locErr) {
+          const msg = String(locErr?.message || "").toLowerCase();
+          if (msg.includes("unsatisfied device settings") || msg.includes("location request failed")) {
+            setLocationPermissionDenied(true);
+            setPermissionChecked(true);
+            console.warn("getCurrentPositionAsync unavailable due to device settings.");
+            return;
+          }
+          console.warn("getCurrentPositionAsync failed:", locErr);
+          setLocationPermissionDenied(true);
+          setPermissionChecked(true);
+          return;
+        }
+
+        // Continue initialization
+        const user = await AsyncStorage.getItem("user");
+        setUserInfo(user);
+        await fetchPinsAndRequests();
+        setPermissionChecked(true);
+      } catch (error) {
+        console.warn("Error initializing map (non-fatal):", error);
+        setLocationPermissionDenied(true);
+        setPermissionChecked(true);
+      }
+    })();
+  }, []);
+  // ...existing code...
 
   // Check admin status on mount (or use your own logic)
   useEffect(() => {
@@ -632,6 +598,15 @@ useEffect(() => {
 
   const goToMyLocation = () => {
     if (!location || !webviewRef.current) return;
+    try {
+      webviewRef.current.postMessage(
+        JSON.stringify({
+          type: "updateUserLocation",
+          latitude: location.latitude,
+          longitude: location.longitude,
+        })
+      );
+    } catch (e) { }
     webviewRef.current.postMessage(
       JSON.stringify({
         type: "flyTo",
@@ -1235,7 +1210,12 @@ useEffect(() => {
 
 
   // ...existing code...
+  // ...existing code...
+
+  // Replace the location-tracking useEffect with this (wait for permissionChecked)
   useEffect(() => {
+    if (!permissionChecked) return; // don't start tracking until we finished the silent check
+
     let locationSubscription;
     const startLocationTracking = async () => {
       // Don't start tracking if permission was denied
@@ -1252,7 +1232,7 @@ useEffect(() => {
           (newLocation) => {
             const newCoords = newLocation.coords;
             setLocation(newCoords);
-            // Update user location marker
+            // Update user location marker in WebView if present
             if (webviewRef.current) {
               webviewRef.current.postMessage(
                 JSON.stringify({
@@ -1262,14 +1242,30 @@ useEffect(() => {
                 })
               );
             }
-            // 👉 If there's an active route destination, recalculate route
+            if (routeCoordsRef.current && routeCoordsRef.current.length > 0) {
+              const updatedRoute = [
+                { latitude: newCoords.latitude, longitude: newCoords.longitude },
+                ...routeCoordsRef.current.slice(1),
+              ];
+              if (webviewRef.current) {
+                try {
+                  webviewRef.current.postMessage(
+                    JSON.stringify({
+                      type: "updateRoute",
+                      route: updatedRoute,
+                      fitBounds: false,
+                    })
+                  );
+                } catch (e) { }
+              }
+            }
+            // If there's an active route destination, recalculate route
             if (routeDestination) {
               fetchRoute(newCoords, routeDestination);
             }
           }
         );
       } catch (error) {
-        // Suppress noisy fatal errors for expected device-settings problems
         const msg = String(error?.message || "").toLowerCase();
         if (msg.includes("unsatisfied device settings") || msg.includes("location request failed")) {
           setLocationPermissionDenied(true);
@@ -1279,15 +1275,18 @@ useEffect(() => {
         console.error("Error tracking location:", error);
       }
     };
+
     if (isFocused) {
       startLocationTracking();
     }
+
     return () => {
       if (locationSubscription) {
         locationSubscription.remove();
       }
     };
-  }, [isFocused, routeDestination, locationPermissionDenied]);
+  }, [isFocused, routeDestination, locationPermissionDenied, permissionChecked]);
+  // ...existing code...
   // ...existing code... // 👉 Watch routeDestination instead
   // Generate HTML only once on mount or when pins change significantly
   useEffect(() => {
@@ -1356,6 +1355,10 @@ useEffect(() => {
       Alert.alert("Error", "Failed to fetch route");
     }
   };
+
+  // useEffect(() => {
+  //   routeCoordsRef.current = routeCoords;
+  // }, [routeCoords]);
 
   // --- Polyline decoder ---
   function decodePolyline(encoded) {
@@ -1477,6 +1480,13 @@ useEffect(() => {
   const clearRoute = () => {
     setRouteCoords([]);
     setRouteDestination(null); // 👉 Clear destination too
+    if (webviewRef.current) {
+      try {
+        webviewRef.current.postMessage(
+          JSON.stringify({ type: "updateRoute", route: [], fitBounds: false })
+        );
+      } catch (e) { }
+    }
   };
 
   const evacPinsWithIcons = (evacPins || []).map((p) => {
