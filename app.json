@@ -23,7 +23,7 @@
       "icon": "./assets/kalinga-icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/kalinga-icon.png",
-        "backgroundColor": "#4A9B9B"
+        "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.yourcompany.kalingaapp",
