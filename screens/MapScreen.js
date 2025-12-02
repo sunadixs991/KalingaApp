@@ -83,6 +83,7 @@ export default function MapScreen({ route }) {
   const [pin, setPin] = useState(null);
   const [pinMode, setPinMode] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
+  const [userType, setUserType] = useState("");
   const [userFirstName, setUserFirstName] = useState(null);
   const [allPins, setAllPins] = useState([]);
   const [requestPins, setRequestPins] = useState([]); // <-- NEW: separate request pins state
@@ -190,6 +191,32 @@ export default function MapScreen({ route }) {
     }
   }, [showCrosshairSheet]);
 
+  // simple cache TTL (ms)
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+  const readCache = async (key) => {
+    try {
+      const raw = await AsyncStorage.getItem(key);
+      if (!raw) return { data: null, stale: true };
+      const parsed = JSON.parse(raw);
+      const age = Date.now() - (parsed?.ts || 0);
+      return { data: parsed?.data ?? null, stale: age > CACHE_TTL };
+    } catch (e) {
+      return { data: null, stale: true };
+    }
+  };
+
+  const writeCache = async (key, data) => {
+    try {
+      await AsyncStorage.setItem(
+        key,
+        JSON.stringify({ ts: Date.now(), data })
+      );
+    } catch (e) {
+      // ignore cache write errors
+    }
+  };
+
   useEffect(() => {
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -200,14 +227,45 @@ export default function MapScreen({ route }) {
       const user = await AsyncStorage.getItem("user");
       setUserInfo(user);
 
-      // Fetch firstName from Firestore
+      // Fetch firstName from Firestore (with cache)
       if (user) {
-        const info = await getUserInfo(user);
-        setUserFirstName(info?.firstName || null);
-        setUserContact(info?.contact || info?.phone || ""); // <-- NEW: default contact
+        try {
+          const userCacheKey = `user_info_${user}`;
+          const cachedUser = await readCache(userCacheKey);
+          if (cachedUser.data) {
+            setUserFirstName(cachedUser.data.firstName || null);
+            setUserContact(cachedUser.data.contact || cachedUser.data.phone || "");
+            setUserType(cachedUser.data.userType || "");
+          }
+          // always fetch fresh in background and update cache
+          const info = await getUserInfo(user);
+          if (info) {
+            setUserFirstName(info?.firstName || null);
+            setUserContact(info?.contact || info?.phone || "");
+            setUserType(info?.userType || "");
+            await writeCache(userCacheKey, info);
+          }
+        } catch (e) {
+          // fallback: still try to fetch userInfo
+          try {
+            const info = await getUserInfo(user);
+            if (info) {
+              setUserFirstName(info?.firstName || null);
+              setUserContact(info?.contact || info?.phone || "");
+              setUserType(info?.userType || "");
+            }
+          } catch (err) {}
+        }
       }
 
+      // PINS (with cache)
       try {
+        const PINS_KEY = "pins_cache_v1";
+        const cached = await readCache(PINS_KEY);
+        if (cached.data) {
+          setAllPins(cached.data);
+        }
+        // fetch fresh and update cache
         const querySnapshot = await getDocs(collection(db, "pins"));
         const pins = [];
         querySnapshot.forEach((doc) => {
@@ -229,11 +287,17 @@ export default function MapScreen({ route }) {
           }
         });
         setAllPins(pins);
+        await writeCache(PINS_KEY, pins);
       } catch (error) {
         console.error("Error fetching pins:", error);
       }
-      // Fetch request_pins separately
+
+      // REQUEST PINS (with cache)
       try {
+        const REQ_KEY = "request_pins_cache_v1";
+        const cachedReq = await readCache(REQ_KEY);
+        if (cachedReq.data) setRequestPins(cachedReq.data);
+
         const reqSnap = await getDocs(collection(db, "request_pins"));
         const reqs = [];
         reqSnap.forEach((doc) => {
@@ -250,7 +314,7 @@ export default function MapScreen({ route }) {
               media: data.media || [],
               createdAt: data.createdAt,
               supplyType: data.supplyType || "",
-              barangay: data.barangay || "", // <-- ADD THIS
+              barangay: data.barangay || "",
               numberOfPeople: data.numberOfPeople || 0,
               urgency: data.urgency || "",
               contact: data.contact || "",
@@ -258,6 +322,7 @@ export default function MapScreen({ route }) {
           }
         });
         setRequestPins(reqs);
+        await writeCache(REQ_KEY, reqs);
       } catch (error) {
         console.error("Error fetching pins:", error);
       }
@@ -1475,8 +1540,9 @@ export default function MapScreen({ route }) {
         onPin={handlePinButton}
         onLocate={goToMyLocation}
         hasRoute={routeCoords.length > 0}
-        onAdd={isAdmin && userInfo ? handleAddPinButton : undefined}
+        onAdd={handleAddPinButton}
         isAdmin={isAdmin && !!userInfo}
+        userType={userType}
         shiftUp={showCrosshairSheet}
       />
 

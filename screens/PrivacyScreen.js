@@ -308,9 +308,13 @@ export default function PrivacyScreen({ navigation }) {
                 <TextInput
                   style={[styles.input, { flex: 1 }]}
                   placeholder="Current Password"
+                  placeholderTextColor="#999"
                   value={currentPassword}
                   onChangeText={setCurrentPassword}
                   secureTextEntry={!showCurrentPassword}
+                  autoCapitalize="none"
+                  textContentType="password"
+                  importantForAutofill="yes"
                 />
                 <TouchableOpacity
                   onPress={() => setShowCurrentPassword(!showCurrentPassword)}
@@ -328,9 +332,13 @@ export default function PrivacyScreen({ navigation }) {
                 <TextInput
                   style={[styles.input, { flex: 1 }]}
                   placeholder="New Password"
+                  placeholderTextColor="#999"
                   value={newPassword}
                   onChangeText={setNewPassword}
                   secureTextEntry={!showNewPassword}
+                  autoCapitalize="none"
+                  textContentType="newPassword"
+                  importantForAutofill="yes"
                 />
                 <TouchableOpacity
                   onPress={() => setShowNewPassword(!showNewPassword)}
@@ -348,9 +356,13 @@ export default function PrivacyScreen({ navigation }) {
                 <TextInput
                   style={[styles.input, { flex: 1 }]}
                   placeholder="Confirm New Password"
+                  placeholderTextColor="#999"
                   value={confirmNewPassword}
                   onChangeText={setConfirmNewPassword}
                   secureTextEntry={!showConfirmPassword}
+                  autoCapitalize="none"
+                  textContentType="password"
+                  importantForAutofill="yes"
                 />
                 <TouchableOpacity
                   onPress={() => setShowConfirmPassword(!showConfirmPassword)}
@@ -543,6 +555,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: "#fff",
     fontSize: 16,
+    color: "#333", // ensure typed text is visible
   },
   passwordRow: {
     flexDirection: "row",

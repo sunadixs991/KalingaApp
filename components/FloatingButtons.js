@@ -13,6 +13,7 @@ const FloatingButtons = ({
   hasRoute,
   onAdd,
   isAdmin,
+  userType,   // <-- added here
   shiftUp,
 }) => {
   // Dynamic offset (if bottom sheet visible, move up ~200px)
@@ -20,6 +21,7 @@ const FloatingButtons = ({
 
   return (
     <>
+      {/* Clear Route Button */}
       {hasRoute && (
         <TouchableOpacity
           style={[
@@ -33,20 +35,22 @@ const FloatingButtons = ({
         </TouchableOpacity>
       )}
 
-      {isAdmin && (
-        <TouchableOpacity
-          style={[
-            styles.circleButton,
-            styles.addButton,
+      {/* ADD PIN BUTTON — only for DRRM Admin */}
+     {(isAdmin || userType === "DRRM Admin") && (
+  <TouchableOpacity
+    style={[
+      styles.circleButton,
+      styles.addButton,
+      { bottom: offset + hp("15%") },
+    ]}
+    onPress={onAdd}
+  >
+    <Icon name="create-outline" size={24} color="#fff" />
+  </TouchableOpacity>
+)}
 
-            { bottom: offset + hp("15%") },
-          ]}
-          onPress={onAdd}
-        >
-          <Icon name="create-outline" size={24} color="#fff" />
-        </TouchableOpacity>
-      )}
 
+      {/* Pin Button */}
       <TouchableOpacity
         style={[
           styles.circleButton,
@@ -58,6 +62,7 @@ const FloatingButtons = ({
         <Icon name="pin-sharp" size={24} color="#fff" />
       </TouchableOpacity>
 
+      {/* Locate Button */}
       <TouchableOpacity
         style={[styles.circleButton, { bottom: offset }]}
         onPress={onLocate}
@@ -73,7 +78,6 @@ export default FloatingButtons;
 const styles = StyleSheet.create({
   circleButton: {
     position: "absolute",
-    // bottom: hp("3.5%"),
     right: wp("5%"),
     backgroundColor: "#EC6135",
     width: wp("13%"),
@@ -84,15 +88,12 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   pinButton: {
-    // bottom: hp("11%"),
     backgroundColor: "#49A5A2",
   },
   addButton: {
-    // bottom: hp("18.5%"),
     backgroundColor: "#1976D2",
   },
   clearButton: {
-    // bottom: hp("26%"),
     backgroundColor: "#EC6135",
   },
 });
