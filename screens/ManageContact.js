@@ -37,33 +37,8 @@ export default function ManageContact({ navigation }) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newNumber, setNewNumber] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // admin checks removed — all users can view/edit via UI
   const [menuVisible, setMenuVisible] = useState(null);
-
-  useEffect(() => {
-    checkAdminStatus();
-  }, []);
-
-  const checkAdminStatus = async () => {
-    try {
-      const userInfo = await AsyncStorage.getItem("userInfo");
-      const user = await AsyncStorage.getItem("user");
-
-      if (userInfo && user) {
-        const parsedInfo = JSON.parse(userInfo);
-        setIsLoggedIn(true);
-        setIsAdmin(parsedInfo.isAdmin === true);
-      } else {
-        setIsLoggedIn(false);
-        setIsAdmin(false);
-      }
-    } catch (error) {
-      console.error("Error checking admin status:", error);
-      setIsLoggedIn(false);
-      setIsAdmin(false);
-    }
-  };
 
   // Fetch contacts from Firestore
   useEffect(() => {
@@ -176,7 +151,7 @@ export default function ManageContact({ navigation }) {
               <View style={styles.contactRow}>
                 <View style={styles.contactInfo}>
                   <Text style={styles.contactName}>{item.name}</Text>
-                  {isLoggedIn && isAdmin && editingId === item.id ? (
+                  {editingId === item.id ? (
                     <TextInput
                       value={editingNumber}
                       onChangeText={setEditingNumber}
@@ -188,121 +163,107 @@ export default function ManageContact({ navigation }) {
                   )}
                 </View>
 
-                {isLoggedIn && isAdmin && (
-                  <View>
-                    {editingId === item.id ? (
-                      <View style={{ flexDirection: "row" }}>
-                        <TouchableOpacity
-                          onPress={() => {
-                            setEditingId(null);
-                            setEditingNumber("");
-                          }}
-                          style={styles.iconButton}
-                        >
-                          <Icon name="close-outline" size={28} color="red" />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => handleSave(item.id)}
-                          style={styles.iconButton}
-                        >
-                          <Icon
-                            name="checkmark-outline"
-                            size={28}
-                            color="green"
-                          />
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <Menu
-                        visible={menuVisible === item.id}
-                        onDismiss={() => setMenuVisible(null)}
-                        anchor={
-                          <TouchableOpacity
-                            onPress={() => setMenuVisible(item.id)}
-                            style={styles.iconButton}
-                          >
-                            <Icon
-                              name="ellipsis-vertical"
-                              size={22}
-                              color="#666"
-                            />
-                          </TouchableOpacity>
-                        }
+                {/* Admin gating removed — show actions to all users */}
+                <View>
+                  {editingId === item.id ? (
+                    <View style={{ flexDirection: "row" }}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setEditingId(null);
+                          setEditingNumber("");
+                        }}
+                        style={styles.iconButton}
                       >
-                        <Menu.Item
-                          onPress={() => {
-                            setMenuVisible(null);
-                            handleEdit(item.id, item.number);
-                          }}
-                          title="Edit"
-                        />
-                        <Menu.Item
-                          onPress={() => {
-                            setMenuVisible(null);
-                            handleDelete(item.id);
-                          }}
-                          title="Delete"
-                        />
-                      </Menu>
-                    )}
-                  </View>
-                )}
+                        <Icon name="close-outline" size={28} color="red" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleSave(item.id)}
+                        style={styles.iconButton}
+                      >
+                        <Icon name="checkmark-outline" size={28} color="green" />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <Menu
+                      visible={menuVisible === item.id}
+                      onDismiss={() => setMenuVisible(null)}
+                      anchor={
+                        <TouchableOpacity
+                          onPress={() => setMenuVisible(item.id)}
+                          style={styles.iconButton}
+                        >
+                          <Icon name="ellipsis-vertical" size={22} color="#666" />
+                        </TouchableOpacity>
+                      }
+                    >
+                      <Menu.Item
+                        onPress={() => {
+                          setMenuVisible(null);
+                          handleEdit(item.id, item.number);
+                        }}
+                        title="Edit"
+                      />
+                      <Menu.Item
+                        onPress={() => {
+                          setMenuVisible(null);
+                          handleDelete(item.id);
+                        }}
+                        title="Delete"
+                      />
+                    </Menu>
+                  )}
+                </View>
               </View>
             )}
           />
         )}
 
-        {/* Floating Add Button */}
-        {isLoggedIn && isAdmin && (
-          <>
-            <TouchableOpacity
-              style={styles.fab}
-              onPress={() => setAdding(true)}
-            >
-              <Icon name="add" size={30} color="#fff" />
-            </TouchableOpacity>
+        {/* Floating Add Button — admin gating removed */}
+        <>
+          <TouchableOpacity style={styles.fab} onPress={() => setAdding(true)}>
+            <Icon name="add" size={30} color="#fff" />
+          </TouchableOpacity>
 
-            {/* Add Contact Modal */}
-            <Modal visible={adding} transparent animationType="slide">
-              <View style={styles.modalContainer}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>Add New Contact</Text>
-                  <TextInput
-                    placeholder="Contact Name"
-                    value={newName}
-                    onChangeText={setNewName}
-                    style={styles.addContactInput}
-                  />
-                  <TextInput
-                    placeholder="Phone Number"
-                    value={newNumber}
-                    onChangeText={setNewNumber}
-                    style={styles.addContactInput}
-                    keyboardType="phone-pad"
-                  />
-                  <View style={styles.modalActions}>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setAdding(false);
-                        setNewName("");
-                        setNewNumber("");
-                      }}
-                      style={styles.modalButtonCancel}
-                    >
-                      <Text style={styles.modalButtonText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={handleAddContact}
-                      style={styles.modalButtonSave}
-                    >
-                      <Text style={styles.modalButtonText}>Save</Text>
-                    </TouchableOpacity>
-                  </View>
+          {/* Add Contact Modal */}
+          <Modal visible={adding} transparent animationType="slide">
+            <View style={styles.modalContainer}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Add New Contact</Text>
+                <TextInput
+                  placeholder="Contact Name"
+                  value={newName}
+                  onChangeText={setNewName}
+                  style={styles.addContactInput}
+                />
+                <TextInput
+                  placeholder="Phone Number"
+                  value={newNumber}
+                  onChangeText={setNewNumber}
+                  style={styles.addContactInput}
+                  keyboardType="phone-pad"
+                />
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setAdding(false);
+                      setNewName("");
+                      setNewNumber("");
+                    }}
+                    style={styles.modalButtonCancel}
+                  >
+                    <Text style={styles.modalButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleAddContact}
+                    style={styles.modalButtonSave}
+                  >
+                    <Text style={styles.modalButtonText}>Save</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-            </Modal>
-          </>
-        )}
+            </View>
+          </Modal>
+        </>
       </SafeAreaView>
     </Provider>
   );
