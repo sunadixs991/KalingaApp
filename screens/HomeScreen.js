@@ -152,119 +152,47 @@ export default function HomeScreen({ route, navigation }) {
     }
   }, [username]);
 
-  // Fetch device location and keep updating (watcher). Shows message when location
-  // is disabled or permission is denied. Uses timeInterval (ms) for update frequency.
-  useEffect(() => {
-    const watchRef = { current: null };
-    let mounted = true;
-    const timeIntervalMs = 5000; // change to 10000 for 10s updates
-    const distanceIntervalMeters = 10; // optional: only update when moved this far
+  // Fetch device location and place name
+ // Replace your existing location useEffect (lines 155-180) with this:
 
-    const startWatcher = async () => {
-      try {
-        // check if location services (GPS) are enabled on device
-        const servicesEnabled = await Location.hasServicesEnabledAsync();
-        if (!servicesEnabled) {
-          if (!mounted) return;
-          setCurrentLocation(null);
-          setPlaceName("");
-          setLocationMessage("Location is turned off — please enable location services.");
-          return;
-        }
-
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
-          if (!mounted) return;
-          setCurrentLocation(null);
-          setPlaceName("");
-          setLocationMessage("Location permission denied — please enable location permission.");
-          return;
-        }
-
-        // clear any previous message
-        setLocationMessage("");
-
-        // initial one-off fetch
-        const initial = await Location.getCurrentPositionAsync({});
-        if (mounted && initial?.coords) {
-          setCurrentLocation(initial.coords);
-          try {
-            const places = await Location.reverseGeocodeAsync(initial.coords);
-            if (places && places.length > 0) {
-              const place = places[0];
-              setPlaceName(
-                [
-                  place.street,
-                  place.district,
-                  place.city,
-                  place.subregion,
-                  place.country,
-                ]
-                  .filter(Boolean)
-                  .join(", ")
-              );
-            }
-          } catch {
-            // ignore reverse geocode errors
-          }
-        }
-
-        // start watcher with configured interval/distance
-        const sub = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.Highest,
-            timeInterval: timeIntervalMs,
-            distanceInterval: distanceIntervalMeters,
-          },
-          async (pos) => {
-            if (!mounted || !pos?.coords) return;
-            setCurrentLocation(pos.coords);
-            // update placeName (optional; may be rate limited)
-            try {
-              const places = await Location.reverseGeocodeAsync(pos.coords);
-              if (places && places.length > 0) {
-                const place = places[0];
-                setPlaceName(
-                  [
-                    place.street,
-                    place.district,
-                    place.city,
-                    place.subregion,
-                    place.country,
-                  ]
-                    .filter(Boolean)
-                    .join(", ")
-                );
-              }
-            } catch {
-              // ignore reverse geocode errors
-            }
-          }
+useEffect(() => {
+  (async () => {
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setLocationMessage("📍 Enable location to see nearby resources");
+        Alert.alert(
+          "Location Permission",
+          "Location permission is required to show nearby resources."
         );
-
-        watchRef.current = sub;
-      } catch (err) {
-        if (!mounted) return;
-        console.warn("Location watcher error", err);
-        setLocationMessage("Unable to access location. Please check device settings.");
+        return;
       }
-    };
 
-    startWatcher();
+      let loc = await Location.getCurrentPositionAsync({});
+      setCurrentLocation(loc.coords);
 
-    return () => {
-      mounted = false;
-      try {
-        if (watchRef.current && watchRef.current.remove) {
-          watchRef.current.remove();
-        } else if (typeof watchRef.current === "function") {
-          watchRef.current();
-        }
-      } catch {
-        /* ignore cleanup errors */
+      // Reverse geocode to get place name
+      let places = await Location.reverseGeocodeAsync(loc.coords);
+      if (places && places.length > 0) {
+        const place = places[0];
+        setPlaceName(
+          [
+            place.street,
+            place.district,
+            place.city,
+            place.subregion,
+            place.country,
+          ]
+            .filter(Boolean)
+            .join(", ")
+        );
       }
-    };
-  }, []);
+    } catch (error) {
+      setLocationMessage("Location is turned off — please enable location services in Settings.");
+      Alert.alert("Error", "Failed to get your location. Please try again.");
+    }
+  })();
+}, []);
 
   // Fetch nearby pins when location is available
   useEffect(() => {
@@ -332,11 +260,61 @@ export default function HomeScreen({ route, navigation }) {
     return () => unsub();
   }, [currentLocation]);
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
+// Replace your handleRefresh function with this:
+
+const handleRefresh = async () => {
+  setRefreshing(true);
+  
+  // Try to get location again if we don't have it
+  if (!currentLocation || locationMessage) {
+    try {
+      // Check permission status first
+      let { status } = await Location.getForegroundPermissionsAsync();
+      
+      // If permission not granted, request it again
+      if (status !== "granted") {
+        const permissionResult = await Location.requestForegroundPermissionsAsync();
+        if (permissionResult.status !== "granted") {
+          setLocationMessage("📍 Enable location to see nearby resources");
+          setRefreshing(false);
+          return;
+        }
+      }
+
+      // Get location
+      let loc = await Location.getCurrentPositionAsync({});
+      setCurrentLocation(loc.coords);
+      setLocationMessage(""); // Clear error message
+
+      // Reverse geocode to get place name
+      let places = await Location.reverseGeocodeAsync(loc.coords);
+      if (places && places.length > 0) {
+        const place = places[0];
+        setPlaceName(
+          [
+            place.street,
+            place.district,
+            place.city,
+            place.subregion,
+            place.country,
+          ]
+            .filter(Boolean)
+            .join(", ")
+        );
+      }
+    } catch (error) {
+      setLocationMessage("Location is turned off — please enable location services in Settings.");
+      console.warn("Location refresh error:", error);
+    }
+  }
+  
+  // Fetch nearby pins if we have location
+  if (currentLocation) {
     await fetchNearbyPinsData();
-    setRefreshing(false);
-  };
+  }
+  
+  setRefreshing(false);
+};
 
   const handlePinPress = (pin) => {
     setSelectedPin(pin);
