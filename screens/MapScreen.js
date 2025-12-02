@@ -220,15 +220,17 @@ export default function MapScreen({ route }) {
     }
   };
 
-  // --- NEW helper: fetch pins + request_pins (used on initial grant and retry) ---
-  // --- NEW helper: fetch pins + request_pins + evac_pins + medical_pins ---
+
   const fetchPinsAndRequests = async () => {
+    console.log("🔄 Fetching all pins from Firebase...");
+
     try {
       // PINS (with cache)
       const PINS_KEY = "pins_cache_v1";
       const cached = await readCache(PINS_KEY);
       if (cached.data) {
         setAllPins(cached.data);
+        console.log(`✅ Loaded ${cached.data.length} regular pins from cache`);
       }
       // fetch fresh and update cache
       const querySnapshot = await getDocs(collection(db, "pins"));
@@ -253,15 +255,19 @@ export default function MapScreen({ route }) {
       });
       setAllPins(pins);
       await writeCache(PINS_KEY, pins);
+      console.log(`✅ Fetched ${pins.length} regular pins from Firebase`);
     } catch (error) {
-      console.error("Error fetching pins:", error);
+      console.error("❌ Error fetching pins:", error);
     }
 
     try {
       // REQUEST PINS (with cache)
       const REQ_KEY = "request_pins_cache_v1";
       const cachedReq = await readCache(REQ_KEY);
-      if (cachedReq.data) setRequestPins(cachedReq.data);
+      if (cachedReq.data) {
+        setRequestPins(cachedReq.data);
+        console.log(`✅ Loaded ${cachedReq.data.length} request pins from cache`);
+      }
 
       const reqSnap = await getDocs(collection(db, "request_pins"));
       const reqs = [];
@@ -288,12 +294,20 @@ export default function MapScreen({ route }) {
       });
       setRequestPins(reqs);
       await writeCache(REQ_KEY, reqs);
+      console.log(`✅ Fetched ${reqs.length} request pins from Firebase`);
     } catch (error) {
-      console.error("Error fetching request pins:", error);
+      console.error("❌ Error fetching request pins:", error);
     }
 
     // ADD EVACUATION PINS
     try {
+      const EVAC_KEY = "evac_pins_cache_v1";
+      const cachedEvac = await readCache(EVAC_KEY);
+      if (cachedEvac.data) {
+        setEvacPins(cachedEvac.data);
+        console.log(`✅ Loaded ${cachedEvac.data.length} evacuation pins from cache`);
+      }
+
       const evacSnap = await getDocs(collection(db, "evacuation_pins"));
       const evacs = [];
       evacSnap.forEach((doc) => {
@@ -315,12 +329,21 @@ export default function MapScreen({ route }) {
         }
       });
       setEvacPins(evacs);
+      await writeCache(EVAC_KEY, evacs);
+      console.log(`✅ Fetched ${evacs.length} evacuation pins from Firebase`);
     } catch (error) {
-      console.error("Error fetching evacuation pins:", error);
+      console.error("❌ Error fetching evacuation pins:", error);
     }
 
     // ADD MEDICAL PINS
     try {
+      const MED_KEY = "medical_pins_cache_v1";
+      const cachedMed = await readCache(MED_KEY);
+      if (cachedMed.data) {
+        setMedicalPins(cachedMed.data);
+        console.log(`✅ Loaded ${cachedMed.data.length} medical pins from cache`);
+      }
+
       const medSnap = await getDocs(collection(db, "medical_pins"));
       const meds = [];
       medSnap.forEach((doc) => {
@@ -342,106 +365,112 @@ export default function MapScreen({ route }) {
         }
       });
       setMedicalPins(meds);
+      await writeCache(MED_KEY, meds);
+      console.log(`✅ Fetched ${meds.length} medical pins from Firebase`);
     } catch (error) {
-      console.error("Error fetching medical pins:", error);
+      console.error("❌ Error fetching medical pins:", error);
     }
+
+    console.log("🎉 All pins fetched successfully!");
   };
-  // --- END new helper ---
+  // Replace the first useEffect (around line 234) with this updated version:
 
-  // Replace the existing location permission useEffect with this improved version
-  // ...existing code...
-  // Replace the existing location permission useEffect with a quieter version
-  useEffect(() => {
-    (async () => {
-      try {
-        // Check if location services are enabled (if API available)
-        const isLocationEnabled =
-          typeof Location.hasServicesEnabledAsync === "function"
-            ? await Location.hasServicesEnabledAsync()
-            : true;
+useEffect(() => {
+  (async () => {
+    try {
+      // First check current permission status without requesting
+      const { status: currentStatus } = await Location.getForegroundPermissionsAsync();
+      
+      // If already denied, don't request again - just show retry UI
+      if (currentStatus === 'denied') {
+        setLocationPermissionDenied(true);
+        return;
+      }
 
-        if (!isLocationEnabled) {
-          // mark denied and let retry UI handle user flow — do not show Alert here
-          setLocationPermissionDenied(true);
-          return;
-        }
+      // Check if location services are enabled (if API available)
+      const isLocationEnabled =
+        typeof Location.hasServicesEnabledAsync === "function"
+          ? await Location.hasServicesEnabledAsync()
+          : true;
 
-        // Request location permissions
+      if (!isLocationEnabled) {
+        setLocationPermissionDenied(true);
+        return;
+      }
+
+      // Only request permission if status is 'undetermined' or 'granted'
+      if (currentStatus === 'undetermined') {
         const { status } = await Location.requestForegroundPermissionsAsync();
 
         if (status !== "granted") {
-          // mark denied and return — UI shows retry button
           setLocationPermissionDenied(true);
           return;
         }
+      }
 
-        // Permission granted - get location (wrap to avoid throwing fatal)
-        setLocationPermissionDenied(false);
+      // Permission granted - get location
+      setLocationPermissionDenied(false);
+      try {
+        const loc = await Location.getCurrentPositionAsync({});
+        setLocation(loc.coords);
+      } catch (locErr) {
+        const msg = String(locErr?.message || "").toLowerCase();
+        if (msg.includes("unsatisfied device settings") || msg.includes("location request failed")) {
+          setLocationPermissionDenied(true);
+          console.warn("getCurrentPositionAsync unavailable due to device settings.");
+          return;
+        }
+        console.warn("getCurrentPositionAsync failed:", locErr);
+        setLocationPermissionDenied(true);
+        return;
+      }
+
+      // Continue initialization (user info, pins etc.)
+      const user = await AsyncStorage.getItem("user");
+      setUserInfo(user);
+
+      // Fetch firstName from Firestore (with cache)
+      if (user) {
         try {
-          const loc = await Location.getCurrentPositionAsync({});
-          setLocation(loc.coords);
-        } catch (locErr) {
-          // Common device/GPS error (e.g. "unsatisfied device settings") -> mark denied quietly
-          const msg = String(locErr?.message || "").toLowerCase();
-          if (msg.includes("unsatisfied device settings") || msg.includes("location request failed")) {
-            setLocationPermissionDenied(true);
-            console.warn("getCurrentPositionAsync unavailable due to device settings.");
-            return;
+          const userCacheKey = `user_info_${user}`;
+          const cachedUser = await readCache(userCacheKey);
+          if (cachedUser.data) {
+            setUserFirstName(cachedUser.data.firstName || null);
+            setUserContact(
+              cachedUser.data.contact || cachedUser.data.phone || ""
+            );
+            setUserType(cachedUser.data.userType || "");
           }
-          console.warn("getCurrentPositionAsync failed:", locErr);
-          setLocationPermissionDenied(true);
-          return;
-        }
-
-        // Continue initialization (user info, pins etc.)
-        const user = await AsyncStorage.getItem("user");
-        setUserInfo(user);
-
-        // Fetch firstName from Firestore (with cache)
-        if (user) {
+          // always fetch fresh in background and update cache
+          const info = await getUserInfo(user);
+          if (info) {
+            setUserFirstName(info?.firstName || null);
+            setUserContact(info?.contact || info?.phone || "");
+            setUserType(info?.userType || "");
+            await writeCache(userCacheKey, info);
+          }
+        } catch (e) {
           try {
-            const userCacheKey = `user_info_${user}`;
-            const cachedUser = await readCache(userCacheKey);
-            if (cachedUser.data) {
-              setUserFirstName(cachedUser.data.firstName || null);
-              setUserContact(
-                cachedUser.data.contact || cachedUser.data.phone || ""
-              );
-              setUserType(cachedUser.data.userType || "");
-            }
-            // always fetch fresh in background and update cache
             const info = await getUserInfo(user);
             if (info) {
               setUserFirstName(info?.firstName || null);
               setUserContact(info?.contact || info?.phone || "");
               setUserType(info?.userType || "");
-              await writeCache(userCacheKey, info);
             }
-          } catch (e) {
-            try {
-              const info = await getUserInfo(user);
-              if (info) {
-                setUserFirstName(info?.firstName || null);
-                setUserContact(info?.contact || info?.phone || "");
-                setUserType(info?.userType || "");
-              }
-            } catch (err) {
-              console.warn("Failed to fetch user info:", err);
-            }
+          } catch (err) {
+            console.warn("Failed to fetch user info:", err);
           }
         }
-
-        // --- use new helper to fetch pins + request pins ---
-        await fetchPinsAndRequests();
-        // --- end fetch ---
-      } catch (error) {
-        // Quietly mark denied and allow retry UI to handle user action
-        console.warn("Error initializing map (non-fatal):", error);
-        setLocationPermissionDenied(true);
       }
-    })();
-  }, []);
-  // ...existing code...
+
+      // Fetch pins + request pins
+      await fetchPinsAndRequests();
+    } catch (error) {
+      console.warn("Error initializing map (non-fatal):", error);
+      setLocationPermissionDenied(true);
+    }
+  })();
+}, []);
 
   // Check admin status on mount (or use your own logic)
   useEffect(() => {
@@ -521,67 +550,67 @@ export default function MapScreen({ route }) {
   }, [isFocused]);
 
   // Fetch evacuation pins on mount
-  useEffect(() => {
-    const fetchEvacPins = async () => {
-      try {
-        const snap = await getDocs(collection(db, "evacuation_pins"));
-        const pins = [];
-        snap.forEach((doc) => {
-          const data = doc.data();
-          if (data.latitude && data.longitude) {
-            pins.push({
-              id: doc.id,
-              latitude: data.latitude,
-              longitude: data.longitude,
-              userId: data.userId,
-              userFirstName: data.userFirstName || "anonymous",
-              description: data.description,
-              category: data.category || "Evacuation",
-              media: data.media || [],
-              createdAt: data.createdAt,
-              capacity: data.capacity || "",
-              contactPerson: data.contactPerson || "",
-            });
-          }
-        });
-        setEvacPins(pins);
-      } catch (error) {
-        setEvacPins([]);
-      }
-    };
-    fetchEvacPins();
-  }, []);
+  // useEffect(() => {
+  //   const fetchEvacPins = async () => {
+  //     try {
+  //       const snap = await getDocs(collection(db, "evacuation_pins"));
+  //       const pins = [];
+  //       snap.forEach((doc) => {
+  //         const data = doc.data();
+  //         if (data.latitude && data.longitude) {
+  //           pins.push({
+  //             id: doc.id,
+  //             latitude: data.latitude,
+  //             longitude: data.longitude,
+  //             userId: data.userId,
+  //             userFirstName: data.userFirstName || "anonymous",
+  //             description: data.description,
+  //             category: data.category || "Evacuation",
+  //             media: data.media || [],
+  //             createdAt: data.createdAt,
+  //             capacity: data.capacity || "",
+  //             contactPerson: data.contactPerson || "",
+  //           });
+  //         }
+  //       });
+  //       setEvacPins(pins);
+  //     } catch (error) {
+  //       setEvacPins([]);
+  //     }
+  //   };
+  //   fetchEvacPins();
+  // }, []);
 
-  useEffect(() => {
-    const fetchMedicalPins = async () => {
-      try {
-        const snap = await getDocs(collection(db, "medical_pins"));
-        const pins = [];
-        snap.forEach((doc) => {
-          const data = doc.data();
-          if (data.latitude && data.longitude) {
-            pins.push({
-              id: doc.id,
-              latitude: data.latitude,
-              longitude: data.longitude,
-              userId: data.userId,
-              userFirstName: data.userFirstName || "anonymous",
-              description: data.description,
-              category: data.category || "Medical Support",
-              media: data.media || [],
-              createdAt: data.createdAt,
-              openTime: data.openTime || "",
-              barangay: data.barangay || "",
-            });
-          }
-        });
-        setMedicalPins(pins); // You need: const [medicalPins, setMedicalPins] = useState([]);
-      } catch (error) {
-        setMedicalPins([]);
-      }
-    };
-    fetchMedicalPins();
-  }, []);
+  // useEffect(() => {
+  //   const fetchMedicalPins = async () => {
+  //     try {
+  //       const snap = await getDocs(collection(db, "medical_pins"));
+  //       const pins = [];
+  //       snap.forEach((doc) => {
+  //         const data = doc.data();
+  //         if (data.latitude && data.longitude) {
+  //           pins.push({
+  //             id: doc.id,
+  //             latitude: data.latitude,
+  //             longitude: data.longitude,
+  //             userId: data.userId,
+  //             userFirstName: data.userFirstName || "anonymous",
+  //             description: data.description,
+  //             category: data.category || "Medical Support",
+  //             media: data.media || [],
+  //             createdAt: data.createdAt,
+  //             openTime: data.openTime || "",
+  //             barangay: data.barangay || "",
+  //           });
+  //         }
+  //       });
+  //       setMedicalPins(pins); // You need: const [medicalPins, setMedicalPins] = useState([]);
+  //     } catch (error) {
+  //       setMedicalPins([]);
+  //     }
+  //   };
+  //   fetchMedicalPins();
+  // }, []);
 
   // Handle focusPin when map is ready and pins are loaded
   useEffect(() => {
@@ -1208,15 +1237,12 @@ export default function MapScreen({ route }) {
   // ...existing code...
   useEffect(() => {
     let locationSubscription;
-
     const startLocationTracking = async () => {
+      // Don't start tracking if permission was denied
+      if (locationPermissionDenied) {
+        return;
+      }
       try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          setLocationPermissionDenied(true);
-          return;
-        }
-
         locationSubscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.High,
@@ -1226,7 +1252,6 @@ export default function MapScreen({ route }) {
           (newLocation) => {
             const newCoords = newLocation.coords;
             setLocation(newCoords);
-
             // Update user location marker
             if (webviewRef.current) {
               webviewRef.current.postMessage(
@@ -1237,7 +1262,6 @@ export default function MapScreen({ route }) {
                 })
               );
             }
-
             // 👉 If there's an active route destination, recalculate route
             if (routeDestination) {
               fetchRoute(newCoords, routeDestination);
@@ -1255,30 +1279,28 @@ export default function MapScreen({ route }) {
         console.error("Error tracking location:", error);
       }
     };
-
     if (isFocused) {
       startLocationTracking();
     }
-
     return () => {
       if (locationSubscription) {
         locationSubscription.remove();
       }
     };
-  }, [isFocused, routeDestination]);
+  }, [isFocused, routeDestination, locationPermissionDenied]);
   // ...existing code... // 👉 Watch routeDestination instead
   // Generate HTML only once on mount or when pins change significantly
   useEffect(() => {
-  if (location && !htmlGenerated) {
-    const html = getMapHtml(allPinsForMap, location, []);
-    setHtmlContent(html);
-    setHtmlGenerated(true);
-  } else if (location && htmlGenerated) {
-    // Regenerate when pins change (but only after initial load)
-    const html = getMapHtml(allPinsForMap, location, routeCoords);
-    setHtmlContent(html);
-  }
-}, [allPins.length, evacPins.length, medicalPins.length, requestPins.length]);
+    if (location && !htmlGenerated) {
+      const html = getMapHtml(allPinsForMap, location, []);
+      setHtmlContent(html);
+      setHtmlGenerated(true);
+    } else if (location && htmlGenerated) {
+      // Regenerate when pins change (but only after initial load)
+      const html = getMapHtml(allPinsForMap, location, routeCoords);
+      setHtmlContent(html);
+    }
+  }, [allPins.length, evacPins.length, medicalPins.length, requestPins.length]);
 
   useEffect(() => {
     if (location && !htmlGenerated) {
