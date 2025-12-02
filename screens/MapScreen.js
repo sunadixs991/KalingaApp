@@ -31,6 +31,7 @@ import {
   deleteField,
 } from "firebase/firestore";
 import SupplyRequestModal from "../components/SupplyRequestModalDisplay";
+import { Platform, Linking } from "react-native";
 
 import {
   widthPercentageToDP as wp,
@@ -40,6 +41,7 @@ import { getUserInfo } from "../services/getinfo";
 import MapPinModal from "../components/MapPinModal";
 import FloatingButtons from "../components/FloatingButtons";
 import { deletePinCompletely } from "../services/deletepins";
+
 // Try importing with explicit names
 import {
   castVote,
@@ -117,10 +119,11 @@ export default function MapScreen({ route }) {
   const [evacPurok, setEvacPurok] = useState("");
   const [evacSitio, setEvacSitio] = useState("");
   const [facilityName, setFacilityName] = useState("");
+  const [htmlGenerated, setHtmlGenerated] = useState(false);
 
   // NEW: User contact state
   const [userContact, setUserContact] = useState(""); // <-- NEW
-
+  const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
   useEffect(() => {
     pinModeRef.current = pinMode;
     // inform WebView when pinMode changes (keeps hint & behavior in sync)
@@ -217,117 +220,228 @@ export default function MapScreen({ route }) {
     }
   };
 
+  // --- NEW helper: fetch pins + request_pins (used on initial grant and retry) ---
+  // --- NEW helper: fetch pins + request_pins + evac_pins + medical_pins ---
+  const fetchPinsAndRequests = async () => {
+    try {
+      // PINS (with cache)
+      const PINS_KEY = "pins_cache_v1";
+      const cached = await readCache(PINS_KEY);
+      if (cached.data) {
+        setAllPins(cached.data);
+      }
+      // fetch fresh and update cache
+      const querySnapshot = await getDocs(collection(db, "pins"));
+      const pins = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.latitude && data.longitude) {
+          pins.push({
+            id: doc.id,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            userId: data.userId,
+            userFirstName: data.userFirstName || "anonymous",
+            description: data.description,
+            category: data.category || "Unknown",
+            media: data.media || [],
+            createdAt: data.createdAt,
+            upvotes: data.upvotes || 0,
+            downvotes: data.downvotes || 0,
+          });
+        }
+      });
+      setAllPins(pins);
+      await writeCache(PINS_KEY, pins);
+    } catch (error) {
+      console.error("Error fetching pins:", error);
+    }
+
+    try {
+      // REQUEST PINS (with cache)
+      const REQ_KEY = "request_pins_cache_v1";
+      const cachedReq = await readCache(REQ_KEY);
+      if (cachedReq.data) setRequestPins(cachedReq.data);
+
+      const reqSnap = await getDocs(collection(db, "request_pins"));
+      const reqs = [];
+      reqSnap.forEach((doc) => {
+        const data = doc.data();
+        if (data.latitude && data.longitude) {
+          reqs.push({
+            id: doc.id,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            userId: data.userId,
+            userFullName: data.userFullName || "anonymous",
+            description: data.description,
+            category: data.category || "Supply Request",
+            media: data.media || [],
+            createdAt: data.createdAt,
+            supplyType: data.supplyType || "",
+            barangay: data.barangay || "",
+            numberOfPeople: data.numberOfPeople || 0,
+            urgency: data.urgency || "",
+            contact: data.contact || "",
+          });
+        }
+      });
+      setRequestPins(reqs);
+      await writeCache(REQ_KEY, reqs);
+    } catch (error) {
+      console.error("Error fetching request pins:", error);
+    }
+
+    // ADD EVACUATION PINS
+    try {
+      const evacSnap = await getDocs(collection(db, "evacuation_pins"));
+      const evacs = [];
+      evacSnap.forEach((doc) => {
+        const data = doc.data();
+        if (data.latitude && data.longitude) {
+          evacs.push({
+            id: doc.id,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            userId: data.userId,
+            userFirstName: data.userFirstName || "anonymous",
+            description: data.description,
+            category: data.category || "Evacuation",
+            media: data.media || [],
+            createdAt: data.createdAt,
+            capacity: data.capacity || "",
+            contactPerson: data.contactPerson || "",
+          });
+        }
+      });
+      setEvacPins(evacs);
+    } catch (error) {
+      console.error("Error fetching evacuation pins:", error);
+    }
+
+    // ADD MEDICAL PINS
+    try {
+      const medSnap = await getDocs(collection(db, "medical_pins"));
+      const meds = [];
+      medSnap.forEach((doc) => {
+        const data = doc.data();
+        if (data.latitude && data.longitude) {
+          meds.push({
+            id: doc.id,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            userId: data.userId,
+            userFirstName: data.userFirstName || "anonymous",
+            description: data.description,
+            category: data.category || "Medical Support",
+            media: data.media || [],
+            createdAt: data.createdAt,
+            openTime: data.openTime || "",
+            barangay: data.barangay || "",
+          });
+        }
+      });
+      setMedicalPins(meds);
+    } catch (error) {
+      console.error("Error fetching medical pins:", error);
+    }
+  };
+  // --- END new helper ---
+
+  // Replace the existing location permission useEffect with this improved version
+  // ...existing code...
+  // Replace the existing location permission useEffect with a quieter version
   useEffect(() => {
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") return;
-      let loc = await Location.getCurrentPositionAsync({});
-      setLocation(loc.coords);
+      try {
+        // Check if location services are enabled (if API available)
+        const isLocationEnabled =
+          typeof Location.hasServicesEnabledAsync === "function"
+            ? await Location.hasServicesEnabledAsync()
+            : true;
 
-      const user = await AsyncStorage.getItem("user");
-      setUserInfo(user);
+        if (!isLocationEnabled) {
+          // mark denied and let retry UI handle user flow — do not show Alert here
+          setLocationPermissionDenied(true);
+          return;
+        }
 
-      // Fetch firstName from Firestore (with cache)
-      if (user) {
+        // Request location permissions
+        const { status } = await Location.requestForegroundPermissionsAsync();
+
+        if (status !== "granted") {
+          // mark denied and return — UI shows retry button
+          setLocationPermissionDenied(true);
+          return;
+        }
+
+        // Permission granted - get location (wrap to avoid throwing fatal)
+        setLocationPermissionDenied(false);
         try {
-          const userCacheKey = `user_info_${user}`;
-          const cachedUser = await readCache(userCacheKey);
-          if (cachedUser.data) {
-            setUserFirstName(cachedUser.data.firstName || null);
-            setUserContact(cachedUser.data.contact || cachedUser.data.phone || "");
-            setUserType(cachedUser.data.userType || "");
+          const loc = await Location.getCurrentPositionAsync({});
+          setLocation(loc.coords);
+        } catch (locErr) {
+          // Common device/GPS error (e.g. "unsatisfied device settings") -> mark denied quietly
+          const msg = String(locErr?.message || "").toLowerCase();
+          if (msg.includes("unsatisfied device settings") || msg.includes("location request failed")) {
+            setLocationPermissionDenied(true);
+            console.warn("getCurrentPositionAsync unavailable due to device settings.");
+            return;
           }
-          // always fetch fresh in background and update cache
-          const info = await getUserInfo(user);
-          if (info) {
-            setUserFirstName(info?.firstName || null);
-            setUserContact(info?.contact || info?.phone || "");
-            setUserType(info?.userType || "");
-            await writeCache(userCacheKey, info);
-          }
-        } catch (e) {
-          // fallback: still try to fetch userInfo
+          console.warn("getCurrentPositionAsync failed:", locErr);
+          setLocationPermissionDenied(true);
+          return;
+        }
+
+        // Continue initialization (user info, pins etc.)
+        const user = await AsyncStorage.getItem("user");
+        setUserInfo(user);
+
+        // Fetch firstName from Firestore (with cache)
+        if (user) {
           try {
+            const userCacheKey = `user_info_${user}`;
+            const cachedUser = await readCache(userCacheKey);
+            if (cachedUser.data) {
+              setUserFirstName(cachedUser.data.firstName || null);
+              setUserContact(
+                cachedUser.data.contact || cachedUser.data.phone || ""
+              );
+              setUserType(cachedUser.data.userType || "");
+            }
+            // always fetch fresh in background and update cache
             const info = await getUserInfo(user);
             if (info) {
               setUserFirstName(info?.firstName || null);
               setUserContact(info?.contact || info?.phone || "");
               setUserType(info?.userType || "");
+              await writeCache(userCacheKey, info);
             }
-          } catch (err) {}
-        }
-      }
-
-      // PINS (with cache)
-      try {
-        const PINS_KEY = "pins_cache_v1";
-        const cached = await readCache(PINS_KEY);
-        if (cached.data) {
-          setAllPins(cached.data);
-        }
-        // fetch fresh and update cache
-        const querySnapshot = await getDocs(collection(db, "pins"));
-        const pins = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data.latitude && data.longitude) {
-            pins.push({
-              id: doc.id,
-              latitude: data.latitude,
-              longitude: data.longitude,
-              userId: data.userId,
-              userFirstName: data.userFirstName || "anonymous",
-              description: data.description,
-              category: data.category || "Unknown",
-              media: data.media || [],
-              createdAt: data.createdAt,
-              upvotes: data.upvotes || 0,
-              downvotes: data.downvotes || 0,
-            });
+          } catch (e) {
+            try {
+              const info = await getUserInfo(user);
+              if (info) {
+                setUserFirstName(info?.firstName || null);
+                setUserContact(info?.contact || info?.phone || "");
+                setUserType(info?.userType || "");
+              }
+            } catch (err) {
+              console.warn("Failed to fetch user info:", err);
+            }
           }
-        });
-        setAllPins(pins);
-        await writeCache(PINS_KEY, pins);
-      } catch (error) {
-        console.error("Error fetching pins:", error);
-      }
+        }
 
-      // REQUEST PINS (with cache)
-      try {
-        const REQ_KEY = "request_pins_cache_v1";
-        const cachedReq = await readCache(REQ_KEY);
-        if (cachedReq.data) setRequestPins(cachedReq.data);
-
-        const reqSnap = await getDocs(collection(db, "request_pins"));
-        const reqs = [];
-        reqSnap.forEach((doc) => {
-          const data = doc.data();
-          if (data.latitude && data.longitude) {
-            reqs.push({
-              id: doc.id,
-              latitude: data.latitude,
-              longitude: data.longitude,
-              userId: data.userId,
-              userFullName: data.userFullName || "anonymous",
-              description: data.description,
-              category: data.category || "Supply Request",
-              media: data.media || [],
-              createdAt: data.createdAt,
-              supplyType: data.supplyType || "",
-              barangay: data.barangay || "",
-              numberOfPeople: data.numberOfPeople || 0,
-              urgency: data.urgency || "",
-              contact: data.contact || "",
-            });
-          }
-        });
-        setRequestPins(reqs);
-        await writeCache(REQ_KEY, reqs);
+        // --- use new helper to fetch pins + request pins ---
+        await fetchPinsAndRequests();
+        // --- end fetch ---
       } catch (error) {
-        console.error("Error fetching pins:", error);
+        // Quietly mark denied and allow retry UI to handle user action
+        console.warn("Error initializing map (non-fatal):", error);
+        setLocationPermissionDenied(true);
       }
     })();
   }, []);
+  // ...existing code...
 
   // Check admin status on mount (or use your own logic)
   useEffect(() => {
@@ -1091,13 +1205,17 @@ export default function MapScreen({ route }) {
 
 
 
+  // ...existing code...
   useEffect(() => {
     let locationSubscription;
 
     const startLocationTracking = async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') return;
+        if (status !== 'granted') {
+          setLocationPermissionDenied(true);
+          return;
+        }
 
         locationSubscription = await Location.watchPositionAsync(
           {
@@ -1127,6 +1245,13 @@ export default function MapScreen({ route }) {
           }
         );
       } catch (error) {
+        // Suppress noisy fatal errors for expected device-settings problems
+        const msg = String(error?.message || "").toLowerCase();
+        if (msg.includes("unsatisfied device settings") || msg.includes("location request failed")) {
+          setLocationPermissionDenied(true);
+          console.warn("Location tracking unavailable due to device settings.");
+          return;
+        }
         console.error("Error tracking location:", error);
       }
     };
@@ -1140,18 +1265,28 @@ export default function MapScreen({ route }) {
         locationSubscription.remove();
       }
     };
-  }, [isFocused, routeDestination]); // 👉 Watch routeDestination instead
+  }, [isFocused, routeDestination]);
+  // ...existing code... // 👉 Watch routeDestination instead
   // Generate HTML only once on mount or when pins change significantly
   useEffect(() => {
-    if (location) {
-      const html = getMapHtml(
-        allPinsForMap,
-        location,
-        [] // Start with empty route
-      );
+  if (location && !htmlGenerated) {
+    const html = getMapHtml(allPinsForMap, location, []);
+    setHtmlContent(html);
+    setHtmlGenerated(true);
+  } else if (location && htmlGenerated) {
+    // Regenerate when pins change (but only after initial load)
+    const html = getMapHtml(allPinsForMap, location, routeCoords);
+    setHtmlContent(html);
+  }
+}, [allPins.length, evacPins.length, medicalPins.length, requestPins.length]);
+
+  useEffect(() => {
+    if (location && !htmlGenerated) {
+      const html = getMapHtml(allPinsForMap, location, []);
       setHtmlContent(html);
+      setHtmlGenerated(true);
     }
-  }, [allPins.length, evacPins.length, medicalPins.length, requestPins.length, location]); // Regenerate when pins change
+  }, [location, htmlGenerated]);
 
   // Separately update the route via message (without regenerating HTML)
   useEffect(() => {
@@ -1237,12 +1372,67 @@ export default function MapScreen({ route }) {
   // --- End polyline decoder ---
 
   if (!location) {
+    if (locationPermissionDenied) {
+      return (
+        <View style={[styles.container, styles.centerContent]}>
+          <Icon name="location-outline" size={80} color="#ccc" />
+          <Text style={styles.permissionTitle}>Location Access Required</Text>
+          <Text style={styles.permissionMessage}>
+            This app needs access to your location to display the map and provide navigation features.
+          </Text>
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => {
+              if (Platform.OS === 'ios') {
+                Linking.openURL('app-settings:');
+              } else {
+                Linking.openSettings();
+              }
+            }}
+          >
+            <Icon name="settings" size={20} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.settingsButtonText}>Open Settings</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={async () => {
+              setLocationPermissionDenied(false);
+
+              // Request permission again
+              try {
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status === 'granted') {
+                  // Get location and update state
+                  const loc = await Location.getCurrentPositionAsync({});
+                  setLocation(loc.coords);
+
+                  // ✅ This will now fetch ALL pins (regular, request, evac, medical)
+                  try {
+                    await fetchPinsAndRequests();
+                  } catch (err) {
+                    console.warn("fetchPinsAndRequests after retry failed:", err);
+                  }
+                }
+              } catch (error) {
+                console.warn('Retry permission request failed:', error);
+                setLocationPermissionDenied(true);
+              }
+            }}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, styles.centerContent]}>
         <ActivityIndicator size="large" color="#EC6135" />
+        <Text style={styles.loadingText}>Loading map...</Text>
       </View>
     );
   }
+
 
   // Determine initial region based on focusPin or user location
   const getInitialRegion = () => {
@@ -2198,5 +2388,63 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "600",
+  },
+
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  permissionTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 20,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  permissionMessage: {
+    fontSize: 15,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 30,
+    paddingHorizontal: 20,
+  },
+  settingsButton: {
+    flexDirection: 'row',
+    backgroundColor: '#EC6135',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 25,
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  settingsButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  retryButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: '#EC6135',
+  },
+  retryButtonText: {
+    color: '#EC6135',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
   },
 });
