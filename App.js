@@ -50,6 +50,7 @@ import ManagePurokLeaders from "./screens/ManagePurokLeaders";
 import ManageDRRMAdmins from "./screens/ManageDRRMAdmins";
 import AdminUtilsPurok from "./screens/AdminUtilsPurok";
 import AdminUtilsDRRM from "./screens/AdminUtilsDRRM";
+import Toast from "react-native-toast-message";
 
 
 // ✅ Import Feedback Modal
@@ -63,6 +64,8 @@ LogBox.ignoreLogs(["shared value's .value inside reanimated inline style"]);
 export default function App() {
   const [currentUsername, setCurrentUsername] = useState(null);
 
+
+  
   useEffect(() => {
     const loadUsername = async () => {
       try {
@@ -151,6 +154,7 @@ export default function App() {
 
           {/* ✅ Pass username to Feedback Modal */}
           <FeedbackModal username={currentUsername} />
+          <Toast />
         </NavigationContainer>
       </ThemeProvider>
     </GestureHandlerRootView>

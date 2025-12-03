@@ -26,6 +26,8 @@ import {
   sendLockedAccountNotification,
   notifyBruteForceAttempt,
 } from "../services/securityNotification";
+import Toast from "react-native-toast-message";
+
 
 const validatePasswordStrength = (password) => {
   const hasUpperCase = /[A-Z]/.test(password);
@@ -440,18 +442,21 @@ export default function LoginScreen({ navigation, onLogin }) {
 
         if (onLogin) onLogin();
 
-        Alert.alert(
-          "Login Successful",
-          userData.userType === "CSWD Admin"
-            ? "You have successfully logged in as CSWD Admin."
-            : userData.isAdmin
-              ? "You have successfully logged in as Administrator."
-              : userData.userType === "DRRM Admin"
-                ? "You have successfully logged in as DRRM Admin."
-                : userData.userType === "Purok Leader"
-                  ? "You have successfully logged in as Purok Leader."
-                  : "You have successfully logged in."
-        );
+ Toast.show({
+  type: "success",
+  text1: "Login Successful",
+  text2:
+    userData.userType === "CSWD Admin"
+      ? "You have successfully logged in as CSWD Admin."
+      : userData.isAdmin
+      ? "You have successfully logged in as Administrator."
+      : userData.userType === "DRRM Admin"
+      ? "You have successfully logged in as DRRM Admin."
+      : userData.userType === "Purok Leader"
+      ? "You have successfully logged in as Purok Leader."
+      : "You have successfully logged in.",
+});
+
 
 
    

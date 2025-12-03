@@ -34,6 +34,9 @@ import boyProfile from "../assets/boy.png";
 import womanProfile from "../assets/woman.png";
 import userProfile from "../assets/user.png";
 import adminProfile from "../assets/admin.png";
+import Toast from 'react-native-toast-message';
+
+
 
 const { width } = Dimensions.get("window");
 
@@ -42,8 +45,8 @@ const NEARBY_CACHE_PREFIX = "nearby_pins_cache_v1";
 const makeNearbyCacheKey = (coords, radiusKm = 50, max = 10) =>
   coords
     ? `${NEARBY_CACHE_PREFIX}_${coords.latitude.toFixed(4)}_${coords.longitude
-        .toFixed(4)
-        .replace(".", "")}_${radiusKm}_${max}`
+      .toFixed(4)
+      .replace(".", "")}_${radiusKm}_${max}`
     : NEARBY_CACHE_PREFIX;
 
 const saveNearbyPinsToCache = async (key, data) => {
@@ -153,46 +156,53 @@ export default function HomeScreen({ route, navigation }) {
   }, [username]);
 
   // Fetch device location and place name
- // Replace your existing location useEffect (lines 155-180) with this:
+  // Replace your existing location useEffect (lines 155-180) with this:
 
-useEffect(() => {
-  (async () => {
-    try {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setLocationMessage("📍 Enable location to see nearby resources");
-        Alert.alert(
-          "Location Permission",
-          "Location permission is required to show nearby resources."
+  useEffect(() => {
+    (async () => {
+      try {
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          setLocationMessage("📍 Enable location to see nearby resources");
+          Alert.alert(
+            "Location Permission",
+            "Location permission is required to show nearby resources."
+          );
+          return;
+        }
+
+        let loc = await Location.getCurrentPositionAsync({});
+        setCurrentLocation(loc.coords);
+
+        // Reverse geocode to get place name
+        let places = await Location.reverseGeocodeAsync(loc.coords);
+        if (places && places.length > 0) {
+          const place = places[0];
+          setPlaceName(
+            [
+              place.street,
+              place.district,
+              place.city,
+              place.subregion,
+              place.country,
+            ]
+              .filter(Boolean)
+              .join(", ")
+          );
+        }
+      } catch (error) {
+        setLocationMessage(
+          "Location is turned off — please enable location services in Settings."
         );
-        return;
-      }
 
-      let loc = await Location.getCurrentPositionAsync({});
-      setCurrentLocation(loc.coords);
-
-      // Reverse geocode to get place name
-      let places = await Location.reverseGeocodeAsync(loc.coords);
-      if (places && places.length > 0) {
-        const place = places[0];
-        setPlaceName(
-          [
-            place.street,
-            place.district,
-            place.city,
-            place.subregion,
-            place.country,
-          ]
-            .filter(Boolean)
-            .join(", ")
-        );
+        Toast.show({
+          type: "error",
+          text1: "Location Unavailable",
+          text2: "Please enable your device’s location services and try again.",
+        });
       }
-    } catch (error) {
-      setLocationMessage("Location is turned off — please enable location services in Settings.");
-      Alert.alert("Error", "Failed to get your location. Please try again.");
-    }
-  })();
-}, []);
+    })();
+  }, []);
 
   // Fetch nearby pins when location is available
   useEffect(() => {
@@ -260,61 +270,61 @@ useEffect(() => {
     return () => unsub();
   }, [currentLocation]);
 
-// Replace your handleRefresh function with this:
+  // Replace your handleRefresh function with this:
 
-const handleRefresh = async () => {
-  setRefreshing(true);
-  
-  // Try to get location again if we don't have it
-  if (!currentLocation || locationMessage) {
-    try {
-      // Check permission status first
-      let { status } = await Location.getForegroundPermissionsAsync();
-      
-      // If permission not granted, request it again
-      if (status !== "granted") {
-        const permissionResult = await Location.requestForegroundPermissionsAsync();
-        if (permissionResult.status !== "granted") {
-          setLocationMessage("📍 Enable location to see nearby resources");
-          setRefreshing(false);
-          return;
+  const handleRefresh = async () => {
+    setRefreshing(true);
+
+    // Try to get location again if we don't have it
+    if (!currentLocation || locationMessage) {
+      try {
+        // Check permission status first
+        let { status } = await Location.getForegroundPermissionsAsync();
+
+        // If permission not granted, request it again
+        if (status !== "granted") {
+          const permissionResult = await Location.requestForegroundPermissionsAsync();
+          if (permissionResult.status !== "granted") {
+            setLocationMessage("📍 Enable location to see nearby resources");
+            setRefreshing(false);
+            return;
+          }
         }
-      }
 
-      // Get location
-      let loc = await Location.getCurrentPositionAsync({});
-      setCurrentLocation(loc.coords);
-      setLocationMessage(""); // Clear error message
+        // Get location
+        let loc = await Location.getCurrentPositionAsync({});
+        setCurrentLocation(loc.coords);
+        setLocationMessage(""); // Clear error message
 
-      // Reverse geocode to get place name
-      let places = await Location.reverseGeocodeAsync(loc.coords);
-      if (places && places.length > 0) {
-        const place = places[0];
-        setPlaceName(
-          [
-            place.street,
-            place.district,
-            place.city,
-            place.subregion,
-            place.country,
-          ]
-            .filter(Boolean)
-            .join(", ")
-        );
+        // Reverse geocode to get place name
+        let places = await Location.reverseGeocodeAsync(loc.coords);
+        if (places && places.length > 0) {
+          const place = places[0];
+          setPlaceName(
+            [
+              place.street,
+              place.district,
+              place.city,
+              place.subregion,
+              place.country,
+            ]
+              .filter(Boolean)
+              .join(", ")
+          );
+        }
+      } catch (error) {
+        setLocationMessage("Location is turned off — please enable location services in Settings.");
+        console.warn("Location refresh error:", error);
       }
-    } catch (error) {
-      setLocationMessage("Location is turned off — please enable location services in Settings.");
-      console.warn("Location refresh error:", error);
     }
-  }
-  
-  // Fetch nearby pins if we have location
-  if (currentLocation) {
-    await fetchNearbyPinsData();
-  }
-  
-  setRefreshing(false);
-};
+
+    // Fetch nearby pins if we have location
+    if (currentLocation) {
+      await fetchNearbyPinsData();
+    }
+
+    setRefreshing(false);
+  };
 
   const handlePinPress = (pin) => {
     setSelectedPin(pin);
@@ -451,8 +461,8 @@ const handleRefresh = async () => {
                     : userInfo.gender === "Male"
                       ? boyProfile
                       : userInfo.gender === "admin"
-                      ? adminProfile
-                      : userProfile
+                        ? adminProfile
+                        : userProfile
                   : userProfile
               }
               style={styles.profileImage}
