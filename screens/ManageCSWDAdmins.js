@@ -22,12 +22,17 @@ export default function ManageCSWDAdmins() {
         const snap = await getDocs(collection(db, "users"));
         const list = [];
         snap.forEach(doc => {
-          list.push({ id: doc.id, ...doc.data() });
+          const data = doc.data();
+          // skip users with userType "Super Admin"
+          if (data?.userType === "Super Admin") return;
+          list.push({ id: doc.id, ...data });
         });
         setUsers(list);
         setFilteredUsers(list);
       } catch (error) {
         console.log("Failed to fetch users:", error);
+        setUsers([]);
+        setFilteredUsers([]);
       }
       setLoading(false);
     };
@@ -116,9 +121,9 @@ export default function ManageCSWDAdmins() {
                   <Text style={styles.userInfo}>
                     Barangay: {item.barangay || "N/A"}
                   </Text>
-                  <Text style={styles.userInfo}>
+                  {/* <Text style={styles.userInfo}>
                    Division: {item.division || "N/A"}
-                  </Text>
+                  </Text> */}
                   <Text style={styles.userInfo}>
                     User Type: {item.userType || "user"}  
                   </Text>

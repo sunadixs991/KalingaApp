@@ -127,7 +127,7 @@ export default function AdminUtils() {
             color="#FF9800"
             style={styles.icon}
           />
-          <Text style={styles.optionText}>Manage Feedbacks</Text>
+          <Text style={styles.optionText}>Feedbacks</Text>
         </TouchableOpacity>
 
         {/* NEW: Security Logs */}

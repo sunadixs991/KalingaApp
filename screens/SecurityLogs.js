@@ -10,6 +10,7 @@ import {
   Modal,
   ScrollView,
   RefreshControl,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
@@ -206,14 +207,21 @@ export default function SecurityLogs() {
         <View style={styles.searchInputWrapper}>
           <Text style={styles.searchLabel}>Search by username:</Text>
           <View style={styles.inputRow}>
-            <TouchableOpacity
-              onPress={() => setSearchUsername("")}
-              style={searchUsername ? styles.clearButton : null}
-            >
-              {searchUsername ? (
+            <TextInput
+              value={searchUsername}
+              onChangeText={setSearchUsername}
+              placeholder="Type username..."
+              placeholderTextColor="#999"
+              style={styles.searchInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+            {searchUsername ? (
+              <TouchableOpacity onPress={() => setSearchUsername("")} style={styles.clearButton}>
                 <Icon name="close-circle" size={20} color="#999" />
-              ) : null}
-            </TouchableOpacity>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       </View>
@@ -380,13 +388,6 @@ export default function SecurityLogs() {
                 )}
               </ScrollView>
             )}
-
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={() => setDetailsModalVisible(false)}
-            >
-              <Text style={styles.closeBtnText}>Close</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -396,6 +397,16 @@ export default function SecurityLogs() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#fff" },
+  searchInput: {
+    flex: 1,
+    height: 36,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "#eee",
+    color: "#333",
+  },
   topBar: {
     flexDirection: "row",
     alignItems: "center",

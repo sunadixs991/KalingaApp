@@ -37,12 +37,17 @@ export default function ManageUsers() {
         const snap = await getDocs(collection(db, "users"));
         const list = [];
         snap.forEach(doc => {
-          list.push({ id: doc.id, ...doc.data() });
+          const data = doc.data();
+          // skip users with userType "Super Admin"
+          if (data?.userType === "Super Admin") return;
+          list.push({ id: doc.id, ...data });
         });
         setUsers(list);
         setFilteredUsers(list);
       } catch (error) {
         console.log("Failed to fetch users:", error);
+        setUsers([]);
+        setFilteredUsers([]);
       }
       setLoading(false);
     };
@@ -203,7 +208,7 @@ export default function ManageUsers() {
           </View>
         </View>
       </Modal>
-      <View style={styles.manageButtonsRow}>
+      {/* <View style={styles.manageButtonsRow}>
         <TouchableOpacity
           style={styles.manageButton}
           onPress={() => goToRoot("ManageCSWDAdmins")}
@@ -217,7 +222,7 @@ export default function ManageUsers() {
         >
           <Text style={styles.manageButtonText}>Purok Leaders</Text>
         </TouchableOpacity>
-      </View>
+      </View> */}
     </SafeAreaView>
   );
 }

@@ -49,13 +49,13 @@ export default function UserSelector() {
           <Text style={styles.optionText}>DRRM Admin</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={styles.option}
           onPress={() => goToRoot("ManagePurokLeaders")}
         >
           <Icon name="people-circle-outline" size={28} color="#49A5A2" style={styles.icon} />
           <Text style={styles.optionText}>Purok Leaders</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         <TouchableOpacity
           style={styles.option}
