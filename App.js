@@ -50,7 +50,7 @@ import ManagePurokLeaders from "./screens/ManagePurokLeaders";
 import ManageDRRMAdmins from "./screens/ManageDRRMAdmins";
 import AdminUtilsPurok from "./screens/AdminUtilsPurok";
 import AdminUtilsDRRM from "./screens/AdminUtilsDRRM";
-import Toast from "react-native-toast-message";
+import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 
 
 // ✅ Import Feedback Modal
@@ -64,7 +64,80 @@ LogBox.ignoreLogs(["shared value's .value inside reanimated inline style"]);
 export default function App() {
   const [currentUsername, setCurrentUsername] = useState(null);
 
-
+const toastConfig = {
+  success: (props) => (
+    <BaseToast
+      {...props}
+      style={{ borderLeftColor: '#28A745' }} // Green
+      contentContainerStyle={{ 
+        backgroundColor: '#D4EDDA' // Light green background
+      }}
+      text1Style={{
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#155724' // Dark green text
+      }}
+      text2Style={{
+        fontSize: 13,
+        color: '#155724'
+      }}
+    />
+  ),
+  error: (props) => (
+    <ErrorToast
+      {...props}
+      style={{ borderLeftColor: '#DC3545' }} // Red
+      contentContainerStyle={{ 
+        backgroundColor: '#F8D7DA' // Light red background
+      }}
+      text1Style={{
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#721C24' // Dark red text
+      }}
+      text2Style={{
+        fontSize: 13,
+        color: '#721C24'
+      }}
+    />
+  ),
+  warning: (props) => (
+    <ErrorToast
+      {...props}
+      style={{ borderLeftColor: '#FFC107' }} // Yellow/Orange
+      contentContainerStyle={{ 
+        backgroundColor: '#FFF3CD' // Light yellow background
+      }}
+      text1Style={{
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#856404' // Dark yellow text
+      }}
+      text2Style={{
+        fontSize: 13,
+        color: '#856404'
+      }}
+    />
+  ),
+  info: (props) => (
+    <BaseToast
+      {...props}
+      style={{ borderLeftColor: '#17A2B8' }} // Blue
+      contentContainerStyle={{ 
+        backgroundColor: '#D1ECF1' // Light blue background
+      }}
+      text1Style={{
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#0C5460' // Dark blue text
+      }}
+      text2Style={{
+        fontSize: 13,
+        color: '#0C5460'
+      }}
+    />
+  ),
+};
   
   useEffect(() => {
     const loadUsername = async () => {
@@ -154,7 +227,7 @@ export default function App() {
 
           {/* ✅ Pass username to Feedback Modal */}
           <FeedbackModal username={currentUsername} />
-          <Toast />
+          <Toast config={toastConfig} />
         </NavigationContainer>
       </ThemeProvider>
     </GestureHandlerRootView>

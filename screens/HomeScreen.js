@@ -196,7 +196,7 @@ export default function HomeScreen({ route, navigation }) {
         );
 
         Toast.show({
-          type: "error",
+          type: "warning",
           text1: "Location Unavailable",
           text2: "Please enable your device’s location services and try again.",
         });
