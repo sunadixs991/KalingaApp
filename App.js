@@ -81,6 +81,8 @@ const toastConfig = {
         fontSize: 13,
         color: '#155724'
       }}
+      text2NumberOfLines={3}
+
     />
   ),
   error: (props) => (
@@ -99,6 +101,8 @@ const toastConfig = {
         fontSize: 13,
         color: '#721C24'
       }}
+      text2NumberOfLines={3}
+
     />
   ),
   warning: (props) => (
@@ -117,6 +121,7 @@ const toastConfig = {
         fontSize: 13,
         color: '#856404'
       }}
+      text2NumberOfLines={3}
     />
   ),
   info: (props) => (
@@ -135,6 +140,8 @@ const toastConfig = {
         fontSize: 13,
         color: '#0C5460'
       }}
+      text2NumberOfLines={3}
+
     />
   ),
 };
