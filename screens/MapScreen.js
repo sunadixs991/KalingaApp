@@ -427,6 +427,35 @@ export default function MapScreen({ route }) {
         // Continue initialization
         const user = await AsyncStorage.getItem("user");
         setUserInfo(user);
+        if (user) {
+          try {
+            const userInfoData = await getUserInfo(user);
+            if (userInfoData) {
+              // Set first name
+              if (userInfoData.firstName) {
+                setUserFirstName(userInfoData.firstName);
+                console.log("✅ User first name loaded:", userInfoData.firstName);
+              }
+
+              // Set user type if you need it
+              if (userInfoData.userType) {
+                setUserType(userInfoData.userType);
+              }
+
+              // Set contact if you need it for supply requests
+              if (userInfoData.contact || userInfoData.phone || userInfoData.phoneNumber) {
+                setUserContact(userInfoData.contact || userInfoData.phone || userInfoData.phoneNumber);
+              }
+            } else {
+              console.log("⚠️ No user data found in Firestore for:", user);
+            }
+          } catch (error) {
+            console.log("❌ Error fetching user info from Firestore:", error);
+          }
+        }
+
+
+
         await fetchPinsAndRequests();
         setPermissionChecked(true);
       } catch (error) {

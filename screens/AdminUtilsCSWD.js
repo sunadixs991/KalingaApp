@@ -51,13 +51,13 @@ export default function AdminUtilsCSWD() {
         </TouchableOpacity>
 
         {/* Purok Leaders */}
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={styles.option}
           onPress={() => navigation.navigate("ManagePurokLeaders")}
         >
           <Icon name="people-circle-outline" size={28} color="#49A5A2" style={styles.icon} />
           <Text style={styles.optionText}>Purok Leaders</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </ScrollView>
     </SafeAreaView>
   );

@@ -111,7 +111,7 @@ export const notifyAccountLocked = async (
     }
 
     // Carrier-friendly message: no all caps, no trigger words
-    const message = `Hi ${username}, your Kalinga App account access has been paused for ${lockDurationMinutes} minutes due to unusual activity. If you need assistance, please contact our support team.`;
+    const message = `Hi ${username}, your Kalinga account access has been paused for ${lockDurationMinutes} minutes due to unusual activity. If you need assistance, please contact our support team.`;
 
     return await sendSecuritySMS(phoneNumber, message);
   } catch (error) {
@@ -137,7 +137,7 @@ export const notifySuspiciousLogin = async (
     }
 
     // Casual, non-threatening message
-    const message = `Hello ${username}, we noticed a new login to your Kalinga App from ${deviceInfo} on ${new Date(timestamp).toLocaleString()}. Was this you? If not, please contact us right away.`;
+    const message = `Hello ${username}, we noticed a new login to your Kalinga from ${deviceInfo} on ${new Date(timestamp).toLocaleString()}. Was this you? If not, please contact us right away.`;
 
     return await sendSecuritySMS(message, phoneNumber, "suspicious_login", {
       username,
@@ -166,7 +166,7 @@ export const notifyBruteForceAttempt = async (
     }
 
     // Informational, non-alarming message
-    const message = `Hi ${username}, there have been ${attemptCount} unsuccessful login tries on your Kalinga App account. Please verify this was you. If you need help accessing your account, contact support.`;
+    const message = `Hi ${username}, there have been ${attemptCount} unsuccessful login tries on your Kalinga account. Please verify this was you. If you need help accessing your account, contact support.`;
 
     return await sendSecuritySMS(message, phoneNumber, "brute_force_attempt", {
       username,
@@ -190,7 +190,7 @@ export const notifyPasswordChanged = async (phoneNumber, username) => {
     }
 
     // Neutral, informational message
-    const message = `Hello ${username}, your Kalinga App login credentials were recently updated on ${new Date().toLocaleString()}. If this wasn't you, please reach out to our support team.`;
+    const message = `Hello ${username}, your Kalinga login credentials were recently updated on ${new Date().toLocaleString()}. If this wasn't you, please reach out to our support team.`;
 
     return await sendSecuritySMS(message, phoneNumber, "password_changed", {
       username,
@@ -214,7 +214,7 @@ export const notifyAccountUnlocked = async (phoneNumber, username) => {
     }
 
     // Positive, simple message
-    const message = `Good news ${username}! Your Kalinga App account is now accessible again. You can log in at any time. Need help? Contact support.`;
+    const message = `Good news ${username}! Your Kalinga account is now accessible again. You can log in at any time. Need help? Contact support.`;
 
     return await sendSecuritySMS(message, phoneNumber, "account_unlocked", {
       username,

@@ -365,7 +365,7 @@ export default function AddScheduleScreen({ navigation, route }) {
       // Send notification to users (best-effort)
       try {
         const notificationMessage =
-          `[Kalinga App]\nNew Food Distribution Schedule\n` +
+          `[Kalinga]\nNew Food Distribution Schedule\n` +
           `Barangay: ${newItem.title}\n` +
           `Date: ${newItem.date}\n` +
           `Time: ${newItem.time}\n` +

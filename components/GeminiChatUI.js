@@ -15,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
 import { getGeminiResponse } from "../services/geminiChatService";
 import { getUserInfo } from "../services/getinfo";
-import { getChatbotContext, formatContextForPrompt } from "../services/chatbotDataService";
+import { getChatbotContext, formatContextForPrompt, cleanModelOutput } from "../services/chatbotDataService";
 import * as Location from "expo-location";
 import {
   widthPercentageToDP as wp,
@@ -23,13 +23,11 @@ import {
 } from "react-native-responsive-screen";
 
 const FAQS = [
-  "Where are evacuation centers in my barangay?",
+  "Show me nearby evacuation facilities ?",
   "Show me nearby medical facilities",
   "What are the food distribution schedules?",
   "Give me emergency contact numbers",
   "What community services are available?",
-  "How do I report an emergency?",
-  "Show me all available services",
 ];
 
 export default function GeminiChatUI({ route }) {
@@ -136,9 +134,10 @@ My location is ${locationText}
 
       const prompt = USER_INFO + databaseContext + "\nUser: " + text;
       
-      // Get response from Gemini with database context
-      const botText = await getGeminiResponse(prompt);
-
+      // Get response from Gemini with database context and clean formatting
+      const rawBotText = await getGeminiResponse(prompt);
+      const botText = cleanModelOutput(rawBotText);
+      
       setMessages((prev) => [
         ...prev,
         { id: Date.now().toString() + "_bot", sender: "bot", text: botText },

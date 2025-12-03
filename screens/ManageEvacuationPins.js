@@ -205,23 +205,23 @@ export default function ManageEvacuationPins() {
             <Text style={styles.pinDetail}>
               Category: {item.category || "Unknown"}
             </Text>
-            <Text style={styles.pinDetail}>
+            {/* <Text style={styles.pinDetail}>
               Upvotes: {item.upvotes || 0}
             </Text>
             <Text style={styles.pinDetail}>
               Downvotes: {item.downvotes || 0}
-            </Text>
+            </Text> */}
             <Text style={styles.pinDetail}>
               Barangay: {item.barangay || "N/A"}
             </Text>
             {item.type === "medical" && (
               <>
-                <Text style={styles.pinDetail}>
+                {/* <Text style={styles.pinDetail}>
                   Specialty: {item.specialty || "N/A"}
                 </Text>
                 <Text style={styles.pinDetail}>
                   Availability: {item.availability || "N/A"}
-                </Text>
+                </Text> */}
               </>
             )}
           </View>
