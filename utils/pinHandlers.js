@@ -240,7 +240,7 @@ export async function handleSaveEvacPin({
   manualBarangay, // optional override (manual selection in UI)
 }) {
   if (!evacFacilityName || !evacFacilityName.trim()) {
-    Alert.alert("Facility Name required", "Please enter the name of the facility.");
+    Alert.alert("Facility Name requiredsss", "Please enter the name of the facility.");
     return;
   }
   if (!evacDescription.trim()) {

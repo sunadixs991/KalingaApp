@@ -1825,34 +1825,32 @@ export default function MapScreen({ route }) {
           }
         }}
         onSave={async () => {
-          await handleSaveEvacPin({
-            evacDescription,
-            evacCapacity,
-            evacMedia,
-            evacFacilityName,
-            evacPurok,
-            pendingEvacPin,
+          // Use local MapPinModal state (description, selectedCategory, media)
+          await handleSavePin({
+            selectedCategory: selectedCategory?.trim() ? selectedCategory : "Supplies",
+            description: description || "",
+            media: media || [],
+            pendingPin,
             userInfo,
             userFirstName,
             db,
             supabase,
-            setEvacModalVisible,
-            setEvacDescription,
-            setEvacMedia,
-            setEvacCapacity,
-            setEvacFacilityName,
-            setEvacPurok,
+            setDescModalVisible,
+            setDescription,
+            setSelectedCategory,
+            setMedia,
             setPinMode,
-            setPendingEvacPin,
-            setEvacPins,
+            setPendingPin,
             setAllPins,
             Alert,
             getDocs,
             collection,
             addDoc,
             serverTimestamp,
-            // getBarangayFromCoords,
+            getBarangayFromCoords, // include if available in this file scope
           });
+
+          // Reset pin UI state
           setPinMode(false);
           if (webviewRef.current) {
             webviewRef.current.postMessage(
@@ -2111,7 +2109,7 @@ export default function MapScreen({ route }) {
 
             <TouchableOpacity
               style={{
-                backgroundColor: "#43a047",
+                backgroundColor: "#FF9800",
                 borderRadius: 8,
                 paddingVertical: 12,
                 paddingHorizontal: 24,

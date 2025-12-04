@@ -9,42 +9,68 @@ import {
   StyleSheet,
   Alert,
   Image,
+  Dimensions,
+  TouchableWithoutFeedback,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { db } from "../firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from "react-native-responsive-screen";
-import { Picker } from "@react-native-picker/picker";
 
+const { width: SCREEN_W } = Dimensions.get("window");
 const MAX_MEDIA_COUNT = 3;
 const DEFAULT_CATEGORY = "Evacuation Center";
 
+// Mock Icon components for demo
+const Icon = ({ name, size, color, style }) => (
+  <Text style={[{ fontSize: size, color }, style]}>
+    {name === "close" ? "✕" : name === "checkmark-circle" ? "✓" : name === "chevron-down" ? "▼" : name === "chevron-up" ? "▲" : "○"}
+  </Text>
+);
+
+const MaterialCommunityIcons = ({ name, size, color }) => (
+  <Text style={{ fontSize: size, color }}>
+    {name === "map-marker-plus" ? "📍" :
+      name === "shape" ? "◆" :
+        name === "text" ? "📝" :
+          name === "image-multiple" ? "🖼️" :
+            name === "camera-plus" ? "📷" :
+              name === "check-circle" ? "✓" :
+                name === "image" ? "🖼️" :
+                  name === "office-building" ? "🏢" :
+                    name === "map-marker" ? "📍" :
+                      name === "account-group" ? "👥" : "○"}
+  </Text>
+);
+
 const EvacuationPinModal = ({
-  visible,
-  description,
-  onChangeDescription,
-  onCancel,
-  onSave,
-  media,
-  setMedia,
-  capacity,
-  onChangeCapacity,
-  facilityName,
-  onChangeFacilityName,
-  purok,
-  onChangePurok,
-  barangay,
-  onChangeBarangay,
-  sitio,
-  onChangeSitio,
-  purokListOverride,
+  visible = true,
+  description = "",
+  onChangeDescription = () => { },
+  onCancel = () => { },
+  onSave = () => { },
+  media = null,
+  setMedia = () => { },
+  capacity = "",
+  onChangeCapacity = () => { },
+  facilityName = "",
+  onChangeFacilityName = () => { },
+  purok = "",
+  onChangePurok = () => { },
+  barangay = "",
+  onChangeBarangay = () => { },
+  sitio = "",
+  onChangeSitio = () => { },
+  purokListOverride = null,
 }) => {
   const [barangayList, setBarangayList] = useState([]);
   const [purokList, setPurokList] = useState([]);
   const [barangayMap, setBarangayMap] = useState({});
+  const [showBarangayDropdown, setShowBarangayDropdown] = useState(false);
+  const [showPurokDropdown, setShowPurokDropdown] = useState(false);
 
   const resolvedBarangay = barangay ?? sitio;
 
+  // Fetch barangays once (same normalization as MedicalPinModal)
   useEffect(() => {
     const fetchBarangays = async () => {
       try {
@@ -81,6 +107,7 @@ const EvacuationPinModal = ({
     fetchBarangays();
   }, []);
 
+  // Populate purokList when resolvedBarangay or barangayMap or override changes
   useEffect(() => {
     if (Array.isArray(purokListOverride) && purokListOverride.length > 0) {
       const list = purokListOverride
@@ -130,15 +157,15 @@ const EvacuationPinModal = ({
               return;
             }
           } catch (subErr) {
-            // ignore and try doc array fields
+            // ignore and try doc fields
           }
 
           const docData = barangayDoc.data() || {};
           let puroks =
             Array.isArray(docData.puroks) ? docData.puroks :
-            Array.isArray(docData.purok) ? docData.purok :
-            Array.isArray(docData.purokList) ? docData.purokList :
-            Array.isArray(docData.purok_names) ? docData.purok_names : [];
+              Array.isArray(docData.purok) ? docData.purok :
+                Array.isArray(docData.purokList) ? docData.purokList :
+                  Array.isArray(docData.purok_names) ? docData.purok_names : [];
 
           puroks = puroks
             .filter((p) => typeof p === "string")
@@ -149,7 +176,6 @@ const EvacuationPinModal = ({
           const list = Array.from(new Set(puroks));
           if (purok && !list.includes(purok)) list.unshift(purok);
           setPurokList(list);
-
           setBarangayMap((m) => ({ ...m, [resolvedBarangay]: list }));
         } else {
           setPurokList(purok ? [purok] : []);
@@ -163,9 +189,13 @@ const EvacuationPinModal = ({
     loadPuroksForBarangay();
   }, [resolvedBarangay, barangayMap, purokListOverride]);
 
-  const handleSave = () => {
-    const selectedCategory = DEFAULT_CATEGORY;
+  const callChangeBarangay = (val) => {
+    if (typeof onChangeBarangay === "function") onChangeBarangay(val);
+    if (typeof onChangeSitio === "function") onChangeSitio(val);
+    if (typeof onChangePurok === "function") onChangePurok("");
+  };
 
+  const handleSave = () => {
     if (!facilityName || !facilityName.trim()) {
       Alert.alert("Facility Name Required", "Please enter the name of the facility.");
       return;
@@ -179,12 +209,10 @@ const EvacuationPinModal = ({
       return;
     }
 
-    const finalBarangay = resolvedBarangay || "";
-
-    onSave(selectedCategory, {
+    onSave(DEFAULT_CATEGORY, {
       facilityName,
       purok,
-      barangay: finalBarangay,
+      barangay: resolvedBarangay || "",
       description,
       capacity,
       media,
@@ -192,11 +220,89 @@ const EvacuationPinModal = ({
   };
 
   const handleCancel = () => {
+    setShowBarangayDropdown(false);
+    setShowPurokDropdown(false);
     onCancel();
   };
 
+  // Media picker helpers (robust result handling + functional setMedia)
+  const pickFromCamera = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Required", "Please allow camera access.");
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      const asset = result?.assets?.[0] ?? (result?.uri ? result : null);
+      if (!asset) return;
+
+      const newMedia = {
+        uri: asset.uri,
+        type: asset.type === "video" ? "video/mp4" : "image/jpeg",
+        fileName: asset.fileName || `camera-${Date.now()}.${asset.type === "video" ? "mp4" : "jpg"}`,
+      };
+
+      setMedia((prev) => {
+        const curr = Array.isArray(prev) ? prev : [];
+        if (curr.length >= MAX_MEDIA_COUNT) {
+          Alert.alert("Limit Reached", `You can only add up to ${MAX_MEDIA_COUNT} media files.`);
+          return curr;
+        }
+        return [...curr, newMedia];
+      });
+    } catch (error) {
+      console.log("Error taking photo:", error);
+      Alert.alert("Error", "Failed to take photo. Please try again.");
+    }
+  };
+
+  const pickFromGallery = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Required", "Please allow access to your photo library.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        allowsEditing: false,
+        quality: 0.8,
+        allowsMultipleSelection: false,
+      });
+
+      const asset = result?.assets?.[0] ?? (result?.uri ? result : null);
+      if (!asset) return;
+
+      const newMedia = {
+        uri: asset.uri,
+        type: asset.type === "video" ? "video/mp4" : "image/jpeg",
+        fileName: asset.fileName || `gallery-${Date.now()}.${asset.type === "video" ? "mp4" : "jpg"}`,
+      };
+
+      setMedia((prev) => {
+        const curr = Array.isArray(prev) ? prev : [];
+        if (curr.length >= MAX_MEDIA_COUNT) {
+          Alert.alert("Limit Reached", `You can only add up to ${MAX_MEDIA_COUNT} media files.`);
+          return curr;
+        }
+        return [...curr, newMedia];
+      });
+    } catch (error) {
+      console.log("Error picking from gallery:", error);
+      Alert.alert("Error", "Failed to open gallery. Please try again.");
+    }
+  };
+
   const pickMedia = async () => {
-    if (media && media.length >= MAX_MEDIA_COUNT) {
+    const currentCount = Array.isArray(media) ? media.length : 0;
+    if (currentCount >= MAX_MEDIA_COUNT) {
       Alert.alert("Limit Reached", "You can only add up to 3 media files.");
       return;
     }
@@ -217,509 +323,718 @@ const EvacuationPinModal = ({
     ]);
   };
 
-  const pickFromCamera = async () => {
-    try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission Required", "Please allow camera access.");
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        const newMedia = {
-          uri: asset.uri,
-          type: asset.type === "video" ? "video/mp4" : "image/jpeg",
-          fileName: `camera-${Date.now()}.${asset.type === "video" ? "mp4" : "jpg"}`,
-        };
-        setMedia(media ? [...media, newMedia] : [newMedia]);
-      }
-    } catch (error) {
-      Alert.alert("Error", "Failed to take photo. Please try again.");
-    }
-  };
-
-  const pickFromGallery = async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission Required", "Please allow access to your photo library.");
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        allowsEditing: false,
-        quality: 0.8,
-        allowsMultipleSelection: false,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        const newMedia = {
-          uri: asset.uri,
-          type: asset.type === "video" ? "video/mp4" : "image/jpeg",
-          fileName:
-            asset.fileName || `gallery-${Date.now()}.${asset.type === "video" ? "mp4" : "jpg"}`,
-        };
-        setMedia(media ? [...media, newMedia] : [newMedia]);
-      }
-    } catch (error) {
-      Alert.alert("Error", "Failed to open gallery. Please try again.");
-    }
-  };
-
   const removeMedia = (index) => {
-    const newMedia = media.filter((_, i) => i !== index);
-    setMedia(newMedia.length > 0 ? newMedia : null);
-  };
-
-  const callChangeBarangay = (val) => {
-    if (typeof onChangeBarangay === "function") {
-      onChangeBarangay(val);
-    }
-    if (typeof onChangeSitio === "function") {
-      onChangeSitio(val);
-    }
+    setMedia((prev) => {
+      const curr = Array.isArray(prev) ? prev : [];
+      const newMedia = curr.filter((_, i) => i !== index);
+      return newMedia;
+    });
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.overlay}>
-        <View style={styles.modal}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerIconContainer}>
-              <Text style={styles.headerIcon}>📍</Text>
-            </View>
-            <Text style={styles.title}>Add Evacuation Center</Text>
-            <Text style={styles.subtitle}>Fill in the details below</Text>
-          </View>
-
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* Facility Name Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                Facility Name <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputIcon}>🏢</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., City Gymnasium"
-                  value={facilityName}
-                  onChangeText={onChangeFacilityName}
-                  placeholderTextColor="#999"
-                />
-              </View>
-            </View>
-
-            {/* Location Section */}
-            <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>📍 Location Details</Text>
-              
-              {/* Barangay Picker */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  Barangay <Text style={styles.required}>*</Text>
-                </Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={resolvedBarangay || ""}
-                    onValueChange={(val) => callChangeBarangay(val)}
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="Select Barangay" value="" color="#999" />
-                    {barangayList.map((b, idx) => (
-                      <Picker.Item key={idx} label={b} value={b} />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
-
-              {/* Purok Picker */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Purok</Text>
-                <View style={[styles.pickerContainer, !resolvedBarangay && styles.pickerDisabled]}>
-                  <Picker
-                    selectedValue={purok || ""}
-                    onValueChange={(val) => {
-                      if (typeof onChangePurok === "function") onChangePurok(val);
-                    }}
-                    enabled={!!resolvedBarangay}
-                    style={styles.picker}
-                  >
-                    <Picker.Item
-                      label={resolvedBarangay ? "Select Purok" : "Select Barangay first"}
-                      value=""
-                      color="#999"
-                    />
-                    {purokList.map((p, idx) => (
-                      <Picker.Item key={idx} label={p} value={p} />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
-            </View>
-
-            {/* Capacity Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                Capacity <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputIcon}>👥</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Number of people"
-                  value={capacity}
-                  onChangeText={onChangeCapacity}
-                  keyboardType="numeric"
-                  placeholderTextColor="#999"
-                />
-              </View>
-            </View>
-
-            {/* Description Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                Description <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={[styles.inputContainer, styles.textAreaContainer]}>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="Describe the evacuation center (facilities, amenities, etc.)"
-                  value={description}
-                  onChangeText={onChangeDescription}
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                  placeholderTextColor="#999"
-                />
-              </View>
-            </View>
-
-            {/* Media Section */}
-            <View style={styles.mediaSection}>
-              <View style={styles.mediaSectionHeader}>
-                <Text style={styles.label}>Photos/Videos</Text>
-                <Text style={styles.mediaCount}>
-                  {media ? media.length : 0}/{MAX_MEDIA_COUNT}
-                </Text>
-              </View>
-              
-              {(!media || media.length < MAX_MEDIA_COUNT) && (
-                <TouchableOpacity
-                  onPress={pickMedia}
-                  style={styles.uploadButton}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.uploadIcon}>📷</Text>
-                  <Text style={styles.uploadText}>
-                    {media && media.length > 0 ? "Add More" : "Upload Media"}
-                  </Text>
-                  <Text style={styles.uploadHint}>Camera or Gallery</Text>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleCancel}>
+      <TouchableWithoutFeedback onPress={handleCancel}>
+        <View style={styles.backdrop}>
+          <TouchableWithoutFeedback onPress={() => { }}>
+            <View style={styles.card}>
+              {/* Header */}
+              <View style={styles.headerSection}>
+                <TouchableOpacity onPress={handleCancel} style={styles.closeBtn}>
+                  <Icon name="close" size={20} color="#fff" />
                 </TouchableOpacity>
-              )}
-              
-              {media && media.length > 0 && (
-                <View style={styles.mediaGrid}>
-                  {media.map((item, index) => (
-                    <View key={index} style={styles.mediaItem}>
-                      <Image
-                        source={{ uri: item.uri }}
-                        style={styles.mediaImage}
-                        resizeMode="cover"
+
+                <View style={styles.headerContent}>
+                  <View style={styles.iconBadge}>
+                    <MaterialCommunityIcons name="map-marker-plus" size={28} color="#fff" />
+                  </View>
+                  <Text style={styles.headerTitle}>Add Evacuation Center</Text>
+                  <Text style={styles.headerSubtitle}>Fill in the details to mark this location</Text>
+                </View>
+              </View>
+
+              {/* Content */}
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View style={styles.content}>
+                  {/* Facility Name Input */}
+                  <View style={styles.section}>
+                    <View style={styles.labelRow}>
+                      <MaterialCommunityIcons name="office-building" size={16} color="#1976D2" />
+                      <Text style={styles.sectionLabel}>Facility Name</Text>
+                      <View style={styles.requiredBadge}>
+                        <Text style={styles.requiredText}>Required</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.inputContainer}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="e.g., City Gymnasium"
+                        placeholderTextColor="#94a3b8"
+                        value={facilityName}
+                        onChangeText={onChangeFacilityName}
                       />
+                      <View style={styles.inputAccent} />
+                    </View>
+                  </View>
+
+                  {/* Location Section */}
+                  <View style={styles.locationCard}>
+                    <View style={styles.locationHeader}>
+                      <MaterialCommunityIcons name="map-marker" size={20} color="#1976D2" />
+                      <Text style={styles.locationTitle}>Location Details</Text>
+                    </View>
+
+                    {/* Barangay Selection */}
+                    <View style={styles.section}>
+                      <View style={styles.labelRow}>
+                        <MaterialCommunityIcons name="shape" size={16} color="#1976D2" />
+                        <Text style={styles.sectionLabel}>Barangay</Text>
+                        <View style={styles.requiredBadge}>
+                          <Text style={styles.requiredText}>Required</Text>
+                        </View>
+                      </View>
+
                       <TouchableOpacity
-                        style={styles.removeButton}
-                        onPress={() => removeMedia(index)}
+                        style={[
+                          styles.categorySelector,
+                          showBarangayDropdown && styles.categorySelectorActive
+                        ]}
+                        onPress={() => {
+                          setShowBarangayDropdown(!showBarangayDropdown);
+                          setShowPurokDropdown(false);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.categorySelectorContent}>
+                          {resolvedBarangay ? (
+                            <>
+                              <View style={styles.categoryDot} />
+                              <Text style={styles.categorySelectorText}>{resolvedBarangay}</Text>
+                            </>
+                          ) : (
+                            <Text style={styles.placeholderText}>Select a barangay...</Text>
+                          )}
+                        </View>
+                        <Icon
+                          name={showBarangayDropdown ? "chevron-up" : "chevron-down"}
+                          size={20}
+                          color="#1976D2"
+                        />
+                      </TouchableOpacity>
+
+                      {showBarangayDropdown && (
+                        <View style={styles.categoryDropdown}>
+                          <ScrollView
+                            style={styles.categoryScrollView}
+                            nestedScrollEnabled
+                            showsVerticalScrollIndicator={false}
+                          >
+                            {barangayList.map((brgy, index) => (
+                              <TouchableOpacity
+                                key={index}
+                                style={[
+                                  styles.categoryOption,
+                                  resolvedBarangay === brgy && styles.selectedCategoryOption
+                                ]}
+                                onPress={() => { callChangeBarangay(brgy); setShowBarangayDropdown(false); }}
+                                activeOpacity={0.7}
+                              >
+                                <View style={styles.categoryOptionContent}>
+                                  {resolvedBarangay === brgy && (
+                                    <Icon name="checkmark-circle" size={20} color="#fff" />
+                                  )}
+                                  <Text style={[
+                                    styles.categoryOptionText,
+                                    resolvedBarangay === brgy && styles.selectedCategoryOptionText
+                                  ]}>
+                                    {brgy}
+                                  </Text>
+                                </View>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Purok Selection */}
+                    <View style={styles.section}>
+                      <View style={styles.labelRow}>
+                        <MaterialCommunityIcons name="shape" size={16} color="#1976D2" />
+                        <Text style={styles.sectionLabel}>Purok</Text>
+                      </View>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.categorySelector,
+                          showPurokDropdown && styles.categorySelectorActive,
+                          !resolvedBarangay && styles.categorySelectorDisabled
+                        ]}
+                        onPress={() => {
+                          if (resolvedBarangay) {
+                            setShowPurokDropdown(!showPurokDropdown);
+                            setShowBarangayDropdown(false);
+                          }
+                        }}
+                        activeOpacity={0.7}
+                        disabled={!resolvedBarangay}
+                      >
+                        <View style={styles.categorySelectorContent}>
+                          {purok ? (
+                            <>
+                              <View style={styles.categoryDot} />
+                              <Text style={styles.categorySelectorText}>{purok}</Text>
+                            </>
+                          ) : (
+                            <Text style={styles.placeholderText}>
+                              {resolvedBarangay ? "Select a purok..." : "Select barangay first"}
+                            </Text>
+                          )}
+                        </View>
+                        <Icon
+                          name={showPurokDropdown ? "chevron-up" : "chevron-down"}
+                          size={20}
+                          color={resolvedBarangay ? "#1976D2" : "#94a3b8"}
+                        />
+                      </TouchableOpacity>
+
+                      {showPurokDropdown && resolvedBarangay && (
+                        <View style={styles.categoryDropdown}>
+                          <ScrollView
+                            style={styles.categoryScrollView}
+                            nestedScrollEnabled
+                            showsVerticalScrollIndicator={false}
+                          >
+                            {purokList.map((prk, index) => (
+                              <TouchableOpacity
+                                key={index}
+                                style={[
+                                  styles.categoryOption,
+                                  purok === prk && styles.selectedCategoryOption
+                                ]}
+                                onPress={() => {
+                                  onChangePurok(prk);
+                                  setShowPurokDropdown(false);
+                                }}
+                                activeOpacity={0.7}
+                              >
+                                <View style={styles.categoryOptionContent}>
+                                  {purok === prk && (
+                                    <Icon name="checkmark-circle" size={20} color="#fff" />
+                                  )}
+                                  <Text style={[
+                                    styles.categoryOptionText,
+                                    purok === prk && styles.selectedCategoryOptionText
+                                  ]}>
+                                    {prk}
+                                  </Text>
+                                </View>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Capacity Input */}
+                  <View style={styles.section}>
+                    <View style={styles.labelRow}>
+                      <MaterialCommunityIcons name="account-group" size={16} color="#1976D2" />
+                      <Text style={styles.sectionLabel}>Capacity</Text>
+                      <View style={styles.requiredBadge}>
+                        <Text style={styles.requiredText}>Required</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.inputContainer}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Number of people"
+                        placeholderTextColor="#94a3b8"
+                        value={capacity}
+                        onChangeText={onChangeCapacity}
+                        keyboardType="numeric"
+                      />
+                      <View style={styles.inputAccent} />
+                    </View>
+                  </View>
+
+                  {/* Description Input */}
+                  <View style={styles.section}>
+                    <View style={styles.labelRow}>
+                      <MaterialCommunityIcons name="text" size={16} color="#1976D2" />
+                      <Text style={styles.sectionLabel}>Description</Text>
+                      <View style={styles.requiredBadge}>
+                        <Text style={styles.requiredText}>Required</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.inputContainer}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Describe the evacuation center (facilities, amenities, etc.)"
+                        placeholderTextColor="#94a3b8"
+                        value={description}
+                        onChangeText={onChangeDescription}
+                        multiline
+                        numberOfLines={4}
+                        textAlignVertical="top"
+                      />
+                      <View style={styles.inputAccent} />
+                    </View>
+                  </View>
+
+                  {/* Media Section */}
+                  <View style={styles.section}>
+                    <View style={styles.labelRow}>
+                      <MaterialCommunityIcons name="image-multiple" size={16} color="#1976D2" />
+                      <Text style={styles.sectionLabel}>Media</Text>
+                      <View style={styles.mediaCount}>
+                        <Text style={styles.mediaCountText}>
+                          {media ? media.length : 0}/{MAX_MEDIA_COUNT}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Media Grid */}
+                    {media && media.length > 0 && (
+                      <View style={styles.mediaGrid}>
+                        {media.map((item, index) => (
+                          <View key={index} style={styles.mediaItem}>
+
+                            <Image
+                              source={{ uri: item.uri }}
+                              style={styles.mediaImage}
+                              resizeMode="cover"
+                            />
+
+                            {/* CLOSE BUTTON */}
+                            <TouchableOpacity
+                              onPress={() => removeMedia(index)}
+                              activeOpacity={0.8}
+                              style={styles.removeMediaButton}
+                            >
+                              <Icon name="close" size={14} color="#fff" />
+                            </TouchableOpacity>
+
+                            {/* <View style={styles.mediaOverlay}>
+                              <MaterialCommunityIcons
+                                name="image"
+                                size={24}
+                                color="rgba(255,255,255,0.6)"
+                              />
+                            </View> */}
+                          </View>
+                        ))}
+                      </View>
+
+                    )}
+
+                    {/* Add Media Button */}
+                    {(!media || media.length < MAX_MEDIA_COUNT) && (
+                      <TouchableOpacity
+                        onPress={pickMedia}
+                        style={styles.addMediaButton}
                         activeOpacity={0.8}
                       >
-                        <Text style={styles.removeIcon}>×</Text>
+                        <View style={styles.addMediaIcon}>
+                          <MaterialCommunityIcons name="camera-plus" size={24} color="#1976D2" />
+                        </View>
+                        <Text style={styles.addMediaText}>
+                          {media && media.length > 0 ? "Add More Photos" : "Add Photos or Videos"}
+                        </Text>
+                        <Text style={styles.addMediaHint}>
+                          Tap to choose from camera or gallery
+                        </Text>
                       </TouchableOpacity>
-                    </View>
-                  ))}
+                    )}
+                  </View>
                 </View>
-              )}
-            </View>
-          </ScrollView>
+              </ScrollView>
 
-          {/* Footer Actions */}
-          <View style={styles.footer}>
-            <TouchableOpacity 
-              style={styles.cancelButton} 
-              onPress={handleCancel}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.saveButton} 
-              onPress={handleSave}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.saveButtonText}>Save Pin</Text>
-            </TouchableOpacity>
-          </View>
+              {/* Action Buttons */}
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                  style={[styles.button, styles.cancelButton]}
+                  onPress={handleCancel}
+                  activeOpacity={0.8}
+                >
+                  <Icon name="close" size={20} color="#64748b" />
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.button, styles.saveButton]}
+                  onPress={handleSave}
+                  activeOpacity={0.8}
+                >
+                  <MaterialCommunityIcons name="check-circle" size={20} color="#fff" />
+                  <Text style={styles.saveButtonText}>Save Pin</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
         </View>
-      </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 };
 
-export default EvacuationPinModal;
-
 const styles = StyleSheet.create({
-  overlay: {
+  backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0,0,0,0.65)",
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 16,
   },
-  modal: {
+  card: {
+    width: Math.min(680, SCREEN_W - 32),
     backgroundColor: "#fff",
     borderRadius: 20,
-    width: "92%",
-    maxWidth: 440,
-    maxHeight: "88%",
-    overflow: "hidden",
-    elevation: 10,
+    maxHeight: "92%",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.25,
+    shadowRadius: 30,
+    elevation: 15,
+    overflow: "visible",
   },
-  header: {
+  headerSection: {
     backgroundColor: "#1976D2",
-    paddingTop: 24,
-    paddingBottom: 20,
+    paddingTop: 20,
     paddingHorizontal: 20,
-    alignItems: "center",
+    paddingBottom: 24,
   },
-  headerIconContainer: {
-    width: 56,
-    height: 56,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 28,
+  closeBtn: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.2)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    zIndex: 10,
   },
-  headerIcon: {
-    fontSize: 28,
+  headerContent: {
+    marginTop: 8,
+    alignItems: 'center',
   },
-  title: {
+  iconBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  headerTitle: {
     fontSize: 22,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#fff",
+    letterSpacing: 0.3,
     marginBottom: 4,
   },
-  subtitle: {
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.85)",
+  headerSubtitle: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.85)",
+    fontWeight: "500",
   },
   scrollContent: {
-    padding: 20,
-    paddingBottom: 10,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 8,
-  },
-  required: {
-    color: "#E53935",
-    fontSize: 14,
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F5F7FA",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    borderWidth: 1.5,
-    borderColor: "#E1E8ED",
-  },
-  inputIcon: {
-    fontSize: 18,
-    marginRight: 10,
-  },
-  input: {
-    flex: 1,
-    fontSize: 15,
-    color: "#333",
-    paddingVertical: 14,
-  },
-  textAreaContainer: {
-    alignItems: "flex-start",
-    paddingTop: 12,
     paddingBottom: 12,
   },
-  textArea: {
-    minHeight: 90,
-    textAlignVertical: "top",
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
   },
-  sectionCard: {
+  section: {
+    marginBottom: 20,
+    position: 'relative',
+  },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    color: "#64748b",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    fontWeight: "700",
+    marginLeft: 6,
+    flex: 1,
+  },
+  requiredBadge: {
+    backgroundColor: "#fee2e2",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  requiredText: {
+    fontSize: 9,
+    color: "#dc2626",
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  inputContainer: {
+    position: "relative",
+  },
+  input: {
+    backgroundColor: "#E3F2FD",
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    color: "#0f172a",
+    minHeight: 50,
+    borderWidth: 2,
+    borderColor: "#BBDEFB",
+    fontWeight: "500",
+  },
+  inputAccent: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+    backgroundColor: "#1976D2",
+    borderTopLeftRadius: 14,
+    borderBottomLeftRadius: 14,
+  },
+  locationCard: {
     backgroundColor: "#F8FAFB",
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
     borderColor: "#E8EEF2",
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1976D2",
-    marginBottom: 16,
-  },
-  pickerContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: "#E1E8ED",
-    overflow: "hidden",
-  },
-  pickerDisabled: {
-    backgroundColor: "#F5F5F5",
-    opacity: 0.6,
-  },
-  picker: {
-    height: 50,
-  },
-  mediaSection: {
-    marginBottom: 10,
-  },
-  mediaSectionHeader: {
+  locationHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  locationTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1976D2",
+    letterSpacing: 0.3,
+  },
+  categorySelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#E3F2FD",
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 2,
+    borderColor: "#BBDEFB",
+    zIndex: 2,
+  },
+  categorySelectorActive: {
+    borderColor: "#1976D2",
+    backgroundColor: "#fff",
+  },
+  categorySelectorDisabled: {
+    opacity: 0.5,
+    backgroundColor: "#f5f5f5",
+  },
+  categorySelectorContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  categoryDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#1976D2",
+    marginRight: 10,
+  },
+  categorySelectorText: {
+    fontSize: 15,
+    color: "#0f172a",
+    fontWeight: "600",
+  },
+  placeholderText: {
+    fontSize: 15,
+    color: "#94a3b8",
+  },
+  categoryDropdown: {
+    position: 'absolute',
+    top: 80,
+    left: 0,
+    right: 0,
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#e8ecef",
+    maxHeight: 240,
+    zIndex: 99999,
+    elevation: 50,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    overflow: "visible",
+  },
+  categoryScrollView: {
+    flex: 1,
+  },
+  categoryOption: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  selectedCategoryOption: {
+    backgroundColor: "#1976D2",
+  },
+  categoryOptionContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  categoryOptionText: {
+    fontSize: 15,
+    color: "#334155",
+    fontWeight: "500",
+  },
+  selectedCategoryOptionText: {
+    color: "#fff",
+    fontWeight: "700",
   },
   mediaCount: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#1976D2",
     backgroundColor: "#E3F2FD",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
-  uploadButton: {
-    backgroundColor: "#F5F7FA",
-    borderWidth: 2,
-    borderColor: "#1976D2",
-    borderStyle: "dashed",
-    borderRadius: 12,
-    padding: 24,
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  uploadIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  uploadText: {
-    fontSize: 16,
-    fontWeight: "600",
+  mediaCountText: {
+    fontSize: 10,
     color: "#1976D2",
-    marginBottom: 4,
-  },
-  uploadHint: {
-    fontSize: 13,
-    color: "#666",
+    fontWeight: "700",
   },
   mediaGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 12,
+    marginBottom: 12,
   },
   mediaItem: {
-    width: "31%",
-    aspectRatio: 1,
     position: "relative",
-    borderRadius: 12,
-    overflow: "hidden",
+    width: 100,
+    height: 100,
+    margin: 5,
+    borderRadius: 8,
+    overflow: "hidden"
   },
   mediaImage: {
     width: "100%",
     height: "100%",
-    backgroundColor: "#E8EEF2",
   },
-  removeButton: {
+  mediaOverlay: {
+    position: "absolute",
+    bottom: 4,
+    left: 4,
+    zIndex: 1,
+  },
+  removeMediaButton: {
     position: "absolute",
     top: 4,
     right: 4,
-    backgroundColor: "#E53935",
+    backgroundColor: "#ef4444",
     width: 24,
     height: 24,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3,
-    elevation: 3,
+    zIndex: 999,
+    elevation: 5,
   },
-  removeIcon: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
-    lineHeight: 20,
+  addMediaButton: {
+    backgroundColor: "#E3F2FD",
+    borderRadius: 14,
+    padding: 20,
+    alignItems: "center",
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: "#1976D2",
   },
-  footer: {
+  addMediaIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#BBDEFB",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  addMediaText: {
+    fontSize: 15,
+    color: "#1976D2",
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  addMediaHint: {
+    fontSize: 12,
+    color: "#64748b",
+    fontWeight: "500",
+  },
+  buttonContainer: {
     flexDirection: "row",
+    gap: 12,
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: "#E8EEF2",
-    backgroundColor: "#FAFBFC",
-    gap: 12,
+    borderTopColor: "#f1f5f9",
+    backgroundColor: "#fafbfc",
+  },
+  button: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 14,
+    gap: 8,
   },
   cancelButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: "#fff",
-    borderWidth: 1.5,
-    borderColor: "#D1D5DB",
-    alignItems: "center",
+    backgroundColor: "#f1f5f9",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   cancelButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#666",
+    color: "#64748b",
+    fontSize: 15,
+    fontWeight: "700",
   },
   saveButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
     backgroundColor: "#1976D2",
-    alignItems: "center",
     shadowColor: "#1976D2",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   saveButtonText: {
-    fontSize: 16,
-    fontWeight: "700",
     color: "#fff",
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: 0.3,
   },
 });
+
+export default EvacuationPinModal;
