@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getGeminiResponse } from "../services/geminiChatService";
 import { getUserInfo } from "../services/getinfo";
 import { getChatbotContext, formatContextForPrompt, cleanModelOutput } from "../services/chatbotDataService";
@@ -23,15 +24,17 @@ import {
 } from "react-native-responsive-screen";
 
 const FAQS = [
-  "Show me nearby evacuation facilities ?",
+  "Show me nearby evacuation facilities",
   "Show me nearby medical facilities",
   "What are the food distribution schedules?",
   "Give me emergency contact numbers",
   "What community services are available?",
 ];
 
-export default function GeminiChatUI({ route }) {
-  const username = route?.params?.username;
+export default function GeminiChatUI({ route, onClose }) {
+  // try route param first; we will populate usernameState from AsyncStorage if missing
+  const initialRouteUsername = route?.params?.username || null;
+  const [usernameState, setUsernameState] = useState(initialRouteUsername);
 
   const [messages, setMessages] = useState([
     {
@@ -55,10 +58,38 @@ export default function GeminiChatUI({ route }) {
     }, 5000);
 
     async function fetchUserInfo() {
-      const data = await getUserInfo(username);
-      if (data) {
-        setUserInfo(data);
-        clearTimeout(timeoutId);
+      try {
+        let identifier = initialRouteUsername;
+
+        if (!identifier) {
+          // Try AsyncStorage fallback (ChatScreen stores the signed-in user under "user")
+          const stored = await AsyncStorage.getItem("user");
+          if (stored) {
+            identifier = stored;
+          }
+        }
+
+        // keep the resolved identifier in state for later context queries
+        if (identifier) setUsernameState(identifier);
+
+        console.debug("[chat] GeminiChatUI resolved identifier:", { initialRouteUsername, identifier });
+
+        // If we have an identifier, try to load profile
+        if (identifier) {
+          const data = await getUserInfo(identifier);
+          console.debug("[chat] getUserInfo result for", identifier, !!data);
+          if (data) {
+            setUserInfo(data);
+            clearTimeout(timeoutId);
+            setInfoLoading(false);
+            return;
+          }
+        }
+
+        // if no identifier or getUserInfo returned null, still clear loading so chat can proceed
+        setInfoLoading(false);
+      } catch (err) {
+        console.error("[chat] fetchUserInfo error", err);
         setInfoLoading(false);
       }
     }
@@ -66,29 +97,33 @@ export default function GeminiChatUI({ route }) {
     fetchUserInfo();
 
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") return;
-      let loc = await Location.getCurrentPositionAsync({});
-      let places = await Location.reverseGeocodeAsync(loc.coords);
-      if (places && places.length > 0) {
-        const place = places[0];
-        setPlaceName(
-          [
-            place.name,
-            place.street,
-            place.subregion,
-            place.city,
-            place.region,
-            place.country,
-          ]
-            .filter(Boolean)
-            .join(", ")
-        );
+      try {
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") return;
+        let loc = await Location.getCurrentPositionAsync({});
+        let places = await Location.reverseGeocodeAsync(loc.coords);
+        if (places && places.length > 0) {
+          const place = places[0];
+          setPlaceName(
+            [
+              place.name,
+              place.street,
+              place.subregion,
+              place.city,
+              place.region,
+              place.country,
+            ]
+              .filter(Boolean)
+              .join(", ")
+          );
+        }
+      } catch (e) {
+        console.debug("[chat] location lookup failed", e);
       }
     })();
 
     return () => clearTimeout(timeoutId);
-  }, [username]);
+  }, [initialRouteUsername]);
 
   function handleFAQPress(faq) {
     setInput(faq);
@@ -103,10 +138,8 @@ export default function GeminiChatUI({ route }) {
 
     if (userInfo) {
       USER_INFO = `
-My name is ${userInfo.firstName.trim()} ${userInfo.lastName.trim()}.
-I am from ${userInfo.barangay}, ${userInfo.city}, ${userInfo.province}.
-I was born on ${userInfo.dob} and I identify as ${userInfo.gender}.
-My civil status is ${userInfo.status}.
+My name is ${userInfo.firstName?.trim() || ""} ${userInfo.lastName?.trim() || ""}.
+I am from ${userInfo.barangay || ""}, ${userInfo.city || ""}, ${userInfo.province || ""}.
 My location is ${locationText}.
 You should remember this information and use it to personalize your responses.
 `;
@@ -116,6 +149,7 @@ This is not a signed-in account. If the user asks for personal information, poli
 My location is ${locationText}
 `;
     } else {
+      // still loading user info; avoid sending until we either have userInfo or timeout
       return;
     }
 
@@ -128,28 +162,32 @@ My location is ${locationText}
     setLoading(true);
 
     try {
+      // Use the resolved identifier (AsyncStorage or route) when fetching DB context
+      const identifierToUse = usernameState || null;
+      console.debug("[chat] sending message, identifier used for context:", identifierToUse);
+
       // Fetch database context based on the user's question
-      const context = await getChatbotContext(username, text);
+      const context = await getChatbotContext(identifierToUse, text);
       const databaseContext = formatContextForPrompt(context);
 
       const prompt = USER_INFO + databaseContext + "\nUser: " + text;
-      
+
       // Get response from Gemini with database context and clean formatting
       const rawBotText = await getGeminiResponse(prompt);
       const botText = cleanModelOutput(rawBotText);
-      
+
       setMessages((prev) => [
         ...prev,
         { id: Date.now().toString() + "_bot", sender: "bot", text: botText },
       ]);
     } catch (error) {
-      console.error('Error getting response:', error);
+      console.error("Error getting response:", error);
       setMessages((prev) => [
         ...prev,
-        { 
-          id: Date.now().toString() + "_bot", 
-          sender: "bot", 
-          text: "Sorry, I encountered an error. Please try again." 
+        {
+          id: Date.now().toString() + "_bot",
+          sender: "bot",
+          text: "Sorry, I encountered an error. Please try again.",
         },
       ]);
     } finally {
@@ -200,6 +238,11 @@ My location is ${locationText}
               <Icon name="chatbubble-ellipses-outline" size={20} color="#fff" />
               <Text style={styles.headerTitle}>Chat with Gemini</Text>
             </View>
+            {typeof onClose === "function" && (
+              <TouchableOpacity onPress={onClose} style={{ padding: 8 }}>
+                <Icon name="close" size={20} color="#fff" />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Chat Area */}

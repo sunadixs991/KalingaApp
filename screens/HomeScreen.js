@@ -27,21 +27,28 @@ import {
   widthPercentageToDP as wp,
   heightPercentageToDP as hp,
 } from "react-native-responsive-screen";
-
+import {
+  fetchNearbyEarthquakes,
+  getMagnitudeColor,
+  getMagnitudeLabel
+} from "../services/EarthquakeService";
 // Import functions individually to test
 import { fetchNearbyPins } from "../services/PinService";
+import { fetchWeatherData, getWeatherIcon } from "../services/WeatherService";
 import boyProfile from "../assets/boy.png";
 import womanProfile from "../assets/woman.png";
 import userProfile from "../assets/user.png";
 import adminProfile from "../assets/admin.png";
 import Toast from 'react-native-toast-message';
 
-
-
 const { width } = Dimensions.get("window");
 
 // Cache key prefix (bump version if cache format changes)
 const NEARBY_CACHE_PREFIX = "nearby_pins_cache_v1";
+const WEATHER_CACHE_KEY = "weather_cache_v1";
+
+
+
 const makeNearbyCacheKey = (coords, radiusKm = 50, max = 10) =>
   coords
     ? `${NEARBY_CACHE_PREFIX}_${coords.latitude.toFixed(4)}_${coords.longitude
@@ -65,6 +72,29 @@ const loadNearbyPinsFromCache = async (key) => {
     return parsed?.data || null;
   } catch (e) {
     console.warn("loadNearbyPinsFromCache failed:", e);
+    return null;
+  }
+};
+
+// Weather cache functions
+const saveWeatherToCache = async (data) => {
+  try {
+    await AsyncStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+  } catch (e) {
+    console.warn("saveWeatherToCache failed:", e);
+  }
+};
+
+const loadWeatherFromCache = async () => {
+  try {
+    const raw = await AsyncStorage.getItem(WEATHER_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Cache weather for 30 minutes
+    if (Date.now() - parsed.ts > 30 * 60 * 1000) return null;
+    return parsed.data;
+  } catch (e) {
+    console.warn("loadWeatherFromCache failed:", e);
     return null;
   }
 };
@@ -114,25 +144,16 @@ export default function HomeScreen({ route, navigation }) {
   const [selectedPin, setSelectedPin] = useState(null);
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const { isDarkMode } = useTheme();
-  const [notificationModalVisible, setNotificationModalVisible] =
-    useState(false);
+  const [notificationModalVisible, setNotificationModalVisible] = useState(false);
   const [locationMessage, setLocationMessage] = useState("");
 
-  // const colors = {
-  //   background: isDarkMode ? "#121212" : "#fff",
-  //   cardBg: isDarkMode ? "#1e1e1e" : "#fff",
-  //   textPrimary: isDarkMode ? "#fff" : "#000",
-  //   textSecondary: isDarkMode ? "#ccc" : "#666",
-  //   placeholder: isDarkMode ? "#888" : "#999",
-  //   accent: "#e75e33",
-  //   highlight: "#49A5A2",
-  // };
+  // Weather state
+  const [weatherData, setWeatherData] = useState(null);
+  const [loadingWeather, setLoadingWeather] = useState(false);
 
-  // Test the import
-  // useEffect(() => {
-  //   console.log("fetchNearbyPins function:", fetchNearbyPins);
-  //   console.log("typeof fetchNearbyPins:", typeof fetchNearbyPins);
-  // }, []);
+  // Earthquake state  ← ADD THESE TWO LINES
+  const [earthquakes, setEarthquakes] = useState([]);
+  const [loadingEarthquakes, setLoadingEarthquakes] = useState(false);
 
   useEffect(() => {
     const fetchUserInfo = async () => {
@@ -156,8 +177,6 @@ export default function HomeScreen({ route, navigation }) {
   }, [username]);
 
   // Fetch device location and place name
-  // Replace your existing location useEffect (lines 155-180) with this:
-
   useEffect(() => {
     (async () => {
       try {
@@ -198,12 +217,102 @@ export default function HomeScreen({ route, navigation }) {
         Toast.show({
           type: "warning",
           text1: "Location Unavailable",
-          text2: "Please enable your device’s location services and try again.",
+          text2: "Please enable your device's location services and try again.",
         });
       }
     })();
   }, []);
 
+  useEffect(() => {
+    if (currentLocation) {
+      fetchEarthquakes();
+    }
+  }, [currentLocation]);
+  // Fetch weather when location is available
+  useEffect(() => {
+    if (currentLocation) {
+      fetchWeather();
+    }
+  }, [currentLocation]);
+
+  const fetchWeather = async () => {
+    if (!currentLocation) return;
+
+    setLoadingWeather(true);
+    try {
+      // Try to load from cache first
+      const cached = await loadWeatherFromCache();
+      if (cached) {
+        setWeatherData(cached);
+      }
+
+      // Check network
+      const netState = await NetInfo.fetch();
+      if (!netState.isConnected) {
+        if (!cached) {
+          Toast.show({
+            type: "info",
+            text1: "Offline",
+            text2: "Weather data unavailable offline",
+          });
+        }
+        return;
+      }
+
+      // Fetch fresh weather data
+      const weather = await fetchWeatherData(
+        currentLocation.latitude,
+        currentLocation.longitude
+      );
+      setWeatherData(weather);
+      await saveWeatherToCache(weather);
+    } catch (error) {
+      console.error("Error fetching weather:", error);
+      Toast.show({
+        type: "error",
+        text1: "Weather Error",
+        text2: "Could not load weather data",
+      });
+    } finally {
+      setLoadingWeather(false);
+    }
+  };
+  const fetchEarthquakes = async () => {
+    if (!currentLocation) return;
+
+    setLoadingEarthquakes(true);
+    try {
+      const netState = await NetInfo.fetch();
+      if (!netState.isConnected) {
+        Toast.show({
+          type: "info",
+          text1: "Offline",
+          text2: "Earthquake data unavailable offline",
+        });
+        return;
+      }
+
+      // Fetch earthquakes within 500km radius, magnitude 2.5+, last 10 events
+      const quakes = await fetchNearbyEarthquakes(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        500, // radius in km
+        2.5, // minimum magnitude
+        10   // max results
+      );
+
+      setEarthquakes(quakes);
+    } catch (error) {
+      console.error("Error fetching earthquakes:", error);
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: "Could not load earthquake data",
+      });
+    } finally {
+      setLoadingEarthquakes(false);
+    }
+  };
   // Fetch nearby pins when location is available
   useEffect(() => {
     if (currentLocation) {
@@ -243,7 +352,7 @@ export default function HomeScreen({ route, navigation }) {
       }
 
       // online -> fetch live and update cache
-      const pins = await fetchNearbyPins(currentLocation, 50, 10); // 50km radius, max 10 pins
+      const pins = await fetchNearbyPins(currentLocation, 50, 10);
       setNearbyPins(pins);
       await saveNearbyPinsToCache(cacheKey, pins);
     } catch (error) {
@@ -265,12 +374,11 @@ export default function HomeScreen({ route, navigation }) {
     const unsub = NetInfo.addEventListener((state) => {
       if (state.isConnected && currentLocation) {
         fetchNearbyPinsData();
+        fetchWeather();
       }
     });
     return () => unsub();
   }, [currentLocation]);
-
-  // Replace your handleRefresh function with this:
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -278,10 +386,8 @@ export default function HomeScreen({ route, navigation }) {
     // Try to get location again if we don't have it
     if (!currentLocation || locationMessage) {
       try {
-        // Check permission status first
         let { status } = await Location.getForegroundPermissionsAsync();
 
-        // If permission not granted, request it again
         if (status !== "granted") {
           const permissionResult = await Location.requestForegroundPermissionsAsync();
           if (permissionResult.status !== "granted") {
@@ -291,12 +397,10 @@ export default function HomeScreen({ route, navigation }) {
           }
         }
 
-        // Get location
         let loc = await Location.getCurrentPositionAsync({});
         setCurrentLocation(loc.coords);
-        setLocationMessage(""); // Clear error message
+        setLocationMessage("");
 
-        // Reverse geocode to get place name
         let places = await Location.reverseGeocodeAsync(loc.coords);
         if (places && places.length > 0) {
           const place = places[0];
@@ -318,11 +422,10 @@ export default function HomeScreen({ route, navigation }) {
       }
     }
 
-    // Fetch nearby pins if we have location
+    // Fetch nearby pins and weather if we have location
     if (currentLocation) {
-      await fetchNearbyPinsData();
+      await Promise.all([fetchNearbyPinsData(), fetchWeather(), fetchEarthquakes()]);
     }
-
     setRefreshing(false);
   };
 
@@ -331,6 +434,139 @@ export default function HomeScreen({ route, navigation }) {
     setPinModalVisible(true);
   };
 
+  const renderWeatherCard = () => {
+    if (loadingWeather && !weatherData) {
+      return (
+        <View style={styles.weatherCard}>
+          <ActivityIndicator size="small" color="#e75e33" />
+        </View>
+      );
+    }
+
+    if (!weatherData) return null;
+
+    const iconName = getWeatherIcon(weatherData.main, weatherData.icon);
+
+    return (
+      <View style={styles.weatherCard}>
+        <View style={styles.weatherHeader}>
+          <Icon name={iconName} size={48} color="#e75e33" />
+          <View style={styles.weatherInfo}>
+            <Text style={styles.weatherTemp}>{weatherData.temperature}°C</Text>
+            <Text style={styles.weatherDescription}>
+              {weatherData.description.charAt(0).toUpperCase() +
+                weatherData.description.slice(1)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.weatherDetails}>
+          <View style={styles.weatherDetailItem}>
+            <Icon name="water-outline" size={20} color="#49A5A2" />
+            <Text style={styles.weatherDetailText}>{weatherData.humidity}%</Text>
+          </View>
+          <View style={styles.weatherDetailItem}>
+            <Icon name="speedometer-outline" size={20} color="#49A5A2" />
+            <Text style={styles.weatherDetailText}>{weatherData.windSpeed} m/s</Text>
+          </View>
+          <View style={styles.weatherDetailItem}>
+            <Icon name="thermometer-outline" size={20} color="#49A5A2" />
+            <Text style={styles.weatherDetailText}>
+              Feels like {weatherData.feelsLike}°C
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+  const renderEarthquakeCard = () => {
+    if (loadingEarthquakes && earthquakes.length === 0) {
+      return (
+        <View style={styles.earthquakeCard}>
+          <View style={styles.earthquakeHeader}>
+            <Icon name="pulse" size={24} color="#e75e33" />
+            <Text style={styles.earthquakeTitle}>Recent Earthquakes</Text>
+          </View>
+          <ActivityIndicator size="small" color="#e75e33" style={{ marginTop: 12 }} />
+        </View>
+      );
+    }
+
+    if (earthquakes.length === 0) {
+      return (
+        <View style={styles.earthquakeCard}>
+          <View style={styles.earthquakeHeader}>
+            <Icon name="pulse" size={24} color="#e75e33" />
+            <Text style={styles.earthquakeTitle}>Recent Earthquakes</Text>
+          </View>
+          <View style={styles.noEarthquakeContainer}>
+            <Icon name="checkmark-circle-outline" size={40} color="#66bb6a" />
+            <Text style={styles.noEarthquakeText}>No recent earthquakes in your area</Text>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.earthquakeCard}>
+        <View style={styles.earthquakeHeader}>
+          <Icon name="pulse" size={24} color="#e75e33" />
+          <Text style={styles.earthquakeTitle}>Recent Earthquakes</Text>
+          <Text style={styles.earthquakeCount}>{earthquakes.length}</Text>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.earthquakeScroll}
+        >
+          {earthquakes.map((quake) => (
+            <View key={quake.id} style={styles.earthquakeItem}>
+              <View
+                style={[
+                  styles.magnitudeBadge,
+                  { backgroundColor: getMagnitudeColor(quake.magnitude) }
+                ]}
+              >
+                <Text style={styles.magnitudeText}>{quake.magnitude.toFixed(1)}</Text>
+                <Text style={styles.magnitudeLabel}>{getMagnitudeLabel(quake.magnitude)}</Text>
+              </View>
+
+              <Text style={styles.earthquakePlace} numberOfLines={2}>
+                {quake.place}
+              </Text>
+
+              <View style={styles.earthquakeDetails}>
+                <View style={styles.earthquakeDetailRow}>
+                  <Icon name="time-outline" size={14} color="#666" />
+                  <Text style={styles.earthquakeDetailText}>{quake.timeAgo}</Text>
+                </View>
+                <View style={styles.earthquakeDetailRow}>
+                  <Icon name="arrow-down-outline" size={14} color="#666" />
+                  <Text style={styles.earthquakeDetailText}>{quake.depth.toFixed(1)} km</Text>
+                </View>
+              </View>
+
+              {quake.tsunami && (
+                <View style={styles.tsunamiWarning}>
+                  <Icon name="warning" size={14} color="#fff" />
+                  <Text style={styles.tsunamiText}>Tsunami Warning</Text>
+                </View>
+              )}
+            </View>
+          ))}
+        </ScrollView>
+
+        <TouchableOpacity
+          style={styles.viewAllEarthquakesButton}
+          onPress={() => navigation.navigate("Earthquake")}
+        >
+          <Text style={styles.viewAllEarthquakesText}>View All Earthquakes</Text>
+          <Icon name="chevron-forward" size={16} color="#e75e33" />
+        </TouchableOpacity>
+      </View>
+    );
+  };
   const renderNearbyResources = () => {
     if (loadingPins) {
       return (
@@ -488,7 +724,7 @@ export default function HomeScreen({ route, navigation }) {
                 width: 5,
                 height: 5,
                 borderRadius: 5,
-                marginHorizontal: 5, // more spacing between dots
+                marginHorizontal: 5,
                 shadowColor: "#000",
                 shadowOffset: { width: 0, height: 1 },
                 shadowOpacity: 0.3,
@@ -497,7 +733,7 @@ export default function HomeScreen({ route, navigation }) {
               }}
               activeDotStyle={{
                 backgroundColor: "#e75e33",
-                width: 8, // slightly bigger
+                width: 8,
                 height: 8,
                 borderRadius: 7,
                 marginHorizontal: 5,
@@ -508,7 +744,7 @@ export default function HomeScreen({ route, navigation }) {
                 elevation: 3,
               }}
               paginationStyle={{
-                bottom: 5, // moves dots a bit above the bottom edge
+                bottom: 5,
               }}
             >
               <Image
@@ -526,6 +762,10 @@ export default function HomeScreen({ route, navigation }) {
             </Swiper>
           </View>
 
+          {/* Weather Card */}
+          {renderWeatherCard()}
+          {/* Earthquake Card */}
+          {renderEarthquakeCard()}
           {/* Services */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Services</Text>
@@ -668,7 +908,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#e75e33",
-    // paddingTop: hp("2%"),
   },
   header: {
     backgroundColor: "#e75e33",
@@ -681,7 +920,7 @@ const styles = StyleSheet.create({
   },
   notificationButton: {
     marginRight: 9,
-    backgroundColor: "#fff", // matches bubble
+    backgroundColor: "#fff",
     padding: 4,
     borderRadius: 20,
     shadowColor: "#000",
@@ -690,20 +929,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
-  // notificationBadge: {
-  //   position: "absolute",
-  //   top: 8,
-  //   right: 7,
-  //   width: 7,
-  //   height: 7,
-  //   borderRadius: 5,
-  //   backgroundColor: "red",
-  // },
   bubbleOverlay: {
     flex: 1,
     justifyContent: "flex-start",
     alignItems: "flex-end",
-    paddingTop: 48, // push down under top bar
+    paddingTop: 48,
     paddingRight: 10,
     backgroundColor: "rgba(0,0,0,0.2)",
   },
@@ -738,7 +968,6 @@ const styles = StyleSheet.create({
   bubbleWrapper: {
     alignItems: "flex-end",
   },
-
   bubblePointer: {
     width: 0,
     height: 0,
@@ -747,12 +976,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 14,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderBottomColor: "#fff", // same as bubble background
-    marginRight: 20, // adjust so it lines up under bell icon
-    marginBottom: -2, // overlap slightly with bubbleContainer
+    borderBottomColor: "#fff",
+    marginRight: 20,
+    marginBottom: -2,
     zIndex: 2,
   },
-
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -769,7 +997,7 @@ const styles = StyleSheet.create({
   },
   carouselContainer: {
     width: "100%",
-    height: hp("20%"), // adjust height as needed
+    height: hp("20%"),
     borderRadius: 12,
     overflow: "hidden",
     marginBottom: 20,
@@ -777,9 +1005,56 @@ const styles = StyleSheet.create({
   carouselImage: {
     width: "100%",
     height: "100%",
-    resizeMode: "cover", // ✅ ensures the whole image is visible
+    resizeMode: "cover",
   },
-
+  // Weather Card Styles
+  weatherCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  weatherHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  weatherInfo: {
+    marginLeft: 16,
+    flex: 1,
+  },
+  weatherTemp: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  weatherDescription: {
+    fontSize: 16,
+    color: "#666",
+    textTransform: "capitalize",
+  },
+  weatherDetails: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+  },
+  weatherDetailItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  weatherDetailText: {
+    fontSize: 13,
+    color: "#666",
+    marginLeft: 4,
+  },
   scrollContainer: {
     flexGrow: 1,
     padding: wp("4%"),
@@ -805,25 +1080,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: "#000",
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f1f1f1",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    marginBottom: hp("2%"),
-  },
-  searchInput: {
-    flex: 1,
-    height: 40,
-    paddingHorizontal: 8,
-  },
-  searchIcon: {
-    padding: 6,
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    marginLeft: 4,
   },
   section: {
     marginBottom: hp("3%"),
@@ -922,11 +1178,6 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     color: "#333",
   },
-
-  placeholder: {
-    backgroundColor: "#e1e1e1",
-  },
-  // Nearby Resources Styles
   pinsContainer: {
     flex: 1,
   },
@@ -1072,5 +1323,129 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 14,
+  },
+  earthquakeCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  earthquakeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  earthquakeTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    marginLeft: 8,
+    flex: 1,
+  },
+  earthquakeCount: {
+    backgroundColor: "#e75e33",
+    color: "#fff",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  earthquakeScroll: {
+    marginHorizontal: -16,
+    paddingHorizontal: 16,
+  },
+  earthquakeItem: {
+    backgroundColor: "#f8f8f8",
+    borderRadius: 12,
+    padding: 12,
+    marginRight: 12,
+    width: wp("65%"),
+    borderLeftWidth: 4,
+    borderLeftColor: "#e75e33",
+  },
+  magnitudeBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  magnitudeText: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#fff",
+    textAlign: "center",
+  },
+  magnitudeLabel: {
+    fontSize: 10,
+    color: "#fff",
+    textAlign: "center",
+    marginTop: 2,
+  },
+  earthquakePlace: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+  earthquakeDetails: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  earthquakeDetailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  earthquakeDetailText: {
+    fontSize: 12,
+    color: "#666",
+  },
+  tsunamiWarning: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#d32f2f",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginTop: 8,
+    gap: 4,
+  },
+  tsunamiText: {
+    fontSize: 11,
+    color: "#fff",
+    fontWeight: "600",
+  },
+  viewAllEarthquakesButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+  },
+  viewAllEarthquakesText: {
+    fontSize: 14,
+    color: "#e75e33",
+    fontWeight: "600",
+    marginRight: 4,
+  },
+  noEarthquakeContainer: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  noEarthquakeText: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 8,
   },
 });
