@@ -1,8 +1,21 @@
 import React, { useState } from "react";
-import { Modal, View, Text, TouchableOpacity, ScrollView, Image, StyleSheet, FlatList } from "react-native";
+import {
+  Modal,
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  StyleSheet,
+  FlatList,
+  Dimensions,
+  Pressable,
+  TouchableWithoutFeedback,
+} from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { FontAwesome5 } from "@expo/vector-icons";
+
+const { width: SCREEN_W } = Dimensions.get("window");
 
 function EvacuationInfoModal({
   visible,
@@ -20,66 +33,446 @@ function EvacuationInfoModal({
     setCurrentImageIndex(index);
     setImageViewerVisible(true);
   };
+
   const closeImageViewer = () => {
     setImageViewerVisible(false);
     setCurrentImageIndex(0);
   };
 
+  const styles = StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.65)",
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 16,
+    },
+    card: {
+      width: Math.min(720, SCREEN_W - 32),
+      backgroundColor: "#fff",
+      borderRadius: 20,
+      maxHeight: "90%",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 20 },
+      shadowOpacity: 0.25,
+      shadowRadius: 30,
+      elevation: 15,
+      overflow: "hidden",
+    },
+    headerSection: {
+      backgroundColor: "#1976D2",
+      paddingTop: 20,
+      paddingHorizontal: 20,
+      paddingBottom: 24,
+    },
+    closeBtn: {
+      position: "absolute",
+      top: 16,
+      right: 16,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: "rgba(255,255,255,0.2)",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 10,
+    },
+    headerContent: {
+      marginTop: 8,
+    },
+    iconBadge: {
+      width: 56,
+      height: 56,
+      borderRadius: 16,
+      backgroundColor: "rgba(255,255,255,0.2)",
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 14,
+    },
+    categoryBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      alignSelf: "flex-start",
+      backgroundColor: "rgba(255,255,255,0.25)",
+      borderRadius: 12,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      marginBottom: 12,
+    },
+    categoryDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: "#fff",
+      marginRight: 8,
+    },
+    categoryText: {
+      color: "#fff",
+      fontSize: 12,
+      fontWeight: "700",
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    facilityName: {
+      fontSize: 22,
+      fontWeight: "800",
+      color: "#fff",
+      letterSpacing: 0.3,
+    },
+
+    content: {
+      paddingHorizontal: 20,
+      paddingTop: 24,
+      paddingBottom: 20,
+    },
+
+    infoGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      marginBottom: 6,
+      gap: 12,
+    },
+    infoCard: {
+      flex: 1,
+      minWidth: "47%",
+      backgroundColor: "#f8fafb",
+      borderRadius: 14,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: "#e8ecef",
+      position: "relative",
+      overflow: "hidden",
+    },
+    infoCardAccent: {
+      position: "absolute",
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 4,
+      backgroundColor: "#1976D2",
+    },
+    infoIconContainer: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 10,
+    },
+    infoLabel: {
+      fontSize: 11,
+      color: "#64748b",
+      marginBottom: 6,
+      textTransform: "uppercase",
+      letterSpacing: 0.8,
+      fontWeight: "600",
+    },
+    infoValue: {
+      fontSize: 16,
+      color: "#0f172a",
+      fontWeight: "800",
+    },
+
+    descriptionCard: {
+      backgroundColor: "#f0f7ff",
+      borderRadius: 14,
+      padding: 16,
+      marginBottom: 16,
+      marginTop: 12,
+      borderWidth: 1,
+      borderColor: "#d1e4f7",
+    },
+    descriptionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 10,
+    },
+    descriptionIconCircle: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: "#1976D2",
+      justifyContent: "center",
+      alignItems: "center",
+      marginRight: 8,
+    },
+    descriptionTitle: {
+      fontSize: 11,
+      color: "#64748b",
+      textTransform: "uppercase",
+      letterSpacing: 0.8,
+      fontWeight: "700",
+    },
+    descriptionText: {
+      fontSize: 14,
+      color: "#475569",
+      lineHeight: 21,
+    },
+
+    navButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#1976D2",
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+      borderRadius: 14,
+      marginBottom: 16,
+      shadowColor: "#1976D2",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 6,
+    },
+    navButtonText: {
+      color: "#fff",
+      fontWeight: "800",
+      fontSize: 15,
+      marginLeft: 8,
+      letterSpacing: 0.3,
+    },
+
+    sectionTitle: {
+      fontSize: 11,
+      color: "#64748b",
+      marginBottom: 12,
+      marginTop: 8,
+      textTransform: "uppercase",
+      letterSpacing: 0.8,
+      fontWeight: "700",
+    },
+
+    mediaHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    mediaTitleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    mediaTitleIcon: {
+      marginRight: 8,
+    },
+    mediaCount: {
+      backgroundColor: "#e3f2fd",
+      borderRadius: 12,
+      paddingVertical: 4,
+      paddingHorizontal: 10,
+    },
+    mediaCountText: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: "#1976D2",
+    },
+
+    mediaToggle: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: "#f0f7ff",
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: "#d1e4f7",
+    },
+    mediaToggleDisabled: {
+      backgroundColor: "#f8fafb",
+      borderColor: "#e8ecef",
+    },
+    mediaToggleText: {
+      color: "#1976D2",
+      fontSize: 14,
+      fontWeight: "700",
+      flex: 1,
+    },
+    mediaToggleTextDisabled: {
+      color: "#94a3b8",
+    },
+
+    mediaScroll: {
+      marginBottom: 16,
+    },
+    mediaItem: {
+      width: 160,
+      height: 160,
+      borderRadius: 16,
+      overflow: "hidden",
+      marginRight: 12,
+      backgroundColor: "#f1f5f9",
+      borderWidth: 1,
+      borderColor: "#e2e8f0",
+    },
+    mediaImage: {
+      width: "100%",
+      height: "100%",
+    },
+    mediaOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0,0,0,0.3)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    expandIcon: {
+      backgroundColor: "rgba(255,255,255,0.25)",
+      borderRadius: 8,
+      padding: 8,
+    },
+
+    // Image viewer
+    viewerOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.96)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    viewerImage: {
+      width: "92%",
+      height: "75%",
+      borderRadius: 12,
+    },
+    viewerClose: {
+      position: "absolute",
+      top: 50,
+      right: 24,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "rgba(255,255,255,0.15)",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 10,
+    },
+    viewerNav: {
+      position: "absolute",
+      bottom: 50,
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "rgba(255,255,255,0.1)",
+      borderRadius: 30,
+      paddingHorizontal: 8,
+      paddingVertical: 8,
+    },
+    viewerNavBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: "rgba(255,255,255,0.1)",
+    },
+    viewerCounter: {
+      color: "#fff",
+      fontWeight: "700",
+      fontSize: 15,
+      marginHorizontal: 20,
+    },
+  });
+
+  if (!selectedPin) return null;
+
   return (
     <>
-      <Modal visible={visible} transparent={true} animationType="slide" onRequestClose={onClose}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Icon name="close" size={24} color="#666" />
-            </TouchableOpacity>
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+        <TouchableWithoutFeedback onPress={onClose}>
+          <View style={styles.backdrop}>
+            <Pressable style={styles.card} onPress={() => {}}>
+              {/* Header */}
+              <View style={styles.headerSection}>
+                <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                  <Icon name="close" size={20} color="#fff" />
+                </TouchableOpacity>
 
-            {selectedPin && (
-              <ScrollView contentContainerStyle={styles.scrollContent}>
-                {/* Category */}
-                <Text style={styles.category}>
-                  {selectedPin.category || "Evacuation Center"}
-                </Text>
-                {/* Facility Name */}
-                {selectedPin.facilityName ? (
-                  <Text style={styles.facilityName}>{selectedPin.facilityName}</Text>
-                ) : null}
-                {/* Capacity */}
-                {selectedPin.capacity ? (
-                  <View style={styles.infoRow}>
-                    <MaterialCommunityIcons name="account-group" size={18} color="#1976D2" />
-                    <Text style={styles.infoText}>
-                      Capacity: <Text style={styles.infoHighlight}>{selectedPin.capacity}</Text>
+                <View style={styles.headerContent}>
+                  <View style={styles.iconBadge}>
+                    <MaterialCommunityIcons name="shield-home" size={28} color="#fff" />
+                  </View>
+
+                  <View style={styles.categoryBadge}>
+                    <View style={styles.categoryDot} />
+                    <Text style={styles.categoryText}>
+                      {selectedPin.category || "Evacuation Center"}
                     </Text>
                   </View>
-                ) : null}
-                {/* Sitio & Purok */}
-                {(selectedPin.sitio || selectedPin.purok) && (
-                  <View style={styles.infoRow}>
-                    {selectedPin.sitio ? (
-                      <View style={styles.infoBadge}>
-                        <MaterialCommunityIcons name="home-group" size={16} color="#1976D2" />
-                        <Text style={styles.badgeText}>Sitio: {selectedPin.sitio}</Text>
-                      </View>
-                    ) : null}
-                    {selectedPin.purok ? (
-                      <View style={styles.infoBadge}>
-                        <MaterialCommunityIcons name="map-marker-radius" size={16} color="#1976D2" />
-                        <Text style={styles.badgeText}>Purok: {selectedPin.purok}</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                )}
-                {/* Description */}
-                <View style={styles.section}>
-                  <Text style={styles.description}>
-                    {selectedPin.description || "No description provided."}
-                  </Text>
+
+                  {selectedPin.facilityName && (
+                    <Text style={styles.facilityName} numberOfLines={2}>
+                      {selectedPin.facilityName}
+                    </Text>
+                  )}
                 </View>
-                {/* Go To Button */}
-                <View style={styles.section}>
+              </View>
+
+              {/* Content */}
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={styles.content}>
+                  {/* Info Grid */}
+                  <View style={styles.infoGrid}>
+                    {selectedPin.capacity && (
+                      <View style={styles.infoCard}>
+                        <View style={[styles.infoCardAccent, { backgroundColor: "#1976D2" }]} />
+                        <View style={[styles.infoIconContainer, { backgroundColor: "#e3f2fd" }]}>
+                          <MaterialCommunityIcons
+                            name="account-group"
+                            size={20}
+                            color="#1976D2"
+                          />
+                        </View>
+                        <Text style={styles.infoLabel}>Capacity</Text>
+                        <Text style={styles.infoValue}>{selectedPin.capacity}</Text>
+                      </View>
+                    )}
+
+                    {selectedPin.barangay && (
+                      <View style={styles.infoCard}>
+                        <View style={[styles.infoCardAccent, { backgroundColor: "#0d47a1" }]} />
+                        <View style={[styles.infoIconContainer, { backgroundColor: "#e8eaf6" }]}>
+                          <MaterialCommunityIcons name="map" size={20} color="#0d47a1" />
+                        </View>
+                        <Text style={styles.infoLabel}>Barangay</Text>
+                        <Text style={styles.infoValue}>{selectedPin.barangay}</Text>
+                      </View>
+                    )}
+
+                    {selectedPin.purok && (
+                      <View style={styles.infoCard}>
+                        <View style={[styles.infoCardAccent, { backgroundColor: "#1565c0" }]} />
+                        <View style={[styles.infoIconContainer, { backgroundColor: "#e1f5fe" }]}>
+                          <MaterialCommunityIcons
+                            name="map-marker-radius"
+                            size={20}
+                            color="#1565c0"
+                          />
+                        </View>
+                        <Text style={styles.infoLabel}>Purok</Text>
+                        <Text style={styles.infoValue}>{selectedPin.purok}</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Description Card */}
+                  <View style={styles.descriptionCard}>
+                    <View style={styles.descriptionHeader}>
+                      <View style={styles.descriptionIconCircle}>
+                        <Icon name="information" size={13} color="#fff" />
+                      </View>
+                      <Text style={styles.descriptionTitle}>About this Location</Text>
+                    </View>
+                    <Text style={styles.descriptionText}>
+                      {selectedPin.description || "No description provided."}
+                    </Text>
+                  </View>
+
+                  {/* Navigation Button */}
                   <TouchableOpacity
-                    style={styles.goToButton}
+                    style={styles.navButton}
                     onPress={() => {
                       fetchRoute(location, {
                         latitude: selectedPin.latitude,
@@ -87,99 +480,149 @@ function EvacuationInfoModal({
                       });
                       onClose();
                     }}
+                    activeOpacity={0.85}
                   >
-                    <MaterialCommunityIcons
-                      name="navigation"
-                      size={22}
-                      color="#fff"
-                      style={{ marginRight: 8 }}
-                    />
-                    <Text style={styles.goToText}>Go To Location</Text>
+                    <MaterialCommunityIcons name="navigation" size={20} color="#fff" />
+                    <Text style={styles.navButtonText}>Get Directions</Text>
                   </TouchableOpacity>
-                </View>
-                {/* Media Section */}
-                <View style={styles.section}>
+
+                  {/* Media Section */}
+                  <View style={styles.mediaHeader}>
+                    <View style={styles.mediaTitleRow}>
+                      <Icon
+                        name="images"
+                        size={18}
+                        color="#1976D2"
+                        style={styles.mediaTitleIcon}
+                      />
+                      <Text style={styles.sectionTitle}>Gallery</Text>
+                    </View>
+                    {selectedPin.media && selectedPin.media.length > 0 && (
+                      <View style={styles.mediaCount}>
+                        <Text style={styles.mediaCountText}>{selectedPin.media.length}</Text>
+                      </View>
+                    )}
+                  </View>
+
                   <TouchableOpacity
                     style={[
                       styles.mediaToggle,
-                      (!selectedPin.media || selectedPin.media.length === 0) && styles.mediaToggleDisabled,
+                      (!selectedPin.media || selectedPin.media.length === 0) &&
+                        styles.mediaToggleDisabled,
                     ]}
                     onPress={() => setShowMedia(!showMedia)}
                     disabled={!selectedPin.media || selectedPin.media.length === 0}
+                    activeOpacity={0.7}
                   >
-                    <Text style={styles.mediaToggleText}>
+                    <Text
+                      style={[
+                        styles.mediaToggleText,
+                        (!selectedPin.media || selectedPin.media.length === 0) &&
+                          styles.mediaToggleTextDisabled,
+                      ]}
+                    >
                       {!selectedPin.media || selectedPin.media.length === 0
-                        ? "No Media Attached"
+                        ? "No photos available"
                         : showMedia
-                          ? "Hide Media"
-                          : `Show Media (${selectedPin.media.length})`}
+                          ? "Hide Photos"
+                          : "View Photos"}
                     </Text>
+                    {selectedPin.media && selectedPin.media.length > 0 && (
+                      <Icon
+                        name={showMedia ? "chevron-up" : "chevron-down"}
+                        size={20}
+                        color="#1976D2"
+                      />
+                    )}
                   </TouchableOpacity>
 
                   {showMedia && selectedPin.media && selectedPin.media.length > 0 && (
                     <FlatList
                       data={selectedPin.media}
-                      keyExtractor={(item, idx) => (item?.url || item?.uri || `media-${idx}`)}
+                      keyExtractor={(item, idx) => item?.url || item?.uri || `media-${idx}`}
                       renderItem={({ item, index }) => {
                         const mediaUrl = item?.url || item?.uri;
                         return mediaUrl ? (
-                          <TouchableOpacity onPress={() => openImage(index)} activeOpacity={0.9} accessibilityRole="imagebutton">
-                            <View style={styles.mediaWrapper}>
-                              <Image
-                                source={{ uri: mediaUrl }}
-                                style={styles.mediaPreview}
-                                resizeMode="contain"
-                                onError={(error) => console.log("Image load error:", error)}
-                              />
+                          <TouchableOpacity
+                            onPress={() => openImage(index)}
+                            activeOpacity={0.9}
+                            style={styles.mediaItem}
+                          >
+                            <Image
+                              source={{ uri: mediaUrl }}
+                              style={styles.mediaImage}
+                              resizeMode="cover"
+                            />
+                            <View style={styles.mediaOverlay}>
+                              <View style={styles.expandIcon}>
+                                <Icon name="expand" size={20} color="#fff" />
+                              </View>
                             </View>
                           </TouchableOpacity>
-                        ) : (
-                          <View style={styles.mediaWrapper} />
-                        );
+                        ) : null;
                       }}
                       horizontal
                       showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.mediaScrollContent}
+                      contentContainerStyle={styles.mediaScroll}
                     />
                   )}
                 </View>
               </ScrollView>
-            )}
+            </Pressable>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
 
-      {/* Image viewer modal */}
-      <Modal visible={imageViewerVisible} transparent animationType="fade" onRequestClose={closeImageViewer}>
-        <View style={viewerStyles.viewerOverlay}>
-          <TouchableOpacity style={viewerStyles.viewerClose} onPress={closeImageViewer} accessibilityLabel="Close image">
-            <Icon name="close" size={28} color="#fff" />
+      {/* Image Viewer */}
+      <Modal
+        visible={imageViewerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeImageViewer}
+      >
+        <View style={styles.viewerOverlay}>
+          <TouchableOpacity onPress={closeImageViewer} style={styles.viewerClose}>
+            <Icon name="close" size={24} color="#fff" />
           </TouchableOpacity>
 
           <Image
-            source={{ uri: selectedPin?.media?.[currentImageIndex]?.url || selectedPin?.media?.[currentImageIndex]?.uri }}
-            style={viewerStyles.viewerImage}
+            source={{
+              uri:
+                selectedPin?.media?.[currentImageIndex]?.url ||
+                selectedPin?.media?.[currentImageIndex]?.uri,
+            }}
+            style={styles.viewerImage}
             resizeMode="contain"
           />
 
           {selectedPin?.media?.length > 1 && (
-            <View style={viewerStyles.viewerNav}>
+            <View style={styles.viewerNav}>
               <TouchableOpacity
-                onPress={() => setCurrentImageIndex((i) => (i === 0 ? selectedPin.media.length - 1 : i - 1))}
-                style={viewerStyles.viewerNavBtn}
-                accessibilityLabel="Previous image"
+                onPress={() =>
+                  setCurrentImageIndex((i) =>
+                    i === 0 ? selectedPin.media.length - 1 : i - 1
+                  )
+                }
+                style={styles.viewerNavBtn}
+                activeOpacity={0.7}
               >
-                <Icon name="chevron-back" size={28} color="#fff" />
+                <Icon name="chevron-back" size={24} color="#fff" />
               </TouchableOpacity>
-              <Text style={viewerStyles.viewerCounter}>
-                {currentImageIndex + 1}/{selectedPin.media.length}
+
+              <Text style={styles.viewerCounter}>
+                {currentImageIndex + 1} / {selectedPin.media.length}
               </Text>
+
               <TouchableOpacity
-                onPress={() => setCurrentImageIndex((i) => (i === selectedPin.media.length - 1 ? 0 : i + 1))}
-                style={viewerStyles.viewerNavBtn}
-                accessibilityLabel="Next image"
+                onPress={() =>
+                  setCurrentImageIndex((i) =>
+                    i === selectedPin.media.length - 1 ? 0 : i + 1
+                  )
+                }
+                style={styles.viewerNavBtn}
+                activeOpacity={0.7}
               >
-                <Icon name="chevron-forward" size={28} color="#fff" />
+                <Icon name="chevron-forward" size={24} color="#fff" />
               </TouchableOpacity>
             </View>
           )}
@@ -188,232 +631,5 @@ function EvacuationInfoModal({
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  modalContainer: {
-    backgroundColor: "#fff",
-    padding: 0,
-    borderRadius: 16,
-    width: "80%",
-    maxWidth: 420,
-    maxHeight: "85%",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 12,
-    position: "relative",
-    overflow: "hidden",
-  },
-  closeButton: {
-    position: "absolute",
-    top: 18,
-    right: 18,
-    zIndex: 10,
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  scrollContent: {
-    padding: 24,
-    alignItems: "center",
-    width: "100%",
-  },
-  category: {
-    fontSize: 17,
-    fontWeight: "bold",
-    color: "#EC6135",
-    marginBottom: 6,
-    textAlign: "center",
-    letterSpacing: 0.5,
-  },
-  facilityName: {
-    fontSize: 20,
-    color: "#1976D2",
-    fontWeight: "bold",
-    marginBottom: 10,
-    textAlign: "center",
-    letterSpacing: 0.5,
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-    gap: 12,
-    justifyContent: "center",
-  },
-  infoText: {
-    fontSize: 15,
-    color: "#333",
-    marginLeft: 6,
-  },
-  infoHighlight: {
-    color: "#1976D2",
-    fontWeight: "bold",
-  },
-  infoBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F3F7FF",
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginHorizontal: 4,
-    marginBottom: 2,
-  },
-  badgeText: {
-    fontSize: 13,
-    color: "#1976D2",
-    marginLeft: 4,
-    fontWeight: "600",
-  },
-  section: {
-    width: "100%",
-    marginTop: 16,
-    alignItems: "center",
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: "bold",
-    color: "#555",
-    marginBottom: 4,
-    textAlign: "left",
-    alignSelf: "flex-start",
-  },
-  description: {
-    fontSize: 15,
-    color: "#333",
-    textAlign: "left",
-    alignSelf: "flex-start",
-    marginBottom: 2,
-  },
-  goToButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1976D2",
-    borderRadius: 24,
-    paddingVertical: 10,
-    paddingHorizontal: 28,
-    marginTop: 4,
-    marginBottom: 2,
-    shadowColor: "#1976D2",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  goToText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 15,
-    letterSpacing: 0.5,
-  },
-  mediaSection: {
-    width: "100%",
-    alignItems: "center",
-    marginVertical: 10,
-  },
-  mediaToggle: {
-    backgroundColor: "#f0f0f0",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginBottom: 10,
-  },
-  mediaToggleText: {
-    color: "#666",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  mediaContainer: {
-    width: "100%",
-  },
-  mediaScroller: {
-    width: "100%",
-    minHeight: 120,
-    marginBottom: 8,
-  },
-  mediaScrollContent: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-  },
-  mediaWrapper: {
-    marginHorizontal: 5,
-    borderRadius: 8,
-    overflow: "hidden",
-    backgroundColor: "#f0f0f0",
-    width: 220,
-    height: 220,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.18,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  mediaPreview: {
-    width: "100%",
-    height: "100%",
-  },
-  mediaToggleDisabled: {
-    backgroundColor: "#e0e0e0",
-    opacity: 0.7,
-  },
-  mediaError: {
-    color: "#666",
-    textAlign: "center",
-    padding: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  mediaErrorText: {
-    color: "#666",
-    fontSize: 12,
-    textAlign: "center",
-    marginTop: 10,
-  },
-});
-
-const viewerStyles = StyleSheet.create({
-  viewerOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.95)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 12,
-  },
-  viewerImage: {
-    width: "100%",
-    height: "78%",
-    borderRadius: 8,
-  },
-  viewerClose: { position: "absolute", top: 44, right: 20, zIndex: 40 },
-  viewerNav: {
-    position: "absolute",
-    bottom: 44,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  viewerNavBtn: { paddingHorizontal: 18, paddingVertical: 6 },
-  viewerCounter: { color: "#fff", fontWeight: "700" },
-});
 
 export default EvacuationInfoModal;

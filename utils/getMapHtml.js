@@ -42,7 +42,6 @@ function getMapHtml(
         </style>
       </head><body>
         <div id="map" style="touch-action: none;"></div>
-        <div id="pinHint" class="pin-mode-hint">Pin mode: long-press or tap to place</div>
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
         <script>
           const pins = ${pinsJson};

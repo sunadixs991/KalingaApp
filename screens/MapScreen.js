@@ -119,9 +119,11 @@ export default function MapScreen({ route }) {
   // Add new state for facilityName, purok, and sitio
   const [evacFacilityName, setEvacFacilityName] = useState("");
   const [evacPurok, setEvacPurok] = useState("");
-  const [evacSitio, setEvacSitio] = useState("");
+  // const [evacSitio, setEvacSitio] = useState("");
   const [facilityName, setFacilityName] = useState("");
   const [htmlGenerated, setHtmlGenerated] = useState(false);
+  const [evacBarangay, setEvacBarangay] = useState("");
+  const [medicalBarangay, setMedicalBarangay] = useState("");
 
   // NEW: User contact state
   const [userContact, setUserContact] = useState(""); // <-- NEW
@@ -240,6 +242,7 @@ export default function MapScreen({ route }) {
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         if (data.latitude && data.longitude) {
+          // when building pin object for regular pins
           pins.push({
             id: doc.id,
             latitude: data.latitude,
@@ -252,6 +255,10 @@ export default function MapScreen({ route }) {
             createdAt: data.createdAt,
             upvotes: data.upvotes || 0,
             downvotes: data.downvotes || 0,
+            // prefer new 'location' field, fallback to old 'barangay'
+            location: data.location || data.barangay || "Unknown",
+            // keep barangay for backward compatibility if present
+            barangay: data.barangay || null,
           });
         }
       });
@@ -282,15 +289,16 @@ export default function MapScreen({ route }) {
             longitude: data.longitude,
             userId: data.userId,
             userFullName: data.userFullName || "anonymous",
-            description: data.description,
+            description: data.description || "",
             category: data.category || "Supply Request",
+            supplyType: data.supplyType || "",
+            numberOfPeople: data.numberOfPeople || 0,
+            urgency: data.urgency || "Medium",
+            contact: data.contact || "",
             media: data.media || [],
             createdAt: data.createdAt,
-            supplyType: data.supplyType || "",
-            barangay: data.barangay || "",
-            numberOfPeople: data.numberOfPeople || 0,
-            urgency: data.urgency || "",
-            contact: data.contact || "",
+            location: data.location || data.barangay || "Unknown",
+            barangay: data.barangay || null,
           });
         }
       });
@@ -453,9 +461,6 @@ export default function MapScreen({ route }) {
             console.log("❌ Error fetching user info from Firestore:", error);
           }
         }
-
-
-
         await fetchPinsAndRequests();
         setPermissionChecked(true);
       } catch (error) {
@@ -1820,37 +1825,38 @@ export default function MapScreen({ route }) {
           }
         }}
         onSave={async () => {
-          // use local state values (description, media, selectedCategory) — not `payload`
-          await handleSavePin({
-            selectedCategory: selectedCategory?.trim() ? selectedCategory : "Supplies",
-            description: description || "",
-            media: media || [],
-            pendingPin,
+          await handleSaveEvacPin({
+            evacDescription,
+            evacCapacity,
+            evacMedia,
+            evacFacilityName,
+            evacPurok,
+            pendingEvacPin,
             userInfo,
             userFirstName,
             db,
             supabase,
-            setDescModalVisible,
-            setDescription,
-            setSelectedCategory,
-            setMedia,
+            setEvacModalVisible,
+            setEvacDescription,
+            setEvacMedia,
+            setEvacCapacity,
+            setEvacFacilityName,
+            setEvacPurok,
             setPinMode,
-            setPendingPin,
+            setPendingEvacPin,
+            setEvacPins,
             setAllPins,
             Alert,
             getDocs,
             collection,
             addDoc,
             serverTimestamp,
-            getBarangayFromCoords,
+            // getBarangayFromCoords,
           });
-
-          // reset crosshair / pin state after save
-          setCrosshairMode(false);
-          setCrosshairPinType(null);
+          setPinMode(false);
           if (webviewRef.current) {
             webviewRef.current.postMessage(
-              JSON.stringify({ type: "setCrosshairMode", enabled: false })
+              JSON.stringify({ type: "setPinMode", enabled: false })
             );
           }
         }}
@@ -1872,7 +1878,7 @@ export default function MapScreen({ route }) {
           setEvacCapacity("");
           setEvacFacilityName("");
           setEvacPurok("");
-          setEvacSitio("");
+          setEvacBarangay("");              // keep manual barangay cleared
           setPinMode(false);
           setPendingEvacPin(null);
           if (webviewRef.current) {
@@ -1888,7 +1894,6 @@ export default function MapScreen({ route }) {
             evacMedia,
             evacFacilityName,
             evacPurok,
-            evacSitio,
             pendingEvacPin,
             userInfo,
             userFirstName,
@@ -1900,7 +1905,6 @@ export default function MapScreen({ route }) {
             setEvacCapacity,
             setEvacFacilityName,
             setEvacPurok,
-            setEvacSitio,
             setPinMode,
             setPendingEvacPin,
             setEvacPins,
@@ -1911,7 +1915,10 @@ export default function MapScreen({ route }) {
             addDoc,
             serverTimestamp,
             getBarangayFromCoords,
+            manualBarangay: evacBarangay, // send manual selection
           });
+          // clear local modal state (including manual barangay)
+          setEvacBarangay("");
           setPinMode(false);
           if (webviewRef.current) {
             webviewRef.current.postMessage(
@@ -1925,10 +1932,11 @@ export default function MapScreen({ route }) {
         onChangeCapacity={setEvacCapacity}
         facilityName={evacFacilityName}
         onChangeFacilityName={setEvacFacilityName}
+        // pass manual barangay props so modal can set the selection
+        barangay={evacBarangay}
+        onChangeBarangay={setEvacBarangay}
         purok={evacPurok}
         onChangePurok={setEvacPurok}
-        sitio={evacSitio}
-        onChangeSitio={setEvacSitio}
       />
 
       {/* MEDICAL SUPPORT PIN MODAL */}
@@ -2170,6 +2178,7 @@ export default function MapScreen({ route }) {
           setMedicalMedia(null);
           setMedicalOpenTime("");
           setPendingMedicalPin(null);
+          setMedicalBarangay("");           // clear manual barangay selection
           setPinMode(false);
           setMedicalPinMode(false);
           if (webviewRef.current) {
@@ -2201,9 +2210,12 @@ export default function MapScreen({ route }) {
             serverTimestamp,
             getBarangayFromCoords,
             getDocs,
-            setAllPins, // <-- ADD THIS LINE
+            setAllPins,
             setMedicalPins,
+            manualBarangay: medicalBarangay, // send manual selection
           });
+          // clear local modal state (including manual barangay)
+          setMedicalBarangay("");
           setPinMode(false);
           setMedicalPinMode(false);
           if (webviewRef.current) {
@@ -2216,6 +2228,9 @@ export default function MapScreen({ route }) {
         setMedia={setMedicalMedia}
         openTime={medicalOpenTime}
         onChangeOpenTime={setMedicalOpenTime}
+        // pass manual barangay props so modal can set the selection
+        barangay={medicalBarangay}
+        onChangeBarangay={setMedicalBarangay}
       />
 
       {/* Provide / Request Supply Modal (same component; mode controls labels) */}

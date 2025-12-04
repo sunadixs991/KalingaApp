@@ -114,13 +114,108 @@ function isCity(name) {
   return false;
 }
 
+// Helper to detect likely water/sea/ocean/bay names
+function isWater(name) {
+  if (!name) return false;
+  const lower = String(name).toLowerCase();
+  const waterKeywords = [
+    "sea",
+    "ocean",
+    "bay",
+    "gulf",
+    "strait",
+    "lagoon",
+    "lake",
+    "river",
+    "marina",
+    "harbor",
+    "harbour",
+    "channel",
+    "estuary",
+    "delta",
+    "pond",
+    "reservoir",
+  ];
+  for (const k of waterKeywords) {
+    if (lower.includes(k)) return true;
+  }
+  return false;
+}
+
+// New: resolve a more accurate 'location' identifier (for pins & requests).
+// Similar to resolveBarangayFromCoords but ensures it's not a water body and
+// returns a general "location" string (name/street/neighborhood/district).
+async function resolveLocationFromCoords(latitude, longitude, getBarangayFromCoords) {
+  try {
+    // Try custom resolver first (may return a precise location string)
+    if (typeof getBarangayFromCoords === "function") {
+      try {
+        const name = await getBarangayFromCoords(latitude, longitude);
+        if (name && name !== "Unknown" && !isCity(name) && !isWater(name)) {
+          return name;
+        }
+      } catch (e) {
+        console.warn("getBarangayFromCoords (location) failed:", e);
+      }
+    }
+
+    // Try Expo reverse geocode
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === "granted") {
+        const places = await Location.reverseGeocodeAsync({ latitude, longitude });
+        if (places && places.length > 0) {
+          const p = places[0];
+
+          // Build priority candidates (more precise first)
+          const candidates = [
+            p.name,
+            p.street,
+            p.neighborhood,
+            p.district,
+            p.subregion,
+          ].filter(Boolean);
+
+          for (const candidate of candidates) {
+            if (candidate && !isCity(candidate) && !isWater(candidate) && candidate !== "Unknown") {
+              return candidate;
+            }
+          }
+
+          // If we still don't have a good candidate, attempt to compose a string
+          const composed = [
+            p.street,
+            p.neighborhood,
+            p.district,
+            p.subregion,
+            p.city || p.region,
+          ].filter(Boolean).join(", ");
+
+          if (composed && !isWater(composed) && composed.length > 3) {
+            return composed;
+          }
+
+          // If result suggests water or is too generic, throw so callers reject saving
+          throw new Error("Location appears to be water or too generic");
+        }
+      }
+    } catch (e) {
+      console.warn("reverseGeocodeAsync (location) failed:", e);
+      throw e;
+    }
+  } catch (err) {
+    console.warn("resolveLocationFromCoords unexpected error:", err);
+  }
+
+  throw new Error("Unable to determine a precise location. Please choose a different point or enable precise location services.");
+}
+
 export async function handleSaveEvacPin({
   evacDescription,
   evacCapacity,
   evacMedia,
   evacFacilityName,
   evacPurok,
-  evacSitio,
   pendingEvacPin,
   userInfo,
   userFirstName,
@@ -132,7 +227,6 @@ export async function handleSaveEvacPin({
   setEvacCapacity,
   setEvacFacilityName,
   setEvacPurok,
-  setEvacSitio,
   setPinMode,
   setPendingEvacPin,
   setEvacPins,
@@ -143,6 +237,7 @@ export async function handleSaveEvacPin({
   addDoc,
   serverTimestamp,
   getBarangayFromCoords,
+  manualBarangay, // optional override (manual selection in UI)
 }) {
   if (!evacFacilityName || !evacFacilityName.trim()) {
     Alert.alert("Facility Name required", "Please enter the name of the facility.");
@@ -158,22 +253,11 @@ export async function handleSaveEvacPin({
   }
 
   try {
-    // Resolve barangay FIRST - before uploading media
-    Alert.alert("Please wait", "Determining location...", []);
-    let barangayName;
-    try {
-      barangayName = await resolveBarangayFromCoords(
-        pendingEvacPin.latitude,
-        pendingEvacPin.longitude,
-        getBarangayFromCoords
-      );
-    } catch (error) {
-      Alert.alert(
-        "Location Required",
-        "Unable to determine barangay for this location. Please:\n\n1. Enable location services\n2. Make sure you have internet connection\n3. Try selecting a different location\n\nBarangay information is required for all pins."
-      );
-      return;
-    }
+    // Use manualBarangay if provided; otherwise leave barangay blank.
+    const barangayName =
+      manualBarangay && String(manualBarangay).trim()
+        ? String(manualBarangay).trim()
+        : "";
 
     let mediaUrls = [];
     // --- Upload evacuation media to Supabase ---
@@ -240,7 +324,7 @@ export async function handleSaveEvacPin({
       }
     }
 
-    // --- Save evacuation pin to Firestore with verified Barangay ---
+    // --- Save evacuation pin to Firestore with provided Barangay (may be empty) ---
     await addDoc(collection(db, "evacuation_pins"), {
       latitude: pendingEvacPin.latitude,
       longitude: pendingEvacPin.longitude,
@@ -248,7 +332,6 @@ export async function handleSaveEvacPin({
       userFirstName: userFirstName || "anonymous",
       facilityName: evacFacilityName.trim(),
       purok: evacPurok ? evacPurok.trim() : "",
-      sitio: evacSitio ? evacSitio.trim() : "",
       description: evacDescription.trim(),
       category: "Evacuation Center",
       capacity: evacCapacity.trim(),
@@ -263,13 +346,14 @@ export async function handleSaveEvacPin({
     setEvacCapacity("");
     setEvacFacilityName("");
     setEvacPurok("");
-    setEvacSitio("");
     setPinMode(false);
     setPendingEvacPin(null);
 
     Alert.alert(
-      "Evacuation Pin Added!", 
-      `The evacuation pin has been added successfully to ${barangayName}.`
+      "Evacuation Pin Added!",
+      barangayName
+        ? `The evacuation pin has been added successfully to ${barangayName}.`
+        : "The evacuation pin has been added successfully."
     );
 
     // --- Refetch all evacuation pins after saving ---
@@ -287,7 +371,6 @@ export async function handleSaveEvacPin({
             userFirstName: data.userFirstName || "anonymous",
             facilityName: data.facilityName || "",
             purok: data.purok || "",
-            sitio: data.sitio || "",
             description: data.description,
             category: data.category || "Evacuation",
             media: data.media || [],
@@ -369,11 +452,11 @@ export async function handleSavePin({
   }
 
   try {
-    // Resolve barangay FIRST - before uploading media
-    Alert.alert("Please wait", "Determining location...", []);
-    let barangayName;
+    // Resolve precise location FIRST - before uploading media
+    Alert.alert("Please wait", "Determining precise location...", []);
+    let locationName;
     try {
-      barangayName = await resolveBarangayFromCoords(
+      locationName = await resolveLocationFromCoords(
         pendingPin.latitude,
         pendingPin.longitude,
         getBarangayFromCoords
@@ -381,7 +464,7 @@ export async function handleSavePin({
     } catch (error) {
       Alert.alert(
         "Location Required",
-        "Unable to determine barangay for this location. Please:\n\n1. Enable location services\n2. Make sure you have internet connection\n3. Try selecting a different location\n\nBarangay information is required for all pins."
+        "Unable to determine a precise location for this pin. Please:\n\n1. Move the pin to a more specific spot on land\n2. Enable precise location services\n3. Try selecting a different location\n\nPins cannot be placed on water or very general areas."
       );
       return;
     }
@@ -462,7 +545,7 @@ export async function handleSavePin({
       }
     }
 
-    // 2. Save pin data with verified barangay to FIRESTORE
+    // 2. Save pin data with verified location to FIRESTORE
     await addDoc(collection(db, "pins"), {
       latitude: pendingPin.latitude,
       longitude: pendingPin.longitude,
@@ -474,7 +557,7 @@ export async function handleSavePin({
       createdAt: serverTimestamp(),
       upvotes: 0,
       downvotes: 0,
-      barangay: barangayName,
+      location: locationName,
     });
 
     setDescModalVisible(false);
@@ -486,8 +569,8 @@ export async function handleSavePin({
 
     const successMessage =
       mediaUrls.length > 0
-        ? `Your location has been pinned successfully in ${barangayName} with ${mediaUrls.length} image(s).`
-        : `Your location has been pinned successfully in ${barangayName}.`;
+        ? `Your location has been pinned successfully at ${locationName} with ${mediaUrls.length} image(s).`
+        : `Your location has been pinned successfully at ${locationName}.`;
 
     Alert.alert("Location pinned!", successMessage);
 
@@ -509,7 +592,7 @@ export async function handleSavePin({
           createdAt: data.createdAt,
           upvotes: data.upvotes || 0,
           downvotes: data.downvotes || 0,
-          barangay: data.barangay || "Unknown",
+          location: data.location || "Unknown",
         });
       }
     });
@@ -547,6 +630,7 @@ export async function handleSaveMedicalPin({
   getDocs,
   setAllPins,
   setMedicalPins,
+  manualBarangay, // optional override (manual selection in UI)
 }) {
   if (!medicalDescription.trim()) {
     Alert.alert("Description required", "Please enter a description.");
@@ -557,24 +641,13 @@ export async function handleSaveMedicalPin({
     medicalOpenTime && medicalOpenTime.trim()
       ? medicalOpenTime.trim()
       : "24/7";
-  
+
   try {
-    // Resolve barangay FIRST - before uploading media
-    Alert.alert("Please wait", "Determining location...", []);
-    let barangayName;
-    try {
-      barangayName = await resolveBarangayFromCoords(
-        pendingMedicalPin.latitude,
-        pendingMedicalPin.longitude,
-        getBarangayFromCoords
-      );
-    } catch (error) {
-      Alert.alert(
-        "Location Required",
-        "Unable to determine barangay for this location. Please:\n\n1. Enable location services\n2. Make sure you have internet connection\n3. Try selecting a different location\n\nBarangay information is required for all pins."
-      );
-      return;
-    }
+    // Use manualBarangay if provided; otherwise leave barangay blank.
+    const barangayName =
+      manualBarangay && String(manualBarangay).trim()
+        ? String(manualBarangay).trim()
+        : "";
 
     let mediaUrls = [];
     if (medicalMedia && medicalMedia.length > 0) {
@@ -632,7 +705,7 @@ export async function handleSaveMedicalPin({
         });
       }
     }
-    
+
     await addDoc(collection(db, "medical_pins"), {
       latitude: pendingMedicalPin.latitude,
       longitude: pendingMedicalPin.longitude,
@@ -645,7 +718,7 @@ export async function handleSaveMedicalPin({
       createdAt: serverTimestamp(),
       barangay: barangayName,
     });
-    
+
     setMedicalModalVisible(false);
     setMedicalDescription("");
     setMedicalMedia(null);
@@ -653,10 +726,12 @@ export async function handleSaveMedicalPin({
     setPendingMedicalPin(null);
     setPinMode(false);
     setMedicalPinMode(false);
-    
+
     Alert.alert(
-      "Medical Support Pin Added!", 
-      `The medical support pin has been added successfully to ${barangayName}.`
+      "Medical Support Pin Added!",
+      barangayName
+        ? `The medical support pin has been added successfully to ${barangayName}.`
+        : "The medical support pin has been added successfully."
     );
 
     // --- Refetch all pins after saving ---
@@ -678,6 +753,7 @@ export async function handleSaveMedicalPin({
             createdAt: data.createdAt,
             upvotes: data.upvotes || 0,
             downvotes: data.downvotes || 0,
+            location: data.location || "Unknown",
           });
         }
       });
@@ -735,10 +811,10 @@ export const handleSaveRequestPin = async ({
   getDocs,
 }) => {
   try {
-    // Resolve barangay FIRST
-    let barangay;
+    // Resolve precise location FIRST
+    let locationName;
     try {
-      barangay = await resolveBarangayFromCoords(
+      locationName = await resolveLocationFromCoords(
         pendingPin.latitude,
         pendingPin.longitude,
         getBarangayFromCoords
@@ -746,7 +822,7 @@ export const handleSaveRequestPin = async ({
     } catch (error) {
       Alert.alert(
         "Location Required",
-        "Unable to determine barangay for this location. Please:\n\n1. Enable location services\n2. Make sure you have internet connection\n3. Try selecting a different location\n\nBarangay information is required for all supply requests."
+        "Unable to determine a precise location for this request. Please:\n\n1. Move the pin to a more specific spot on land\n2. Enable precise location services\n3. Try selecting a different location\n\nRequests cannot be published for water locations."
       );
       return;
     }
@@ -764,7 +840,7 @@ export const handleSaveRequestPin = async ({
       contact: payload.contact || "",
       media: payload.media || [],
       createdAt: serverTimestamp(),
-      barangay: barangay,
+      location: locationName,
     };
 
     // Save to request_pins collection
@@ -779,7 +855,7 @@ export const handleSaveRequestPin = async ({
       },
     ]);
 
-    Alert.alert("Success", `Supply request published successfully to ${barangay}!`);
+    Alert.alert("Success", `Supply request published successfully to ${locationName}!`);
     setProvideSupplyModalVisible(false);
     setPendingPin(null);
   } catch (error) {

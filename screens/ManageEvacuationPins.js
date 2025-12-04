@@ -16,7 +16,7 @@ import Icon from "react-native-vector-icons/Ionicons";
 import { Picker } from "@react-native-picker/picker";
 import { Swipeable } from "react-native-gesture-handler";
 import { db } from "../firebase";
-import { collection, getDocs, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, deleteDoc, doc, updateDoc, query, where } from "firebase/firestore";
 import EvacuationPinModal from "../components/EvacuationPinModal";
 import MedicalPinModal from "../components/MedicalPinModal";
 import { useNavigation } from "@react-navigation/native";
@@ -36,9 +36,10 @@ export default function ManageEvacuationPins() {
   const [editFacilityName, setEditFacilityName] = useState("");
   const [editCapacity, setEditCapacity] = useState("");
   const [editPurok, setEditPurok] = useState("");
-  const [editSitio, setEditSitio] = useState("");
+  const [editBarangay, setEditBarangay] = useState(""); // renamed from editSitio
   const [editDescription, setEditDescription] = useState("");
   const [editMedia, setEditMedia] = useState([]);
+  const [editPurokList, setEditPurokList] = useState([]); // <-- purok options for the edit modal
   
   // Medical pin edit states
   const [editMedicalFacilityName, setEditMedicalFacilityName] = useState("");
@@ -125,6 +126,82 @@ export default function ManageEvacuationPins() {
     setMediaModalVisible(true);
   };
 
+  // Fetch puroks for a barangay and set into editPurokList
+  const loadPuroksForBarangay = async (barangayValue) => {
+    try {
+      if (!barangayValue) {
+        setEditPurokList([]);
+        setEditPurok("");
+        return;
+      }
+
+      // Find the barangay document by name (same as AddScheduleScreen)
+      const q = query(collection(db, "barangays"), where("name", "==", barangayValue));
+      const snap = await getDocs(q);
+
+      if (!snap.empty) {
+        const barangayDoc = snap.docs[0];
+        // Try reading subcollection 'puroks' (same pattern used in AddScheduleScreen)
+        try {
+          const puroksSnap = await getDocs(collection(barangayDoc.ref, "puroks"));
+          const list = [];
+          puroksSnap.forEach((d) => {
+            const data = d.data();
+            if (data && data.name) list.push(data.name);
+          });
+
+          // fallback: if subcollection returned nothing, look for array fields on the barangay doc
+          if (list.length === 0) {
+            const docData = barangayDoc.data() || {};
+            let arr =
+              Array.isArray(docData.puroks) ? docData.puroks :
+              Array.isArray(docData.purok) ? docData.purok :
+              Array.isArray(docData.purokList) ? docData.purokList :
+              Array.isArray(docData.purok_names) ? docData.purok_names : [];
+            arr = arr
+              .filter((p) => typeof p === "string")
+              .map((p) => p.trim())
+              .filter(Boolean);
+            list.push(...arr);
+          }
+
+          // normalize and sort
+          const normalized = Array.from(new Set(list.map((p) => p.trim())))
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+
+          // ensure current editPurok stays selectable
+          if (editPurok && !normalized.includes(editPurok)) normalized.unshift(editPurok);
+
+          setEditPurokList(normalized);
+        } catch (subErr) {
+          // If reading subcollection failed, fallback to doc fields
+          const docData = barangayDoc.data() || {};
+          let puroks =
+            Array.isArray(docData.puroks) ? docData.puroks :
+            Array.isArray(docData.purok) ? docData.purok :
+            Array.isArray(docData.purokList) ? docData.purokList :
+            Array.isArray(docData.purok_names) ? docData.purok_names : [];
+
+          puroks = puroks
+            .filter((p) => typeof p === "string")
+            .map((p) => p.trim())
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+
+          if (editPurok && !puroks.includes(editPurok)) puroks.unshift(editPurok);
+          setEditPurokList(Array.from(new Set(puroks)));
+        }
+      } else {
+        // no barangay doc found; still allow existing purok to appear
+        setEditPurokList(editPurok ? [editPurok] : []);
+      }
+    } catch (err) {
+      console.log("Failed to load puroks for barangay", err);
+      setEditPurokList(editPurok ? [editPurok] : []);
+    }
+  };
+
   const handleEdit = (pin) => {
     setSelectedPin(pin);
     setEditMedia(pin.media || []);
@@ -133,7 +210,22 @@ export default function ManageEvacuationPins() {
       setEditFacilityName(pin.facilityName || "");
       setEditCapacity(pin.capacity?.toString() || "");
       setEditPurok(pin.purok || "");
-      setEditSitio(pin.sitio || "");
+      // normalize possible shapes: if pin.barangay is object, attempt to use its name
+      const barangayVal =
+        typeof pin.barangay === "object" && pin.barangay !== null
+          ? (pin.barangay.name || pin.barangay.value || pin.barangay.id || "")
+          : (pin.barangay || "");
+      setEditBarangay(barangayVal);
+
+      if (!barangayVal) {
+        // ensure no stale purok options remain when there's no barangay
+        setEditPurokList([]);
+        setEditPurok("");
+      } else {
+        // load puroks immediately for the edit modal
+        loadPuroksForBarangay(barangayVal);
+      }
+
       setEditDescription(pin.description || "");
     } else {
       setEditMedicalFacilityName(pin.facilityName || pin.description || "");
@@ -154,7 +246,7 @@ export default function ManageEvacuationPins() {
           facilityName: editFacilityName,
           capacity: Number(editCapacity),
           purok: editPurok,
-          sitio: editSitio,
+          barangay: editBarangay, // was sitio: editSitio
           description: editDescription,
           media: editMedia,
         });
@@ -205,24 +297,11 @@ export default function ManageEvacuationPins() {
             <Text style={styles.pinDetail}>
               Category: {item.category || "Unknown"}
             </Text>
-            {/* <Text style={styles.pinDetail}>
-              Upvotes: {item.upvotes || 0}
-            </Text>
-            <Text style={styles.pinDetail}>
-              Downvotes: {item.downvotes || 0}
-            </Text> */}
             <Text style={styles.pinDetail}>
               Barangay: {item.barangay || "N/A"}
             </Text>
             {item.type === "medical" && (
-              <>
-                {/* <Text style={styles.pinDetail}>
-                  Specialty: {item.specialty || "N/A"}
-                </Text>
-                <Text style={styles.pinDetail}>
-                  Availability: {item.availability || "N/A"}
-                </Text> */}
-              </>
+              <></>
             )}
           </View>
         </View>
@@ -313,7 +392,6 @@ export default function ManageEvacuationPins() {
                 keyExtractor={(item, idx) => (item?.url || item?.uri || `media-${idx}`)}
                 renderItem={({ item }) => {
                   const mediaUrl = item?.url || item?.uri;
-                  console.log("Rendering media item:", item, "URL:", mediaUrl);
                   return (
                     <View style={styles.mediaContainer}>
                       {mediaUrl ? (
@@ -321,7 +399,6 @@ export default function ManageEvacuationPins() {
                           source={{ uri: mediaUrl }}
                           style={styles.mediaImage}
                           resizeMode="contain"
-                          onError={(error) => console.log("Image load error:", error)}
                         />
                       ) : (
                         <Text style={{ color: "#888" }}>Invalid media URL</Text>
@@ -361,11 +438,21 @@ export default function ManageEvacuationPins() {
          onChangeCapacity={setEditCapacity}
          purok={editPurok}
          onChangePurok={setEditPurok}
-         sitio={editSitio}
-         onChangeSitio={setEditSitio}
+         barangay={editBarangay}
+         onChangeBarangay={(val) => {
+           setEditBarangay(val);
+           if (!val) {
+             setEditPurokList([]);
+             setEditPurok("");
+           } else {
+             loadPuroksForBarangay(val);
+           }
+         }}
+         purokListOverride={editPurokList} // <-- pass override options so modal shows puroks reliably
          onCancel={() => {
            setEditModalVisible(false);
            setSelectedPin(null);
+           setEditPurokList([]);
          }}
          onSave={handleSaveEdit}
          media={editMedia}
@@ -541,5 +628,124 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 12,
     marginRight: 10,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modal: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+    width: "90%",
+    maxWidth: 400,
+    elevation: 5,
+    maxHeight: "80%",
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 15,
+    textAlign: "center",
+  },
+  input: {
+    borderBottomWidth: 1,
+    borderColor: "#ccc",
+    fontSize: 16,
+    marginBottom: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    backgroundColor: "#fff",
+    borderRadius: 6,
+  },
+  sectionLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#555",
+    marginBottom: 8,
+  },
+  descriptionSection: {
+    marginBottom: 20,
+  },
+  mediaSection: {
+    marginBottom: 20,
+  },
+  mediaPickerButton: {
+    padding: 12,
+    backgroundColor: "#eee",
+    borderRadius: 8,
+    marginBottom: 10,
+    alignItems: "center",
+  },
+  mediaPickerText: {
+    color: "#333",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  mediaPreviewGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-around",
+    marginTop: 10,
+  },
+  mediaPreviewItem: {
+    width: "27%",
+    aspectRatio: 1,
+    marginBottom: 10,
+    position: "relative",
+  },
+  mediaPreviewImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 8,
+    backgroundColor: "#eee",
+  },
+  removeMediaButton: {
+    position: "absolute",
+    top: -4,
+    right: -5,
+    backgroundColor: "#ff4444",
+    width: 16,
+    height: 16,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  removeMediaText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  actions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 15,
+  },
+  cancelBtn: {
+    backgroundColor: "#999",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginRight: 10,
+  },
+  saveBtn: {
+    backgroundColor: "#1976D2",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  actionText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 15,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "#fff",
   },
 });

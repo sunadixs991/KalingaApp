@@ -27,7 +27,8 @@ import {
   doc,
   addDoc,
 } from "firebase/firestore";
-import { Menu, Provider } from "react-native-paper";
+import { Provider } from "react-native-paper";
+import { Swipeable } from "react-native-gesture-handler";
 
 export default function ManageContact({ navigation }) {
   const [contacts, setContacts] = useState([]);
@@ -37,8 +38,6 @@ export default function ManageContact({ navigation }) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newNumber, setNewNumber] = useState("");
-  // admin checks removed — all users can view/edit via UI
-  const [menuVisible, setMenuVisible] = useState(null);
 
   // Fetch contacts from Firestore
   useEffect(() => {
@@ -46,13 +45,13 @@ export default function ManageContact({ navigation }) {
       setContactsLoading(true);
       const querySnapshot = await getDocs(collection(db, "contacts"));
       const fetched = [];
-      querySnapshot.forEach((doc) => {
-        fetched.push({ id: doc.id, ...doc.data() });
+      querySnapshot.forEach((docu) => {
+        fetched.push({ id: docu.id, ...docu.data() });
       });
 
       // Sort alphabetically by name
       fetched.sort((a, b) => {
-        const nameA = a.name.toUpperCase(); // ignore case
+        const nameA = a.name.toUpperCase();
         const nameB = b.name.toUpperCase();
         if (nameA < nameB) return -1;
         if (nameA > nameB) return 1;
@@ -84,12 +83,25 @@ export default function ManageContact({ navigation }) {
   };
 
   const handleDelete = async (id) => {
-    try {
-      await deleteDoc(doc(db, "contacts", id));
-      setContacts((prev) => prev.filter((c) => c.id !== id));
-    } catch (e) {
-      Alert.alert("Error", "Failed to delete contact.");
-    }
+    Alert.alert(
+      "Delete Contact",
+      "Are you sure you want to delete this contact?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, "contacts", id));
+              setContacts((prev) => prev.filter((c) => c.id !== id));
+            } catch (e) {
+              Alert.alert("Error", "Failed to delete contact.");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleAddContact = async () => {
@@ -113,6 +125,75 @@ export default function ManageContact({ navigation }) {
       Alert.alert("Error", "Failed to add contact.");
     }
   };
+
+  const renderLeftActions = (onEdit) => (
+    <TouchableOpacity style={styles.editButton} onPress={onEdit}>
+      <Icon name="pencil" size={22} color="#fff" />
+    </TouchableOpacity>
+  );
+
+  const renderRightActions = (onDelete) => (
+    <TouchableOpacity style={styles.deleteButton} onPress={onDelete}>
+      <Icon name="trash-outline" size={22} color="#fff" />
+    </TouchableOpacity>
+  );
+
+  const renderPinItem = ({ item }) => (
+    <Swipeable
+      renderLeftActions={() =>
+        renderLeftActions(() => handleEdit(item.id, item.number))
+      }
+      renderRightActions={() => renderRightActions(() => handleDelete(item.id))}
+    >
+      <View style={styles.contactRowWrapper}>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => {
+            /* pressing the row could open details in future */
+          }}
+        >
+          <View style={styles.contactRow}>
+            <View style={styles.contactInfo}>
+              <Text style={styles.contactName}>{item.name}</Text>
+              {editingId === item.id ? (
+                <TextInput
+                  value={editingNumber}
+                  onChangeText={setEditingNumber}
+                  style={[styles.contactNumber, { borderBottomWidth: 1 }]}
+                  keyboardType="phone-pad"
+                />
+              ) : (
+                <Text style={styles.contactNumber}>{item.number}</Text>
+              )}
+            </View>
+
+            {editingId === item.id ? (
+              <View style={{ flexDirection: "row" }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setEditingId(null);
+                    setEditingNumber("");
+                  }}
+                  style={styles.iconButton}
+                >
+                  <Icon name="close-outline" size={28} color="red" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleSave(item.id)}
+                  style={styles.iconButton}
+                >
+                  <Icon name="checkmark-outline" size={28} color="green" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              // Empty view to keep row spacing consistent
+              <View style={{ width: 40 }} />
+            )}
+          </View>
+        </TouchableOpacity>
+      </View>
+    </Swipeable>
+  );
 
   return (
     <Provider>
@@ -146,79 +227,12 @@ export default function ManageContact({ navigation }) {
             data={contacts}
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={true}
-            contentContainerStyle={styles.listContent}
-            renderItem={({ item }) => (
-              <View style={styles.contactRow}>
-                <View style={styles.contactInfo}>
-                  <Text style={styles.contactName}>{item.name}</Text>
-                  {editingId === item.id ? (
-                    <TextInput
-                      value={editingNumber}
-                      onChangeText={setEditingNumber}
-                      style={[styles.contactNumber, { borderBottomWidth: 1 }]}
-                      keyboardType="phone-pad"
-                    />
-                  ) : (
-                    <Text style={styles.contactNumber}>{item.number}</Text>
-                  )}
-                </View>
-
-                {/* Admin gating removed — show actions to all users */}
-                <View>
-                  {editingId === item.id ? (
-                    <View style={{ flexDirection: "row" }}>
-                      <TouchableOpacity
-                        onPress={() => {
-                          setEditingId(null);
-                          setEditingNumber("");
-                        }}
-                        style={styles.iconButton}
-                      >
-                        <Icon name="close-outline" size={28} color="red" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => handleSave(item.id)}
-                        style={styles.iconButton}
-                      >
-                        <Icon name="checkmark-outline" size={28} color="green" />
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <Menu
-                      visible={menuVisible === item.id}
-                      onDismiss={() => setMenuVisible(null)}
-                      anchor={
-                        <TouchableOpacity
-                          onPress={() => setMenuVisible(item.id)}
-                          style={styles.iconButton}
-                        >
-                          <Icon name="ellipsis-vertical" size={22} color="#666" />
-                        </TouchableOpacity>
-                      }
-                    >
-                      <Menu.Item
-                        onPress={() => {
-                          setMenuVisible(null);
-                          handleEdit(item.id, item.number);
-                        }}
-                        title="Edit"
-                      />
-                      <Menu.Item
-                        onPress={() => {
-                          setMenuVisible(null);
-                          handleDelete(item.id);
-                        }}
-                        title="Delete"
-                      />
-                    </Menu>
-                  )}
-                </View>
-              </View>
-            )}
+            contentContainerStyle={{ ...styles.listContent, paddingBottom: 120 }}
+            renderItem={renderPinItem}
           />
         )}
 
-        {/* Floating Add Button — admin gating removed */}
+        {/* Floating Add Button */}
         <>
           <TouchableOpacity style={styles.fab} onPress={() => setAdding(true)}>
             <Icon name="add" size={30} color="#fff" />
@@ -304,10 +318,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: wp("4.5%"),
     paddingVertical: hp("2%"),
   },
+  contactRowWrapper: {
+    marginBottom: hp("1.5%"),
+  },
   contactRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: hp("1.5%"),
     backgroundColor: "#f7f7f7",
     borderRadius: 12,
     padding: wp("4%"),
@@ -316,6 +332,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 1 },
     shadowRadius: 2,
+    justifyContent: "space-between",
   },
   contactInfo: {
     flex: 1,
@@ -401,5 +418,25 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "bold",
     fontSize: 15,
+  },
+
+  // Swipe action buttons
+  deleteButton: {
+    backgroundColor: "#ff4444",
+    justifyContent: "center",
+    alignItems: "center",
+    width: 60,
+    borderRadius: 8,
+    marginBottom: 12,
+    marginLeft: 10,
+  },
+  editButton: {
+    backgroundColor: "#4CAF50",
+    justifyContent: "center",
+    alignItems: "center",
+    width: 60,
+    borderRadius: 8,
+    marginBottom: 12,
+    marginRight: 10,
   },
 });

@@ -1,9 +1,21 @@
 import React, { useState } from "react";
-import { Modal, View, Text, TouchableOpacity, ScrollView, Image, StyleSheet, FlatList } from "react-native";
+import {
+  Modal,
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  StyleSheet,
+  FlatList,
+  Dimensions,
+  Pressable,
+  TouchableWithoutFeedback,
+} from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { FontAwesome5 } from "@expo/vector-icons";
-// import { Video } from "expo-av"; // Uncomment if you use video
+
+const { width: SCREEN_W } = Dimensions.get("window");
 
 const PinInfoModal = ({
   visible,
@@ -28,111 +40,513 @@ const PinInfoModal = ({
     setCurrentImageIndex(index);
     setImageViewerVisible(true);
   };
+
   const closeImageViewer = () => {
     setImageViewerVisible(false);
     setCurrentImageIndex(0);
   };
 
+  const styles = StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.65)",
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 16,
+    },
+    card: {
+      width: Math.min(720, SCREEN_W - 32),
+      backgroundColor: "#fff",
+      borderRadius: 20,
+      maxHeight: "90%",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 20 },
+      shadowOpacity: 0.25,
+      shadowRadius: 30,
+      elevation: 15,
+      overflow: "hidden",
+    },
+    headerSection: {
+      backgroundColor: "#e75e33",
+      paddingTop: 20,
+      paddingHorizontal: 20,
+      paddingBottom: 24,
+    },
+    closeBtn: {
+      position: "absolute",
+      top: 16,
+      right: 16,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: "rgba(255,255,255,0.2)",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 10,
+    },
+    headerContent: {
+      marginTop: 8,
+    },
+    iconBadge: {
+      width: 56,
+      height: 56,
+      borderRadius: 16,
+      backgroundColor: "rgba(255,255,255,0.2)",
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 14,
+    },
+    categoryBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      alignSelf: "flex-start",
+      backgroundColor: "rgba(255,255,255,0.25)",
+      borderRadius: 12,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      marginBottom: 12,
+    },
+    categoryText: {
+      color: "#fff",
+      fontSize: 12,
+      fontWeight: "700",
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    userName: {
+      fontSize: 22,
+      fontWeight: "800",
+      color: "#fff",
+      marginBottom: 8,
+      letterSpacing: 0.3,
+    },
+    timeText: {
+      color: "rgba(255,255,255,0.85)",
+      fontSize: 13,
+      fontWeight: "500",
+    },
+
+    content: {
+      paddingHorizontal: 20,
+      paddingTop: 24,
+      paddingBottom: 20,
+    },
+
+    descriptionCard: {
+      backgroundColor: "#fff8f5",
+      borderRadius: 14,
+      padding: 16,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: "#ffe8de",
+    },
+    descriptionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 10,
+    },
+    descriptionIconCircle: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: "#e75e33",
+      justifyContent: "center",
+      alignItems: "center",
+      marginRight: 8,
+    },
+    descriptionTitle: {
+      fontSize: 11,
+      color: "#64748b",
+      textTransform: "uppercase",
+      letterSpacing: 0.8,
+      fontWeight: "700",
+    },
+    descriptionText: {
+      fontSize: 14,
+      color: "#57534e",
+      lineHeight: 21,
+    },
+
+    votingSection: {
+      backgroundColor: "#f8fafb",
+      borderRadius: 14,
+      padding: 16,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: "#e8ecef",
+    },
+    votingLabel: {
+      fontSize: 11,
+      color: "#64748b",
+      marginBottom: 12,
+      textTransform: "uppercase",
+      letterSpacing: 0.8,
+      fontWeight: "700",
+      textAlign: "center",
+    },
+    votingContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 50,
+      alignSelf: "center",
+      borderWidth: 2,
+      borderColor: "#e2e8f0",
+      backgroundColor: "#fff",
+    },
+    containerUpvoted: {
+      backgroundColor: "rgba(231, 94, 51, 0.1)",
+      borderColor: "rgba(231, 94, 51, 0.3)",
+    },
+    containerDownvoted: {
+      backgroundColor: "rgba(59, 130, 246, 0.1)",
+      borderColor: "rgba(59, 130, 246, 0.3)",
+    },
+    voteButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: "#f1f5f9",
+    },
+    activeUpvote: {
+      backgroundColor: "#e75e33",
+    },
+    activeDownvote: {
+      backgroundColor: "#3b82f6",
+    },
+    arrowText: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: "#94a3b8",
+    },
+    activeUpvoteText: {
+      color: "#fff",
+    },
+    activeDownvoteText: {
+      color: "#fff",
+    },
+    scoreText: {
+      fontSize: 18,
+      fontWeight: "800",
+      color: "#1e293b",
+      marginHorizontal: 16,
+      minWidth: 40,
+      textAlign: "center",
+    },
+    upvotedScore: {
+      color: "#e75e33",
+    },
+    downvotedScore: {
+      color: "#3b82f6",
+    },
+
+    navButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#e75e33",
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+      borderRadius: 14,
+      marginBottom: 16,
+      shadowColor: "#e75e33",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 6,
+    },
+    navButtonText: {
+      color: "#fff",
+      fontWeight: "800",
+      fontSize: 15,
+      marginLeft: 8,
+      letterSpacing: 0.3,
+    },
+
+    sectionTitle: {
+      fontSize: 11,
+      color: "#64748b",
+      marginBottom: 12,
+      marginTop: 8,
+      textTransform: "uppercase",
+      letterSpacing: 0.8,
+      fontWeight: "700",
+    },
+
+    mediaHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    mediaTitleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    mediaTitleIcon: {
+      marginRight: 8,
+    },
+    mediaCount: {
+      backgroundColor: "#fff8f5",
+      borderRadius: 12,
+      paddingVertical: 4,
+      paddingHorizontal: 10,
+    },
+    mediaCountText: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: "#e75e33",
+    },
+
+    mediaToggle: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: "#fff8f5",
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: "#ffe8de",
+    },
+    mediaToggleDisabled: {
+      backgroundColor: "#f8fafb",
+      borderColor: "#e8ecef",
+    },
+    mediaToggleText: {
+      color: "#e75e33",
+      fontSize: 14,
+      fontWeight: "700",
+      flex: 1,
+    },
+    mediaToggleTextDisabled: {
+      color: "#94a3b8",
+    },
+
+    mediaScroll: {
+      marginBottom: 16,
+    },
+    mediaItem: {
+      width: 160,
+      height: 160,
+      borderRadius: 16,
+      overflow: "hidden",
+      marginRight: 12,
+      backgroundColor: "#f1f5f9",
+      borderWidth: 1,
+      borderColor: "#e2e8f0",
+    },
+    mediaImage: {
+      width: "100%",
+      height: "100%",
+    },
+    mediaOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0,0,0,0.3)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    expandIcon: {
+      backgroundColor: "rgba(255,255,255,0.25)",
+      borderRadius: 8,
+      padding: 8,
+    },
+
+    // Image viewer
+    viewerOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.96)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    viewerImage: {
+      width: "92%",
+      height: "75%",
+      borderRadius: 12,
+    },
+    viewerClose: {
+      position: "absolute",
+      top: 50,
+      right: 24,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "rgba(255,255,255,0.15)",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 10,
+    },
+    viewerNav: {
+      position: "absolute",
+      bottom: 50,
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "rgba(255,255,255,0.1)",
+      borderRadius: 30,
+      paddingHorizontal: 8,
+      paddingVertical: 8,
+    },
+    viewerNavBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: "rgba(255,255,255,0.1)",
+    },
+    viewerCounter: {
+      color: "#fff",
+      fontWeight: "700",
+      fontSize: 15,
+      marginHorizontal: 20,
+    },
+  });
+
+  if (!selectedPin) return null;
+
   return (
     <>
-      <Modal
-        visible={visible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={onClose}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <TouchableOpacity
-              onPress={onClose}
-              style={styles.closeButton}
-            >
-              <Icon name="close" size={24} color="#666" />
-            </TouchableOpacity>
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+        <TouchableWithoutFeedback onPress={onClose}>
+          <View style={styles.backdrop}>
+            <Pressable style={styles.card} onPress={() => {}}>
+              {/* Header */}
+              <View style={styles.headerSection}>
+                <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                  <Icon name="close" size={20} color="#fff" />
+                </TouchableOpacity>
 
-            {selectedPin && (
-              <>
-                <Text style={styles.modalUser} numberOfLines={0}>
-                  {selectedPin.userFirstName}
-                </Text>
-                <Text style={styles.modalCategory} numberOfLines={0}>
-                  {selectedPin.category}
-                </Text>
-                <Text style={styles.modalDesc} numberOfLines={0}>
-                  {selectedPin.description || "User"}
-                </Text>
-                <Text style={styles.modalTime}>
-                  {getHoursAgo(selectedPin.createdAt)}
-                </Text>
-                <View
-                  style={[
-                    styles.votingContainer,
-                    userVoteStatus.voteType === "upvote" && styles.containerUpvoted,
-                    userVoteStatus.voteType === "downvote" && styles.containerDownvoted,
-                  ]}
-                >
-                  <TouchableOpacity
-                    style={[
-                      styles.voteButton,
-                      userVoteStatus.voteType === "upvote" && styles.activeUpvote,
-                    ]}
-                    onPress={() => {
-                      if (userVoteStatus.voteType === "upvote") {
-                        handleVote("upvote", "");
-                      } else {
-                        setPendingVoteType("upvote");
-                        setVoteMessage("");
-                        setVoteMessageModalVisible(true);
-                      }
-                    }}
-                    disabled={isVoting}
-                  >
-                    <Text
-                      style={[
-                        styles.arrowText,
-                        userVoteStatus.voteType === "upvote" && styles.activeUpvoteText,
-                      ]}
-                    >
-                      ⇧
+                <View style={styles.headerContent}>
+                  <View style={styles.iconBadge}>
+                    <Icon name="location" size={28} color="#fff" />
+                  </View>
+
+                  <View style={styles.categoryBadge}>
+                    <Text style={styles.categoryText}>
+                      {selectedPin.category || "Report"}
                     </Text>
-                  </TouchableOpacity>
-                  <Text
-                    style={[
-                      styles.scoreText,
-                      userVoteStatus.voteType === "upvote" && styles.upvotedScore,
-                      userVoteStatus.voteType === "downvote" && styles.downvotedScore,
-                    ]}
-                  >
-                    {(selectedPin.upvotes || 0) - (selectedPin.downvotes || 0)}
+                  </View>
+
+                  <Text style={styles.userName} numberOfLines={2}>
+                    {selectedPin.userFirstName || "Anonymous User"}
                   </Text>
-                  <TouchableOpacity
-                    style={[
-                      styles.voteButton,
-                      userVoteStatus.voteType === "downvote" && styles.activeDownvote,
-                    ]}
-                    onPress={() => {
-                      if (userVoteStatus.voteType === "downvote") {
-                        handleVote("downvote", "");
-                      } else {
-                        setPendingVoteType("downvote");
-                        setVoteMessage("");
-                        setVoteMessageModalVisible(true);
-                      }
-                    }}
-                    disabled={isVoting}
-                  >
-                    <Text
+
+                  <Text style={styles.timeText}>
+                    Posted {getHoursAgo(selectedPin.createdAt)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Content */}
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={styles.content}>
+                  {/* Description Card */}
+                  {selectedPin.description && (
+                    <View style={styles.descriptionCard}>
+                      <View style={styles.descriptionHeader}>
+                        <View style={styles.descriptionIconCircle}>
+                          <Icon name="document-text" size={13} color="#fff" />
+                        </View>
+                        <Text style={styles.descriptionTitle}>Description</Text>
+                      </View>
+                      <Text style={styles.descriptionText}>
+                        {selectedPin.description}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Voting Section */}
+                  <View style={styles.votingSection}>
+                    <Text style={styles.votingLabel}>Community Feedback</Text>
+                    <View
                       style={[
-                        styles.arrowText,
-                        userVoteStatus.voteType === "downvote" && styles.activeDownvoteText,
+                        styles.votingContainer,
+                        userVoteStatus.voteType === "upvote" && styles.containerUpvoted,
+                        userVoteStatus.voteType === "downvote" && styles.containerDownvoted,
                       ]}
                     >
-                      ⇩
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={{ alignItems: "center", marginTop: 10 }}>
+                      <TouchableOpacity
+                        style={[
+                          styles.voteButton,
+                          userVoteStatus.voteType === "upvote" && styles.activeUpvote,
+                        ]}
+                        onPress={() => {
+                          if (userVoteStatus.voteType === "upvote") {
+                            handleVote("upvote", "");
+                          } else {
+                            setPendingVoteType("upvote");
+                            setVoteMessage("");
+                            setVoteMessageModalVisible(true);
+                          }
+                        }}
+                        disabled={isVoting}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.arrowText,
+                            userVoteStatus.voteType === "upvote" &&
+                              styles.activeUpvoteText,
+                          ]}
+                        >
+                          ⇧
+                        </Text>
+                      </TouchableOpacity>
+
+                      <Text
+                        style={[
+                          styles.scoreText,
+                          userVoteStatus.voteType === "upvote" && styles.upvotedScore,
+                          userVoteStatus.voteType === "downvote" &&
+                            styles.downvotedScore,
+                        ]}
+                      >
+                        {(selectedPin.upvotes || 0) - (selectedPin.downvotes || 0)}
+                      </Text>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.voteButton,
+                          userVoteStatus.voteType === "downvote" &&
+                            styles.activeDownvote,
+                        ]}
+                        onPress={() => {
+                          if (userVoteStatus.voteType === "downvote") {
+                            handleVote("downvote", "");
+                          } else {
+                            setPendingVoteType("downvote");
+                            setVoteMessage("");
+                            setVoteMessageModalVisible(true);
+                          }
+                        }}
+                        disabled={isVoting}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.arrowText,
+                            userVoteStatus.voteType === "downvote" &&
+                              styles.activeDownvoteText,
+                          ]}
+                        >
+                          ⇩
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Navigation Button */}
                   <TouchableOpacity
+                    style={styles.navButton}
                     onPress={() => {
                       fetchRoute(location, {
                         latitude: selectedPin.latitude,
@@ -140,105 +554,156 @@ const PinInfoModal = ({
                       });
                       onClose();
                     }}
+                    activeOpacity={0.85}
                   >
-                    <MaterialCommunityIcons
-                      name="navigation"
-                      size={28}
-                      color="#1976D2"
-                    />
-                    <Text style={{ fontSize: 12, color: "#1976D2" }}>
-                      Go To
-                    </Text>
+                    <MaterialCommunityIcons name="navigation" size={20} color="#fff" />
+                    <Text style={styles.navButtonText}>Navigate to Location</Text>
                   </TouchableOpacity>
-                </View>
-                {selectedPin && (
-                  <View style={styles.mediaSection}>
-                    <TouchableOpacity
-                      style={[
-                        styles.mediaToggle,
-                        (!selectedPin.media ||
-                          selectedPin.media.length === 0) &&
-                        styles.mediaToggleDisabled,
-                      ]}
-                      onPress={() => setShowMedia(!showMedia)}
-                      disabled={
-                        !selectedPin.media || selectedPin.media.length === 0
-                      }
-                    >
-                      <Text style={styles.mediaToggleText}>
-                        {!selectedPin.media || selectedPin.media.length === 0
-                          ? "No Media Attached"
-                          : showMedia
-                            ? "Hide Media"
-                            : `Show Media (${selectedPin.media.length})`}
-                      </Text>
-                    </TouchableOpacity>
-                    {showMedia &&
-                      selectedPin.media &&
-                      selectedPin.media.length > 0 && (
-                        <View style={styles.mediaContainer}>
-                          <FlatList
-                            data={selectedPin.media}
-                            keyExtractor={(item, idx) => (item?.url || item?.uri || `media-${idx}`)}
-                            renderItem={({ item, index }) => {
-                              const mediaUrl = item?.url || item?.uri;
-                              return mediaUrl ? (
-                                <TouchableOpacity activeOpacity={0.9} onPress={() => openImage(index)}>
-                                  <Image
-                                    source={{ uri: mediaUrl }}
-                                    style={{ width: 220, height: 220, borderRadius: 10, marginHorizontal: 8 }}
-                                    resizeMode="contain"
-                                    onError={(error) => console.log("Image load error:", error)}
-                                  />
-                                </TouchableOpacity>
-                              ) : (
-                                <View style={{ width: 220, height: 220, backgroundColor: "#eee", borderRadius: 10 }} />
-                              );
-                            }}
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                          />
-                        </View>
-                      )}
+
+                  {/* Media Section */}
+                  <View style={styles.mediaHeader}>
+                    <View style={styles.mediaTitleRow}>
+                      <Icon
+                        name="images"
+                        size={18}
+                        color="#e75e33"
+                        style={styles.mediaTitleIcon}
+                      />
+                      <Text style={styles.sectionTitle}>Attached Media</Text>
+                    </View>
+                    {selectedPin.media && selectedPin.media.length > 0 && (
+                      <View style={styles.mediaCount}>
+                        <Text style={styles.mediaCountText}>
+                          {selectedPin.media.length}
+                        </Text>
+                      </View>
+                    )}
                   </View>
-                )}
-              </>
-            )}
+
+                  <TouchableOpacity
+                    style={[
+                      styles.mediaToggle,
+                      (!selectedPin.media || selectedPin.media.length === 0) &&
+                        styles.mediaToggleDisabled,
+                    ]}
+                    onPress={() => setShowMedia(!showMedia)}
+                    disabled={!selectedPin.media || selectedPin.media.length === 0}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.mediaToggleText,
+                        (!selectedPin.media || selectedPin.media.length === 0) &&
+                          styles.mediaToggleTextDisabled,
+                      ]}
+                    >
+                      {!selectedPin.media || selectedPin.media.length === 0
+                        ? "No media attached"
+                        : showMedia
+                          ? "Hide Media"
+                          : "View Media"}
+                    </Text>
+                    {selectedPin.media && selectedPin.media.length > 0 && (
+                      <Icon
+                        name={showMedia ? "chevron-up" : "chevron-down"}
+                        size={20}
+                        color="#e75e33"
+                      />
+                    )}
+                  </TouchableOpacity>
+
+                  {showMedia && selectedPin.media && selectedPin.media.length > 0 && (
+                    <FlatList
+                      data={selectedPin.media}
+                      keyExtractor={(item, idx) =>
+                        item?.url || item?.uri || `media-${idx}`
+                      }
+                      renderItem={({ item, index }) => {
+                        const mediaUrl = item?.url || item?.uri;
+                        return mediaUrl ? (
+                          <TouchableOpacity
+                            onPress={() => openImage(index)}
+                            activeOpacity={0.9}
+                            style={styles.mediaItem}
+                          >
+                            <Image
+                              source={{ uri: mediaUrl }}
+                              style={styles.mediaImage}
+                              resizeMode="cover"
+                              onError={(error) =>
+                                console.log("Image load error:", error)
+                              }
+                            />
+                            <View style={styles.mediaOverlay}>
+                              <View style={styles.expandIcon}>
+                                <Icon name="expand" size={20} color="#fff" />
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        ) : null;
+                      }}
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.mediaScroll}
+                    />
+                  )}
+                </View>
+              </ScrollView>
+            </Pressable>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
 
-      {/* Image viewer modal */}
-      <Modal visible={imageViewerVisible} transparent animationType="fade" onRequestClose={closeImageViewer}>
-        <View style={viewerStyles.viewerOverlay}>
-          <TouchableOpacity style={viewerStyles.viewerClose} onPress={closeImageViewer} accessibilityLabel="Close image">
-            <Icon name="close" size={28} color="#fff" />
+      {/* Image Viewer */}
+      <Modal
+        visible={imageViewerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeImageViewer}
+      >
+        <View style={styles.viewerOverlay}>
+          <TouchableOpacity onPress={closeImageViewer} style={styles.viewerClose}>
+            <Icon name="close" size={24} color="#fff" />
           </TouchableOpacity>
 
           <Image
-            source={{ uri: selectedPin?.media?.[currentImageIndex]?.url || selectedPin?.media?.[currentImageIndex]?.uri }}
-            style={viewerStyles.viewerImage}
+            source={{
+              uri:
+                selectedPin?.media?.[currentImageIndex]?.url ||
+                selectedPin?.media?.[currentImageIndex]?.uri,
+            }}
+            style={styles.viewerImage}
             resizeMode="contain"
           />
 
           {selectedPin?.media?.length > 1 && (
-            <View style={viewerStyles.viewerNav}>
+            <View style={styles.viewerNav}>
               <TouchableOpacity
-                onPress={() => setCurrentImageIndex((i) => (i === 0 ? selectedPin.media.length - 1 : i - 1))}
-                style={viewerStyles.viewerNavBtn}
-                accessibilityLabel="Previous image"
+                onPress={() =>
+                  setCurrentImageIndex((i) =>
+                    i === 0 ? selectedPin.media.length - 1 : i - 1
+                  )
+                }
+                style={styles.viewerNavBtn}
+                activeOpacity={0.7}
               >
-                <Icon name="chevron-back" size={28} color="#fff" />
+                <Icon name="chevron-back" size={24} color="#fff" />
               </TouchableOpacity>
-              <Text style={viewerStyles.viewerCounter}>
-                {currentImageIndex + 1}/{selectedPin.media.length}
+
+              <Text style={styles.viewerCounter}>
+                {currentImageIndex + 1} / {selectedPin.media.length}
               </Text>
+
               <TouchableOpacity
-                onPress={() => setCurrentImageIndex((i) => (i === selectedPin.media.length - 1 ? 0 : i + 1))}
-                style={viewerStyles.viewerNavBtn}
-                accessibilityLabel="Next image"
+                onPress={() =>
+                  setCurrentImageIndex((i) =>
+                    i === selectedPin.media.length - 1 ? 0 : i + 1
+                  )
+                }
+                style={styles.viewerNavBtn}
+                activeOpacity={0.7}
               >
-                <Icon name="chevron-forward" size={28} color="#fff" />
+                <Icon name="chevron-forward" size={24} color="#fff" />
               </TouchableOpacity>
             </View>
           )}
@@ -247,207 +712,5 @@ const PinInfoModal = ({
     </>
   );
 };
-
-const styles = StyleSheet.create({
-  // Copy the styles for modalOverlay, modalContainer, closeButton, etc. from your MapScreen.js
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  modalContainer: {
-    backgroundColor: "white",
-    padding: 20,
-    borderRadius: 12,
-    width: "85%",
-    maxWidth: 400,
-    maxHeight: "80%",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
-    position: "relative",
-  },
-  closeButton: {
-    position: "absolute",
-    top: 15,
-    right: 15,
-    zIndex: 10,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    borderRadius: 8,
-    padding: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  modalUser: {
-    fontSize: 18,
-    marginBottom: 8,
-    textAlign: "center",
-    color: "#333",
-    fontWeight: "bold",
-  },
-  modalDesc: {
-    fontSize: 16,
-    marginBottom: 10,
-    textAlign: "center",
-    color: "#333",
-  },
-  modalCategory: {
-    fontSize: 14,
-    marginBottom: 8,
-    textAlign: "center",
-    color: "#EC6135",
-    fontWeight: "600",
-    backgroundColor: "#FFF3F0",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  modalTime: {
-    fontSize: 13,
-    color: "#999",
-    marginBottom: 15,
-    textAlign: "center",
-  },
-  votingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-    minWidth: 120,
-    borderRadius: 90,
-    borderWidth: 1,
-    borderColor: "transparent",
-    borderColor: "rgba(14, 14, 14, 0.3)",
-  },
-  containerUpvoted: {
-    backgroundColor: "rgba(255, 139, 96, 0.15)",
-    borderColor: "rgba(255, 139, 96, 0.3)",
-  },
-  containerDownvoted: {
-    backgroundColor: "rgba(148, 148, 255, 0.15)",
-    borderColor: "rgba(148, 148, 255, 0.3)",
-  },
-  voteButton: {
-    paddingVertical: 0,
-    paddingHorizontal: 12,
-    borderRadius: 90,
-    marginHorizontal: 0,
-    paddingBottom: 5,
-  },
-  activeUpvote: {
-    backgroundColor: "#FF8B60",
-  },
-  activeDownvote: {
-    backgroundColor: "#9494FF",
-  },
-  arrowText: {
-    fontSize: 25,
-    fontWeight: "bold",
-    color: "#878A8C",
-  },
-  activeUpvoteText: {
-    color: "#FFFFFF",
-  },
-  activeDownvoteText: {
-    color: "#FFFFFF",
-  },
-  scoreText: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#1A1A1B",
-    marginHorizontal: 8,
-    minWidth: 30,
-    textAlign: "center",
-  },
-  upvotedScore: {
-    color: "#FF8B60",
-  },
-  downvotedScore: {
-    color: "#9494FF",
-  },
-  mediaSection: {
-    width: "100%",
-    alignItems: "center",
-    marginVertical: 15,
-  },
-  mediaToggle: {
-    backgroundColor: "#f0f0f0",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginBottom: 10,
-  },
-  mediaToggleText: {
-    color: "#666",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  mediaContainer: {
-    width: "100%",
-  },
-  mediaScroller: {
-    width: "100%",
-  },
-  mediaScrollContent: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-  },
-  mediaWrapper: {
-    marginHorizontal: 5,
-    borderRadius: 8,
-    overflow: "hidden",
-    backgroundColor: "#f0f0f0",
-    width: 250,
-    height: 250,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  mediaPreview: {
-    width: "100%",
-    height: "100%",
-  },
-});
-
-const viewerStyles = StyleSheet.create({
-  viewerOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.95)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 12,
-  },
-  viewerImage: {
-    width: "100%",
-    height: "78%",
-    borderRadius: 8,
-  },
-  viewerClose: { position: "absolute", top: 44, right: 20, zIndex: 40 },
-  viewerNav: {
-    position: "absolute",
-    bottom: 44,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  viewerNavBtn: { paddingHorizontal: 18, paddingVertical: 6 },
-  viewerCounter: { color: "#fff", fontWeight: "700" },
-});
 
 export default PinInfoModal;

@@ -26,6 +26,9 @@ const MedicalPinModal = ({
   setMedia,
   openTime,
   onChangeOpenTime,
+  // new props for manual barangay selection
+  barangay,
+  onChangeBarangay,
 }) => {
   // Category is always "Medical Support"
   const selectedCategory = "Medical Support";
@@ -140,6 +143,17 @@ const MedicalPinModal = ({
             contentContainerStyle={{ paddingBottom: 20 }}
             keyboardShouldPersistTaps="handled"
           >
+            {/* Barangay (manual selection/input) */}
+            <View style={styles.descriptionSection}>
+              <Text style={styles.sectionLabel}>Barangay (optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Select or enter barangay (optional)"
+                value={barangay}
+                onChangeText={onChangeBarangay}
+              />
+            </View>
+
             {/* Facility Name */}
             <View style={styles.descriptionSection}>
               <Text style={styles.sectionLabel}>Facility Name</Text>
