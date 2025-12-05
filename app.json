@@ -7,6 +7,7 @@
     "icon": "./assets/Kalinga_logo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "runtimeVersion": "1.0.3",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -14,10 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.kalingaapp",
-      "runtimeVersion": {
-        "policy": "appVersion"
-      }
+      "bundleIdentifier": "com.yourcompany.kalingaapp"
     },
     "android": {
       "icon": "./assets/kalinga-icon.png",
@@ -31,8 +29,7 @@
         "ACCESS_FINE_LOCATION",
         "NOTIFICATIONS",
         "SMS"
-      ],
-      "runtimeVersion": "1.0.0"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
