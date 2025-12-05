@@ -47,7 +47,8 @@ import {
   getNotificationHistory,
   getBadgeCount,
 } from '../services/NotificationService';
-
+import { startDisasterMonitoring } from '../services/DisasterMonitorService';
+import { triggerManualCheck } from '../services/DisasterMonitorService';
 const { width } = Dimensions.get("window");
 
 // Cache key prefix (bump version if cache format changes)
@@ -139,6 +140,7 @@ const SimplePinCard = ({ pin, onPress }) => (
     </View>
   </TouchableOpacity>
 );
+
 
 export default function HomeScreen({ route, navigation }) {
   const username = route?.params?.username;
@@ -267,7 +269,16 @@ export default function HomeScreen({ route, navigation }) {
     if (token) {
       console.log('Push notification token registered:', token);
     }
-
+    if (currentLocation && username) {
+      const started = await startDisasterMonitoring(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        username
+      );
+      if (started) {
+        console.log('✅ Disaster monitoring active');
+      }
+    }
     // Load unread notification count
     loadNotificationCount();
 
@@ -359,13 +370,14 @@ export default function HomeScreen({ route, navigation }) {
         return;
       }
 
-      // Fetch earthquakes within 500km radius, magnitude 2.5+, last 10 events
+      // Fetch ALL earthquakes (1.0+) within 300km, last 30 days
       const quakes = await fetchNearbyEarthquakes(
         currentLocation.latitude,
         currentLocation.longitude,
-        500, // radius in km
-        2.5, // minimum magnitude
-        10   // max results
+        300,  // 300km radius - good for "nearby"
+        1.0,  // magnitude 1.0+ to see ALL small earthquakes
+        100,  // get up to 100 results
+        30    // last 30 days
       );
 
       setEarthquakes(quakes);
@@ -877,6 +889,27 @@ export default function HomeScreen({ route, navigation }) {
                   style={styles.cardImage}
                 />
                 <Text style={styles.cardText}>Evacuation Centers</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.cardServices}
+                onPress={async () => {
+                  Toast.show({
+                    type: 'info',
+                    text1: 'Checking for disasters...',
+                    text2: 'This may take a few seconds',
+                  });
+                  const result = await triggerManualCheck();
+                  if (result) {
+                    Toast.show({
+                      type: 'success',
+                      text1: 'Check Complete',
+                      text2: 'Look for notifications',
+                    });
+                  }
+                }}
+              >
+                <Icon name="flask" size={60} color="#49A5A2" />
+                <Text style={styles.cardText}>Test Disaster Check</Text>
               </TouchableOpacity>
             </View>
           </View>

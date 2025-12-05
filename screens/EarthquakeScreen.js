@@ -27,12 +27,19 @@ import {
 import * as Location from "expo-location";
 import Toast from "react-native-toast-message";
 import NetInfo from "@react-native-community/netinfo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+// Cache configuration
+const EARTHQUAKE_CACHE_PREFIX = "earthquake_cache_v1";
+const CACHE_EXPIRY_TIME = 5 * 60 * 1000; // 5 minutes
+
 export default function EarthquakeScreen({ navigation }) {
   const [earthquakes, setEarthquakes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [currentLocation, setCurrentLocation] = useState(null);
-  const [selectedFilter, setSelectedFilter] = useState("nearby"); // nearby, all, significant
+  const [selectedFilter, setSelectedFilter] = useState("nearby");
+  const [usingCache, setUsingCache] = useState(false);
 
   useEffect(() => {
     getLocationAndFetch();
@@ -53,8 +60,7 @@ export default function EarthquakeScreen({ navigation }) {
           text1: "Location Permission",
           text2: "Enable location for nearby earthquakes",
         });
-        // Still fetch all earthquakes even without location
-        setCurrentLocation({ latitude: 14.5995, longitude: 120.9842 }); // Default to Manila
+        setCurrentLocation({ latitude: 14.5995, longitude: 120.9842 });
         return;
       }
 
@@ -62,7 +68,54 @@ export default function EarthquakeScreen({ navigation }) {
       setCurrentLocation(loc.coords);
     } catch (error) {
       console.error("Location error:", error);
-      setCurrentLocation({ latitude: 14.5995, longitude: 120.9842 }); // Default to Manila
+      setCurrentLocation({ latitude: 14.5995, longitude: 120.9842 });
+    }
+  };
+
+  // Generate cache key based on filter and location
+  const getCacheKey = (filter, location) => {
+    return `${EARTHQUAKE_CACHE_PREFIX}_${filter}_${location.latitude.toFixed(2)}_${location.longitude.toFixed(2)}`;
+  };
+
+  // Save earthquakes to cache
+  const saveToCache = async (filter, location, data) => {
+    try {
+      const cacheKey = getCacheKey(filter, location);
+      const cacheData = {
+        timestamp: Date.now(),
+        data: data,
+      };
+      await AsyncStorage.setItem(cacheKey, JSON.stringify(cacheData));
+      console.log(`✅ Saved ${data.length} earthquakes to cache`);
+    } catch (error) {
+      console.warn("Failed to save to cache:", error);
+    }
+  };
+
+  // Load earthquakes from cache
+  const loadFromCache = async (filter, location) => {
+    try {
+      const cacheKey = getCacheKey(filter, location);
+      const cached = await AsyncStorage.getItem(cacheKey);
+      
+      if (!cached) {
+        console.log("📦 No cache found");
+        return null;
+      }
+
+      const { timestamp, data } = JSON.parse(cached);
+      const age = Date.now() - timestamp;
+
+      if (age > CACHE_EXPIRY_TIME) {
+        console.log("⏰ Cache expired");
+        return null;
+      }
+
+      console.log(`✅ Loaded ${data.length} earthquakes from cache (${Math.round(age/1000)}s old)`);
+      return data;
+    } catch (error) {
+      console.warn("Failed to load from cache:", error);
+      return null;
     }
   };
 
@@ -70,59 +123,89 @@ export default function EarthquakeScreen({ navigation }) {
     if (!currentLocation) return;
 
     setLoading(true);
+    setUsingCache(false);
+
+    // Try to load from cache first
+    const cachedData = await loadFromCache(selectedFilter, currentLocation);
+    if (cachedData && cachedData.length > 0) {
+      setEarthquakes(cachedData);
+      setUsingCache(true);
+      setLoading(false);
+    }
+
     try {
       const netState = await NetInfo.fetch();
       if (!netState.isConnected) {
-        Toast.show({
-          type: "error",
-          text1: "Offline",
-          text2: "Please check your internet connection",
-        });
-        setLoading(false);
-        return;
+        if (cachedData) {
+          Toast.show({
+            type: "info",
+            text1: "Offline Mode",
+            text2: "Showing cached earthquake data",
+          });
+          setLoading(false);
+          return;
+        } else {
+          Toast.show({
+            type: "error",
+            text1: "Offline",
+            text2: "No cached data available",
+          });
+          setLoading(false);
+          return;
+        }
       }
 
       let quakes = [];
+      let radiusKm, minMagnitude, limit;
 
       switch (selectedFilter) {
         case "nearby":
-          // Within 500km, mag 2.5+
+          radiusKm = 500;
+          minMagnitude = 2.0;
+          limit = 100;
           quakes = await fetchNearbyEarthquakes(
             currentLocation.latitude,
             currentLocation.longitude,
-            500,
-            2.5,
-            50
+            radiusKm,
+            minMagnitude,
+            limit,
+            30
           );
           break;
 
         case "all":
-          // Philippines region, all magnitudes
+          radiusKm = 2000;
+          minMagnitude = 2.0;
+          limit = 150;
           quakes = await fetchNearbyEarthquakes(
             currentLocation.latitude,
             currentLocation.longitude,
-            2000, // Larger radius to cover Philippines
-            2.0,
-            100
+            radiusKm,
+            minMagnitude,
+            limit,
+            30
           );
           break;
 
         case "significant":
-          // Larger earthquakes, wider area
+          radiusKm = 3000;
+          minMagnitude = 4.5;
+          limit = 100;
           quakes = await fetchNearbyEarthquakes(
             currentLocation.latitude,
             currentLocation.longitude,
-            3000,
-            4.5,
-            50
+            radiusKm,
+            minMagnitude,
+            limit,
+            30
           );
           break;
       }
 
-      // Calculate distance for each earthquake
+      // Calculate distance for each earthquake if not already calculated
       const quakesWithDistance = quakes.map((quake) => ({
         ...quake,
-        distanceKm: calculateDistance(
+        distanceKm: quake.distanceKm || calculateDistance(
           currentLocation.latitude,
           currentLocation.longitude,
           quake.latitude,
@@ -134,13 +217,28 @@ export default function EarthquakeScreen({ navigation }) {
       quakesWithDistance.sort((a, b) => b.time - a.time);
 
       setEarthquakes(quakesWithDistance);
+      setUsingCache(false);
+
+      // Save to cache
+      await saveToCache(selectedFilter, currentLocation, quakesWithDistance);
+
     } catch (error) {
       console.error("Error fetching earthquakes:", error);
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: "Could not load earthquake data",
-      });
+      
+      // If fetch failed but we have cache, keep showing cache
+      if (cachedData) {
+        Toast.show({
+          type: "warning",
+          text1: "Using Cached Data",
+          text2: "Could not fetch fresh data",
+        });
+      } else {
+        Toast.show({
+          type: "error",
+          text1: "Error",
+          text2: "Could not load earthquake data",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -190,7 +288,6 @@ export default function EarthquakeScreen({ navigation }) {
       onPress={() => openEarthquakeDetails(item)}
       activeOpacity={0.7}
     >
-      {/* Magnitude Badge */}
       <View
         style={[
           styles.magnitudeBadge,
@@ -203,7 +300,6 @@ export default function EarthquakeScreen({ navigation }) {
         </Text>
       </View>
 
-      {/* Earthquake Info */}
       <View style={styles.earthquakeInfo}>
         <Text style={styles.earthquakePlace} numberOfLines={2}>
           {item.place}
@@ -237,7 +333,6 @@ export default function EarthquakeScreen({ navigation }) {
           )}
         </View>
 
-        {/* Tsunami Warning */}
         {item.tsunami && (
           <View style={styles.tsunamiWarning}>
             <Icon name="warning" size={16} color="#fff" />
@@ -245,7 +340,6 @@ export default function EarthquakeScreen({ navigation }) {
           </View>
         )}
 
-        {/* Alert Level */}
         {item.alert && (
           <View
             style={[
@@ -260,7 +354,6 @@ export default function EarthquakeScreen({ navigation }) {
         )}
       </View>
 
-      {/* Arrow Icon */}
       <Icon name="chevron-forward" size={24} color="#ccc" />
     </TouchableOpacity>
   );
@@ -284,7 +377,6 @@ export default function EarthquakeScreen({ navigation }) {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <StatusBar barStyle="light-content" backgroundColor="#e75e33" />
 
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -302,24 +394,22 @@ export default function EarthquakeScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Filter Buttons */}
       <View style={styles.filterContainer}>
         {renderFilterButton("nearby", "Nearby", "locate")}
         {renderFilterButton("all", "All", "list")}
         {renderFilterButton("significant", "Significant", "alert-circle")}
       </View>
 
-      {/* Info Banner */}
       <View style={styles.infoBanner}>
         <Icon name="information-circle-outline" size={20} color="#49A5A2" />
         <Text style={styles.infoText}>
-          {selectedFilter === "nearby" && "Showing earthquakes within 500km"}
-          {selectedFilter === "all" && "Showing all recent earthquakes"}
-          {selectedFilter === "significant" && "Showing magnitude 4.5+ earthquakes"}
+          {selectedFilter === "nearby" && "Showing earthquakes 2.0+ within 500km"}
+          {selectedFilter === "all" && "Showing earthquakes 2.0+ within 2000km"}
+          {selectedFilter === "significant" && "Showing earthquakes 4.5+ worldwide"}
+          {usingCache && " (cached)"}
         </Text>
       </View>
 
-      {/* Earthquake List */}
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#e75e33" />
@@ -352,7 +442,7 @@ export default function EarthquakeScreen({ navigation }) {
           ListFooterComponent={
             <View style={styles.footer}>
               <Text style={styles.footerText}>
-                Data provided by USGS Earthquake Hazards Program
+                Data provided by {usingCache ? "Cache" : "USGS/EMSC"} Earthquake Data
               </Text>
               <Text style={styles.footerSubtext}>
                 Tap any earthquake for more details
@@ -365,7 +455,10 @@ export default function EarthquakeScreen({ navigation }) {
   );
 }
 
+// [Keep all your existing styles - they're perfect!]
 const styles = StyleSheet.create({
+  // ... paste all your existing styles here ...
+
   container: {
     flex: 1,
     backgroundColor: "#f5f5f5",

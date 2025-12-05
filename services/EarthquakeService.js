@@ -1,28 +1,87 @@
 // services/EarthquakeService.js
 import axios from 'axios';
 
-// USGS Earthquake API Configuration
-// No API key needed - completely free!
-const USGS_BASE_URL = 'https://earthquake.usgs.gov/fdsnws/event/1/query';
+// Multiple earthquake data sources
+const EMSC_API = 'https://www.seismicportal.eu/fdsnws/event/1/query';
+const USGS_API = 'https://earthquake.usgs.gov/fdsnws/event/1/query';
 
 /**
- * Fetch recent earthquakes near a location
- * @param {number} latitude - User's latitude
- * @param {number} longitude - User's longitude
- * @param {number} radiusKm - Search radius in kilometers (default: 500km)
- * @param {number} minMagnitude - Minimum magnitude to show (default: 2.5)
- * @param {number} limit - Maximum number of results (default: 10)
- * @returns {Promise<Array>} Array of earthquake data
+ * Fetch earthquakes from EMSC (European-Mediterranean Seismological Centre)
+ * Great global coverage including Asia/Pacific
  */
-export const fetchNearbyEarthquakes = async (
+const fetchEMSCEarthquakes = async (
   latitude,
   longitude,
-  radiusKm = 500,
-  minMagnitude = 2.5,
-  limit = 10
+  radiusKm,
+  minMagnitude,
+  limit,
+  maxDays
 ) => {
   try {
-    const response = await axios.get(USGS_BASE_URL, {
+    const startTime = new Date(Date.now() - maxDays * 24 * 60 * 60 * 1000).toISOString();
+    
+    const response = await axios.get(EMSC_API, {
+      params: {
+        format: 'json',
+        lat: latitude,
+        lon: longitude,
+        maxradius: (radiusKm / 111.32).toFixed(2), // Convert km to degrees
+        minmag: minMagnitude,
+        orderby: 'time',
+        limit: limit,
+        starttime: startTime,
+      },
+      timeout: 10000,
+    });
+
+    if (!response.data || !response.data.features) {
+      return [];
+    }
+
+    const earthquakes = response.data.features.map((feature) => {
+      const props = feature.properties;
+      const coords = feature.geometry.coordinates;
+
+      return {
+        id: feature.id || `emsc_${props.time}_${Math.random()}`,
+        magnitude: parseFloat(props.mag) || 0,
+        place: props.flynn_region || props.place || 'Unknown location',
+        time: new Date(props.time),
+        timeAgo: getTimeAgo(new Date(props.time).getTime()),
+        latitude: coords[1],
+        longitude: coords[0],
+        depth: coords[2] || 0,
+        url: `https://www.emsc-csem.org/Earthquake/earthquake.php?id=${feature.id}`,
+        felt: 0,
+        alert: null,
+        tsunami: false,
+        significance: 0,
+        type: 'earthquake',
+      };
+    });
+
+    return earthquakes.filter(eq => eq.magnitude > 0);
+  } catch (error) {
+    console.error('EMSC API error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Fetch earthquakes from USGS (Global data)
+ */
+const fetchUSGSEarthquakes = async (
+  latitude,
+  longitude,
+  radiusKm,
+  minMagnitude,
+  limit,
+  maxDays
+) => {
+  try {
+    const startTime = new Date(Date.now() - maxDays * 24 * 60 * 60 * 1000).toISOString();
+    
+    const response = await axios.get(USGS_API, {
       params: {
         format: 'geojson',
         latitude: latitude,
@@ -31,7 +90,9 @@ export const fetchNearbyEarthquakes = async (
         minmagnitude: minMagnitude,
         orderby: 'time',
         limit: limit,
+        starttime: startTime,
       },
+      timeout: 10000,
     });
 
     const earthquakes = response.data.features.map((feature) => {
@@ -49,34 +110,96 @@ export const fetchNearbyEarthquakes = async (
         depth: coords[2],
         url: props.url,
         felt: props.felt || 0,
-        alert: props.alert || null, // green, yellow, orange, red
+        alert: props.alert || null,
         tsunami: props.tsunami === 1,
         significance: props.sig,
+        type: props.type,
       };
     });
 
     return earthquakes;
   } catch (error) {
-    console.error('Error fetching earthquake data:', error);
+    console.error('USGS API error:', error.message);
     throw error;
   }
 };
 
 /**
- * Fetch significant earthquakes worldwide (last 7 days)
- * @param {number} minMagnitude - Minimum magnitude (default: 4.5)
- * @returns {Promise<Array>} Array of significant earthquakes
+ * Fetch recent earthquakes near a location
+ * Tries multiple sources for best coverage
+ */
+export const fetchNearbyEarthquakes = async (
+  latitude,
+  longitude,
+  radiusKm = 300,
+  minMagnitude = 1.0,
+  limit = 100,
+  maxDays = 30
+) => {
+  // Try EMSC first (great for Asia/Pacific region)
+  try {
+    console.log('🌍 Trying EMSC API...');
+    const emscData = await fetchEMSCEarthquakes(
+      latitude,
+      longitude,
+      radiusKm,
+      minMagnitude,
+      limit,
+      maxDays
+    );
+    
+    if (emscData && emscData.length > 0) {
+      // Add distance calculation
+      const withDistance = emscData.map(quake => ({
+        ...quake,
+        distanceKm: calculateDistance(
+          latitude,
+          longitude,
+          quake.latitude,
+          quake.longitude
+        ),
+      }));
+      
+      console.log(`✅ EMSC: Found ${withDistance.length} earthquakes`);
+      return withDistance.sort((a, b) => b.time - a.time);
+    }
+  } catch (error) {
+    console.log('⚠️ EMSC failed, trying USGS...');
+  }
+
+  // Fallback to USGS
+  try {
+    console.log('🌍 Trying USGS API...');
+    const usgsData = await fetchUSGSEarthquakes(
+      latitude,
+      longitude,
+      radiusKm,
+      minMagnitude,
+      limit,
+      maxDays
+    );
+    console.log(`✅ USGS: Found ${usgsData.length} earthquakes`);
+    return usgsData;
+  } catch (error) {
+    console.error('❌ All APIs failed:', error.message);
+    throw new Error('Unable to fetch earthquake data. Please check your internet connection.');
+  }
+};
+
+/**
+ * Fetch significant earthquakes worldwide
  */
 export const fetchSignificantEarthquakes = async (minMagnitude = 4.5) => {
   try {
-    const response = await axios.get(USGS_BASE_URL, {
+    const response = await axios.get(USGS_API, {
       params: {
         format: 'geojson',
         minmagnitude: minMagnitude,
         orderby: 'time',
         limit: 20,
-        starttime: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // Last 7 days
+        starttime: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
       },
+      timeout: 10000,
     });
 
     const earthquakes = response.data.features.map((feature) => {
@@ -107,8 +230,6 @@ export const fetchSignificantEarthquakes = async (minMagnitude = 4.5) => {
 
 /**
  * Get magnitude color based on earthquake severity
- * @param {number} magnitude
- * @returns {string} Color hex code
  */
 export const getMagnitudeColor = (magnitude) => {
   if (magnitude >= 7.0) return '#d32f2f'; // Red - Major
@@ -116,13 +237,12 @@ export const getMagnitudeColor = (magnitude) => {
   if (magnitude >= 5.0) return '#ffa726'; // Light Orange - Moderate
   if (magnitude >= 4.0) return '#fdd835'; // Yellow - Light
   if (magnitude >= 3.0) return '#9ccc65'; // Light Green - Minor
-  return '#66bb6a'; // Green - Micro
+  if (magnitude >= 2.0) return '#66bb6a'; // Green - Micro
+  return '#81c784'; // Light Green - Very Small
 };
 
 /**
  * Get magnitude severity label
- * @param {number} magnitude
- * @returns {string} Severity label
  */
 export const getMagnitudeLabel = (magnitude) => {
   if (magnitude >= 8.0) return 'Great';
@@ -131,13 +251,12 @@ export const getMagnitudeLabel = (magnitude) => {
   if (magnitude >= 5.0) return 'Moderate';
   if (magnitude >= 4.0) return 'Light';
   if (magnitude >= 3.0) return 'Minor';
-  return 'Micro';
+  if (magnitude >= 2.0) return 'Micro';
+  return 'Very Small';
 };
 
 /**
  * Get alert level color
- * @param {string} alert - green, yellow, orange, red
- * @returns {string} Color hex code
  */
 export const getAlertColor = (alert) => {
   switch (alert?.toLowerCase()) {
@@ -156,8 +275,6 @@ export const getAlertColor = (alert) => {
 
 /**
  * Calculate time ago from timestamp
- * @param {number} timestamp
- * @returns {string} Human-readable time ago
  */
 const getTimeAgo = (timestamp) => {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -171,11 +288,6 @@ const getTimeAgo = (timestamp) => {
 
 /**
  * Calculate distance between two coordinates (Haversine formula)
- * @param {number} lat1
- * @param {number} lon1
- * @param {number} lat2
- * @param {number} lon2
- * @returns {number} Distance in kilometers
  */
 export const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371; // Earth's radius in km

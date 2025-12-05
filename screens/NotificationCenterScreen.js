@@ -28,6 +28,7 @@ import {
 } from '../services/NotificationService';
 import Toast from 'react-native-toast-message';
 
+
 export default function NotificationCenterScreen({ navigation, route }) {
   const { username } = route.params || {};
   const [notifications, setNotifications] = useState([]);
@@ -126,27 +127,55 @@ export default function NotificationCenterScreen({ navigation, route }) {
     return date.toLocaleDateString();
   };
 
-  const showTestMenu = () => {
-    Alert.alert(
-      'Send Test Notification',
-      'Choose a notification type to test',
-      [
-        {
-          text: 'Earthquake Alert',
-          onPress: () => sendEarthquakeAlert(5.8, 'Cebu City, Philippines'),
+const showTestMenu = () => {
+  Alert.alert(
+    'Send Test Notification',
+    'Choose a notification type to test',
+    [
+      {
+        text: 'Earthquake Alert',
+        onPress: async () => {
+          await sendEarthquakeAlert(5.8, 'Cebu City, Philippines');
+          // Save to history so it appears in the list
+          await saveNotificationToHistory(username, {
+            title: '🚨 Earthquake Alert - Magnitude 5.8',
+            body: 'Earthquake detected in Cebu City, Philippines. Stay safe and follow emergency procedures.',
+            data: { type: 'earthquake', magnitude: 5.8, location: 'Cebu City, Philippines' }
+          });
+          // Refresh the list
+          fetchNotifications();
         },
-        {
-          text: 'Weather Alert',
-          onPress: () => sendWeatherAlert('Typhoon Warning', 'Typhoon approaching. Prepare for heavy rain and strong winds.'),
+      },
+      {
+        text: 'Weather Alert',
+        onPress: async () => {
+          await sendWeatherAlert('Typhoon Warning', 'Typhoon approaching. Prepare for heavy rain and strong winds.');
+          // Save to history
+          await saveNotificationToHistory(username, {
+            title: '⚠️ Weather Alert: Typhoon Warning',
+            body: 'Typhoon approaching. Prepare for heavy rain and strong winds.',
+            data: { type: 'weather', alertType: 'Typhoon Warning' }
+          });
+          fetchNotifications();
         },
-        {
-          text: 'Incident Alert',
-          onPress: () => sendIncidentAlert('Flood', '2.5 km'),
+      },
+      {
+        text: 'Incident Alert',
+        onPress: async () => {
+          await sendIncidentAlert('Flood', '2.5 km');
+          // Save to history
+          await saveNotificationToHistory(username, {
+            title: '📍 New Incident Near You',
+            body: 'Flood reported 2.5 km away. Tap to view details.',
+            data: { type: 'incident', incidentType: 'Flood' }
+          });
+          fetchNotifications();
         },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
-  };
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]
+  );
+};
 
   const renderNotificationItem = ({ item }) => {
     const icon = getNotificationIcon(item.data?.type);
