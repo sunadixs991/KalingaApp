@@ -1,3 +1,4 @@
+// HomeScreen.js
 import React, { useEffect, useState, useRef } from "react";
 import { Modal } from "react-native";
 import {
@@ -47,7 +48,7 @@ import {
   getNotificationHistory,
   getBadgeCount,
 } from '../services/NotificationService';
-import { startDisasterMonitoring } from '../services/DisasterMonitorService';
+import { startDisasterMonitoring, resetDisasterMonitoring } from '../services/DisasterMonitorService';
 import { triggerManualCheck } from '../services/DisasterMonitorService';
 const { width } = Dimensions.get("window");
 
@@ -269,37 +270,38 @@ export default function HomeScreen({ route, navigation }) {
     if (token) {
       console.log('Push notification token registered:', token);
     }
-    if (currentLocation && username) {
-      const started = await startDisasterMonitoring(
-        currentLocation.latitude,
-        currentLocation.longitude,
-        username
-      );
-      if (started) {
-        console.log('✅ Disaster monitoring active');
-      }
-    }
+    // In HomeScreen.js initializeNotifications
+    // if (currentLocation && username) {
+    //   const started = await startDisasterMonitoring(
+    //     currentLocation.latitude,
+    //     currentLocation.longitude,
+    //     username
+    //   );
+    //   if (started) {
+    //     console.log('✅ Disaster monitoring active');
+    //   } else {
+    //     console.log('❌ Failed to start monitoring'); // Add user feedback
+    //   }
+    // }
     // Load unread notification count
     loadNotificationCount();
 
     // Listen for notifications while app is in foreground
     notificationListener.current = addNotificationReceivedListener(notification => {
       console.log('Notification received:', notification);
-      loadNotificationCount(); // Update badge count
+      loadNotificationCount();
     });
-
     // Listen for when user taps on notification
     responseListener.current = addNotificationResponseListener(response => {
       console.log('Notification tapped:', response);
       const notificationData = response.notification.request.content.data;
 
-      // Navigate based on notification type
       if (notificationData.type === 'earthquake') {
         navigation.navigate('Earthquake');
       } else if (notificationData.type === 'incident') {
         navigation.navigate('IncidentsList');
       } else if (notificationData.type === 'weather') {
-        // Stay on home or navigate to weather details
+        navigation.navigate('Home');
       }
     });
   };
@@ -458,6 +460,70 @@ export default function HomeScreen({ route, navigation }) {
     });
     return () => unsub();
   }, [currentLocation]);
+  // Add this new useEffect AFTER your existing location and username useEffects
+
+  // Start disaster monitoring when BOTH username AND location are ready
+  useEffect(() => {
+    const startMonitoring = async () => {
+      if (username && currentLocation) {
+        console.log('📍 Starting disaster monitoring...');
+        console.log('   Username:', username);
+        console.log('   Location:', currentLocation.latitude, currentLocation.longitude);
+
+        const started = await startDisasterMonitoring(
+          currentLocation.latitude,
+          currentLocation.longitude,
+          username
+        );
+
+        if (started) {
+          console.log('✅ Disaster monitoring initialized successfully');
+          // Toast.show({
+          //   type: 'success',
+          //   text1: 'Monitoring Active',
+          //   text2: 'You will be alerted about disasters in your area',
+          //   visibilityTime: 3000,
+          // });
+        } else {
+          // console.log('❌ Failed to start disaster monitoring');
+          // Toast.show({
+          //   type: 'error',
+          //   text1: 'Monitoring Failed',
+          //   text2: 'Could not start disaster monitoring',
+          // });
+        }
+      }
+    };
+
+    startMonitoring();
+  }, [username, currentLocation]); // Re-run when either changes
+  useEffect(() => {
+    // Run a check when app first opens (after location and username are ready)
+    const runCatchupCheck = async () => {
+      if (username && currentLocation) {
+        console.log('🔄 Running catch-up check for missed disasters...');
+
+        // Wait a bit for everything to initialize
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        const result = await triggerManualCheck();
+
+        if (result) {
+          console.log('✅ Caught up - found disasters that happened while app was closed');
+          Toast.show({
+            type: 'warning',
+            text1: 'Disaster Alert',
+            text2: 'Check notifications for important updates',
+            visibilityTime: 5000,
+          });
+        } else {
+          console.log('✅ Caught up - no missed disasters');
+        }
+      }
+    };
+
+    runCatchupCheck();
+  }, [username, currentLocation]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -890,27 +956,50 @@ export default function HomeScreen({ route, navigation }) {
                 />
                 <Text style={styles.cardText}>Evacuation Centers</Text>
               </TouchableOpacity>
-              <TouchableOpacity
+
+
+              {/* DISASTER CHECK BUTTON - FOR TESTING PURPOSES ONLY */}
+
+              {/* <TouchableOpacity
                 style={styles.cardServices}
                 onPress={async () => {
+                  Toast.show({
+                    type: 'info',
+                    text1: 'Resetting monitoring...',
+                    text2: 'Clearing all history and cooldowns',
+                  });
+
+                  // Reset everything first
+                  await resetDisasterMonitoring();
+
                   Toast.show({
                     type: 'info',
                     text1: 'Checking for disasters...',
                     text2: 'This may take a few seconds',
                   });
+
                   const result = await triggerManualCheck();
+
                   if (result) {
                     Toast.show({
                       type: 'success',
-                      text1: 'Check Complete',
-                      text2: 'Look for notifications',
+                      text1: 'Alerts Found!',
+                      text2: 'Check your notifications',
+                      visibilityTime: 4000,
+                    });
+                  } else {
+                    Toast.show({
+                      type: 'info',
+                      text1: 'No New Alerts',
+                      text2: 'No disasters detected in your area',
+                      visibilityTime: 4000,
                     });
                   }
                 }}
               >
                 <Icon name="flask" size={60} color="#49A5A2" />
                 <Text style={styles.cardText}>Test Disaster Check</Text>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
             </View>
           </View>
 

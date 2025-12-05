@@ -27,6 +27,7 @@ import {
   sendIncidentAlert,
 } from '../services/NotificationService';
 import Toast from 'react-native-toast-message';
+import { saveNotificationToHistory } from '../services/NotificationService';
 
 
 export default function NotificationCenterScreen({ navigation, route }) {
@@ -80,7 +81,7 @@ export default function NotificationCenterScreen({ navigation, route }) {
       navigation.navigate('Earthquake');
     } else if (notification.data?.type === 'incident') {
       navigation.navigate('IncidentsList');
-    } else if (notification.data?.type === 'weather') {
+    } else if (notification.data?.type === 'weather' || notification.data?.type === 'typhoon') {  // UPDATE THIS LINE
       navigation.navigate('Home');
     }
   };
@@ -108,6 +109,8 @@ export default function NotificationCenterScreen({ navigation, route }) {
         return { name: 'pulse', color: '#e67e22' };
       case 'weather':
         return { name: 'cloud', color: '#3498db' };
+      case 'typhoon':  // ADD THIS
+        return { name: 'thunderstorm', color: '#8B0000' };  // ADD THIS
       case 'incident':
         return { name: 'alert-circle', color: '#e75e33' };
       default:
@@ -117,7 +120,7 @@ export default function NotificationCenterScreen({ navigation, route }) {
 
   const getTimeAgo = (date) => {
     if (!date) return 'Unknown time';
-    
+
     const seconds = Math.floor((new Date() - date) / 1000);
 
     if (seconds < 60) return 'Just now';
@@ -127,55 +130,55 @@ export default function NotificationCenterScreen({ navigation, route }) {
     return date.toLocaleDateString();
   };
 
-const showTestMenu = () => {
-  Alert.alert(
-    'Send Test Notification',
-    'Choose a notification type to test',
-    [
-      {
-        text: 'Earthquake Alert',
-        onPress: async () => {
-          await sendEarthquakeAlert(5.8, 'Cebu City, Philippines');
-          // Save to history so it appears in the list
-          await saveNotificationToHistory(username, {
-            title: '🚨 Earthquake Alert - Magnitude 5.8',
-            body: 'Earthquake detected in Cebu City, Philippines. Stay safe and follow emergency procedures.',
-            data: { type: 'earthquake', magnitude: 5.8, location: 'Cebu City, Philippines' }
-          });
-          // Refresh the list
-          fetchNotifications();
+  const showTestMenu = () => {
+    Alert.alert(
+      'Send Test Notification',
+      'Choose a notification type to test',
+      [
+        {
+          text: 'Earthquake Alert',
+          onPress: async () => {
+            await sendEarthquakeAlert(5.8, 'Cebu City, Philippines');
+            // Save to history so it appears in the list
+            await saveNotificationToHistory(username, {
+              title: '🚨 Earthquake Alert - Magnitude 5.8',
+              body: 'Earthquake detected in Cebu City, Philippines. Stay safe and follow emergency procedures.',
+              data: { type: 'earthquake', magnitude: 5.8, location: 'Cebu City, Philippines' }
+            });
+            // Refresh the list
+            fetchNotifications();
+          },
         },
-      },
-      {
-        text: 'Weather Alert',
-        onPress: async () => {
-          await sendWeatherAlert('Typhoon Warning', 'Typhoon approaching. Prepare for heavy rain and strong winds.');
-          // Save to history
-          await saveNotificationToHistory(username, {
-            title: '⚠️ Weather Alert: Typhoon Warning',
-            body: 'Typhoon approaching. Prepare for heavy rain and strong winds.',
-            data: { type: 'weather', alertType: 'Typhoon Warning' }
-          });
-          fetchNotifications();
+        {
+          text: 'Weather Alert',
+          onPress: async () => {
+            await sendWeatherAlert('Typhoon Warning', 'Typhoon approaching. Prepare for heavy rain and strong winds.');
+            // Save to history
+            await saveNotificationToHistory(username, {
+              title: '⚠️ Weather Alert: Typhoon Warning',
+              body: 'Typhoon approaching. Prepare for heavy rain and strong winds.',
+              data: { type: 'weather', alertType: 'Typhoon Warning' }
+            });
+            fetchNotifications();
+          },
         },
-      },
-      {
-        text: 'Incident Alert',
-        onPress: async () => {
-          await sendIncidentAlert('Flood', '2.5 km');
-          // Save to history
-          await saveNotificationToHistory(username, {
-            title: '📍 New Incident Near You',
-            body: 'Flood reported 2.5 km away. Tap to view details.',
-            data: { type: 'incident', incidentType: 'Flood' }
-          });
-          fetchNotifications();
+        {
+          text: 'Incident Alert',
+          onPress: async () => {
+            await sendIncidentAlert('Flood', '2.5 km');
+            // Save to history
+            await saveNotificationToHistory(username, {
+              title: '📍 New Incident Near You',
+              body: 'Flood reported 2.5 km away. Tap to view details.',
+              data: { type: 'incident', incidentType: 'Flood' }
+            });
+            fetchNotifications();
+          },
         },
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]
-  );
-};
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
 
   const renderNotificationItem = ({ item }) => {
     const icon = getNotificationIcon(item.data?.type);
@@ -212,11 +215,11 @@ const showTestMenu = () => {
       <Text style={styles.emptySubtext}>
         You'll receive alerts about earthquakes, weather, and incidents here
       </Text>
-      
-      <TouchableOpacity style={styles.testButton} onPress={showTestMenu}>
+
+      {/* <TouchableOpacity style={styles.testButton} onPress={showTestMenu}>
         <Icon name="flask-outline" size={20} color="#fff" />
         <Text style={styles.testButtonText}>Send Test Notification</Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
     </View>
   );
 
@@ -262,12 +265,12 @@ const showTestMenu = () => {
               tintColor="#e75e33"
             />
           }
-          ListFooterComponent={
-            <TouchableOpacity style={styles.testButtonBottom} onPress={showTestMenu}>
-              <Icon name="flask-outline" size={18} color="#e75e33" />
-              <Text style={styles.testButtonBottomText}>Send Test Notification</Text>
-            </TouchableOpacity>
-          }
+          // ListFooterComponent={
+          //   <TouchableOpacity style={styles.testButtonBottom} onPress={showTestMenu}>
+          //     <Icon name="flask-outline" size={18} color="#e75e33" />
+          //     <Text style={styles.testButtonBottomText}>Send Test Notification</Text>
+          //   </TouchableOpacity>
+          // }
         />
       )}
     </SafeAreaView>
