@@ -57,6 +57,7 @@ import EarthquakeScreen from './screens/EarthquakeScreen';
 // ✅ Import Feedback Modal
 import FeedbackModal from "./components/FeedbackModal";
 import CommentsScreen from "./screens/CommentsScreen";
+import NotificationCenterScreen from "./screens/NotificationCenterScreen";
 
 const Stack = createStackNavigator();
 
@@ -230,7 +231,9 @@ export default function App() {
             <Stack.Screen name="ManageDRRMAdmins" component={ManageDRRMAdmins} />
             <Stack.Screen name="AdminUtilsPurok" component={AdminUtilsPurok} />
             <Stack.Screen name="AdminUtilsDRRM" component={AdminUtilsDRRM} />
-           <Stack.Screen name="Earthquake" component={EarthquakeScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Earthquake" component={EarthquakeScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="NotificationCenter"component={NotificationCenterScreen} options={{ headerShown: false }}
+            />
           </Stack.Navigator>
 
           {/* ✅ Pass username to Feedback Modal */}

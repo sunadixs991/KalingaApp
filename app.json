@@ -30,9 +30,6 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "NOTIFICATIONS",
-        "SMS",
-        "ACCESS_FINE_LOCATION",
-        "NOTIFICATIONS",
         "SMS"
       ],
       "runtimeVersion": "1.0.0"
@@ -44,11 +41,21 @@
       [
         "expo-notifications",
         {
-          "color": "#ffffff"
+          "icon": "./assets/kalinga-icon.png",
+          "color": "#e75e33",
+          "sounds": [],
+          "androidMode": "default",
+          "androidCollapsedTitle": "Kalinga"
         }
       ],
       "expo-asset"
     ],
+    "notification": {
+      "icon": "./assets/kalinga-icon.png",
+      "color": "#e75e33",
+      "androidMode": "default",
+      "androidCollapsedTitle": "Kalinga"
+    },
     "scheme": "kalingaapp",
     "extra": {
       "eas": {

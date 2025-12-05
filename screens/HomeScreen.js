@@ -40,6 +40,13 @@ import womanProfile from "../assets/woman.png";
 import userProfile from "../assets/user.png";
 import adminProfile from "../assets/admin.png";
 import Toast from 'react-native-toast-message';
+import {
+  registerForPushNotifications,
+  addNotificationReceivedListener,
+  addNotificationResponseListener,
+  getNotificationHistory,
+  getBadgeCount,
+} from '../services/NotificationService';
 
 const { width } = Dimensions.get("window");
 
@@ -154,6 +161,9 @@ export default function HomeScreen({ route, navigation }) {
   // Earthquake state  ← ADD THESE TWO LINES
   const [earthquakes, setEarthquakes] = useState([]);
   const [loadingEarthquakes, setLoadingEarthquakes] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const notificationListener = useRef();
+  const responseListener = useRef();
 
   useEffect(() => {
     const fetchUserInfo = async () => {
@@ -234,6 +244,63 @@ export default function HomeScreen({ route, navigation }) {
       fetchWeather();
     }
   }, [currentLocation]);
+
+  useEffect(() => {
+    if (username) {
+      initializeNotifications();
+    }
+
+    // Cleanup listeners on unmount
+    return () => {
+      if (notificationListener.current) {
+        notificationListener.current.remove();
+      }
+      if (responseListener.current) {
+        responseListener.current.remove();
+      }
+    };
+  }, [username]);
+
+  const initializeNotifications = async () => {
+    // Register for push notifications
+    const token = await registerForPushNotifications(username);
+    if (token) {
+      console.log('Push notification token registered:', token);
+    }
+
+    // Load unread notification count
+    loadNotificationCount();
+
+    // Listen for notifications while app is in foreground
+    notificationListener.current = addNotificationReceivedListener(notification => {
+      console.log('Notification received:', notification);
+      loadNotificationCount(); // Update badge count
+    });
+
+    // Listen for when user taps on notification
+    responseListener.current = addNotificationResponseListener(response => {
+      console.log('Notification tapped:', response);
+      const notificationData = response.notification.request.content.data;
+
+      // Navigate based on notification type
+      if (notificationData.type === 'earthquake') {
+        navigation.navigate('Earthquake');
+      } else if (notificationData.type === 'incident') {
+        navigation.navigate('IncidentsList');
+      } else if (notificationData.type === 'weather') {
+        // Stay on home or navigate to weather details
+      }
+    });
+  };
+  const loadNotificationCount = async () => {
+    try {
+      const notifications = await getNotificationHistory(username);
+      const unreadCount = notifications.filter(n => !n.read).length;
+      setNotificationCount(unreadCount);
+    } catch (error) {
+      console.error('Error loading notification count:', error);
+    }
+  };
 
   const fetchWeather = async () => {
     if (!currentLocation) return;
@@ -636,11 +703,20 @@ export default function HomeScreen({ route, navigation }) {
           {/*Notification Button */}
           <TouchableOpacity
             style={styles.notificationButton}
-            onPress={() => setNotificationModalVisible(true)}
+            onPress={() => {
+              setNotificationCount(0); // Clear badge when opening
+              navigation.navigate('NotificationCenter', { username });
+            }}
           >
             <Icon name="notifications-outline" size={24} color="#000" />
-            {/* Red Badge for new notifications */}
-            <View style={styles.notificationBadge} />
+            {/* Red Badge for unread notifications */}
+            {notificationCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {notificationCount > 99 ? '99+' : notificationCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
 
           <Modal
@@ -1447,5 +1523,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
     marginTop: 8,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: 'red',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 });
