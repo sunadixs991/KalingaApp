@@ -1,4 +1,4 @@
-// screens/AddScheduleScreen.js
+﻿// screens/AddScheduleScreen.js - Combined SMS and Push Notifications (Filtered by Barangay & Purok)
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -16,8 +16,8 @@ import Icon from "react-native-vector-icons/Ionicons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { supabase } from "../services/supabaseClient"; // adjust path if your supabase client is exported elsewhere
-import { notifyUsers } from "../services/notification";
+import { supabase } from "../services/supabaseClient";
+import { sendIprogSMS } from "../services/notification"; // SMS notification
 import {
   addDoc,
   collection,
@@ -28,8 +28,8 @@ import {
 } from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { db } from "../firebase";
-
-
+import Toast from 'react-native-toast-message';
+import { sendLocalNotification, saveNotificationToHistory } from '../services/NotificationService'; // Push notification
 
 // Helper to log user activity
 async function logUserActivity({ title, description, userFirstName }) {
@@ -65,7 +65,7 @@ export default function AddScheduleScreen({ navigation, route }) {
     date: new Date(),
     time: new Date(),
     location: "",
-    purok: "", // Add purok field
+    purok: "",
   });
 
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -79,6 +79,8 @@ export default function AddScheduleScreen({ navigation, route }) {
   const [isOtherLandmark, setIsOtherLandmark] = useState(false);
   const [otherLandmark, setOtherLandmark] = useState("");
   const [purokList, setPurokList] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
+
   // Fetch barangay list from Firestore
   useEffect(() => {
     const fetchBarangays = async () => {
@@ -89,10 +91,7 @@ export default function AddScheduleScreen({ navigation, route }) {
           const data = doc.data();
           if (data.name) list.push(data.name);
         });
-        
-        // ✅ Sort alphabetically (case-insensitive)
         list.sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
-
         setBarangayList(list);
       } catch (error) {
         console.log("Failed to fetch barangays:", error);
@@ -110,7 +109,6 @@ export default function AddScheduleScreen({ navigation, route }) {
         return;
       }
       try {
-        // Assuming each barangay document has a subcollection "puroks"
         const barangayQuery = query(
           collection(db, "barangays"),
           where("name", "==", newSchedule.title)
@@ -151,7 +149,7 @@ export default function AddScheduleScreen({ navigation, route }) {
           if (data.name) list.push(data.name);
         });
         list.sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
-        list.push("Others"); // Add "Others" option
+        list.push("Others");
         setLandmarkList(list);
       } catch (error) {
         console.log("Failed to fetch landmarks:", error);
@@ -160,10 +158,8 @@ export default function AddScheduleScreen({ navigation, route }) {
     fetchLandmarks();
   }, []);
 
-  // Pick file (allow Excel .xlsx / .xls and CSV). Handles different DocumentPicker return shapes.
   const pickDocument = async () => {
     try {
-      console.log("open DocumentPicker...");
       const res = await DocumentPicker.getDocumentAsync({
         type: [
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -174,78 +170,182 @@ export default function AddScheduleScreen({ navigation, route }) {
         copyToCacheDirectory: true,
       });
 
-      console.log("DocumentPicker result:", res);
-
-      // Newer API (Expo) returns { assets: [...], canceled: boolean }
       if (res?.assets && Array.isArray(res.assets) && res.assets.length > 0) {
         const asset = res.assets[0];
-        const uri = asset.uri;
-        const name = asset.name || asset.fileName || uri.split("/").pop();
-        const mimeType =
-          asset.mimeType || asset.type || "application/octet-stream";
-        const fileObj = { uri, name, type: mimeType };
-        console.log("Picked file (assets):", fileObj);
+        const fileObj = {
+          uri: asset.uri,
+          name: asset.name || asset.fileName || asset.uri.split("/").pop(),
+          type: asset.mimeType || asset.type || "application/octet-stream",
+        };
         setSelectedFile(fileObj);
         return;
       }
 
-      // Older shape: { type: 'success', uri, name, mimeType }
       if (res && res.type === "success") {
-        const uri = res.uri;
-        const name = res.name || res.fileName || uri.split("/").pop();
-        const mimeType = res.mimeType || res.type || "application/octet-stream";
-        const fileObj = { uri, name, type: mimeType };
-        console.log("Picked file (legacy):", fileObj);
+        const fileObj = {
+          uri: res.uri,
+          name: res.name || res.fileName || res.uri.split("/").pop(),
+          type: res.mimeType || res.type || "application/octet-stream",
+        };
         setSelectedFile(fileObj);
         return;
       }
 
-      // User cancelled (various shapes)
-      if (
-        res?.canceled === true ||
-        res?.type === "cancel" ||
-        res?.type === "cancelled"
-      ) {
-        console.log("DocumentPicker cancelled by user");
-        Alert.alert("No file selected", "You cancelled file selection.");
+      if (res?.canceled === true || res?.type === "cancel" || res?.type === "cancelled") {
+        console.log("DocumentPicker cancelled");
         return;
       }
-
-      console.log("Unknown DocumentPicker response:", res);
-      Alert.alert("File picker", "No file selected.");
     } catch (err) {
       console.error("DocumentPicker error:", err);
-      if (Platform.OS === "android") {
-        Alert.alert(
-          "File picker error",
-          "Unable to open file picker. If you're using an Android emulator, try a real device (or install a file manager). Make sure expo-document-picker is installed (expo install expo-document-picker).\n\nError: " +
-            (err?.message || String(err))
-        );
-      } else {
-        Alert.alert("Error", "Unable to pick file. " + (err?.message || ""));
+      Alert.alert("Error", "Unable to pick file. " + (err?.message || ""));
+    }
+  };
+
+  // ✅ UPDATED: Send both SMS and Push notifications (FILTERED by Barangay & Purok)
+  const sendCombinedNotifications = async (scheduleData) => {
+    try {
+      console.log('📤 Sending filtered notifications (SMS + Push) to:', scheduleData.title, scheduleData.purok);
+      
+      // Prepare notification messages
+      const smsMessage =
+        `[Kalinga]\nNew Food Distribution Schedule\n` +
+        `Barangay: ${scheduleData.title}\n` +
+        `Purok: ${scheduleData.purok}\n` +
+        `Date: ${scheduleData.date}\n` +
+        `Time: ${scheduleData.time}\n` +
+        `Landmark: ${scheduleData.location}`;
+
+      const pushTitle = '📅 New Food Distribution Schedule';
+      const pushBody = `${scheduleData.title}, ${scheduleData.purok}\n📍 ${scheduleData.location}\n📆 ${scheduleData.date} at ${scheduleData.time}`;
+
+      // ✅ Get users in BOTH the barangay AND purok
+      const usersQuery = query(
+        collection(db, "users"),
+        where("barangay", "==", scheduleData.title),
+        where("purok", "==", scheduleData.purok)
+      );
+      const usersSnapshot = await getDocs(usersQuery);
+      
+      console.log(`✅ Found ${usersSnapshot.size} users in ${scheduleData.title}, ${scheduleData.purok}`);
+
+      if (usersSnapshot.empty) {
+        console.log('⚠️ No users found in this barangay and purok');
+        return { sms: 0, push: 0 };
       }
+
+      // Collect phone numbers and usernames
+      const phoneNumbers = [];
+      const users = [];
+      
+      usersSnapshot.forEach((userDoc) => {
+        const userData = userDoc.data();
+        
+        // Collect phone number for SMS
+        if (userData.phone) {
+          phoneNumbers.push(userData.phone);
+        }
+        
+        // Collect user data for push notifications
+        if (userData.username) {
+          users.push(userData);
+        }
+      });
+
+      let smsCount = 0;
+      let pushCount = 0;
+
+      // 1️⃣ Send SMS notifications to filtered users
+      if (phoneNumbers.length > 0) {
+        try {
+          console.log(`📱 Sending SMS to ${phoneNumbers.length} users...`);
+          const smsResult = await sendIprogSMS(smsMessage, phoneNumbers);
+          
+          if (smsResult.success) {
+            smsCount = phoneNumbers.length;
+            console.log(`✅ SMS sent to ${smsCount} users`);
+          } else {
+            console.error("❌ SMS sending failed:", smsResult.error);
+          }
+        } catch (smsError) {
+          console.error("❌ SMS notification error:", smsError);
+        }
+      } else {
+        console.log('⚠️ No phone numbers found for SMS');
+      }
+
+      // 2️⃣ Send Push notifications to filtered users
+      if (users.length > 0) {
+        console.log(`📲 Sending push notifications to ${users.length} users...`);
+        
+        for (const userData of users) {
+          try {
+            // Send local push notification
+            await sendLocalNotification({
+              title: pushTitle,
+              body: pushBody,
+              data: {
+                type: 'food_schedule',
+                barangay: scheduleData.title,
+                purok: scheduleData.purok,
+                location: scheduleData.location,
+                date: scheduleData.date,
+                time: scheduleData.time,
+              },
+              channelId: 'schedules',
+            });
+            
+            // Save to notification history
+            await saveNotificationToHistory(userData.username, {
+              title: pushTitle,
+              body: pushBody,
+              data: {
+                type: 'food_schedule',
+                barangay: scheduleData.title,
+                purok: scheduleData.purok,
+                location: scheduleData.location,
+              },
+            });
+            
+            pushCount++;
+          } catch (notifError) {
+            console.error(`❌ Failed to notify ${userData.username}:`, notifError);
+          }
+        }
+        
+        console.log(`✅ Push notifications sent to ${pushCount} users`);
+      } else {
+        console.log('⚠️ No users found for push notifications');
+      }
+      
+      return { sms: smsCount, push: pushCount };
+      
+    } catch (error) {
+      console.error('❌ Failed to send notifications:', error);
+      return { sms: 0, push: 0 };
     }
   };
 
-  const handleSave = () => {
-    if (!newSchedule.title || !newSchedule.location) {
-      Alert.alert("Error", "Please fill out all required fields!");
-      return;
-    }
-  };
-
-  // New: upload file (if any) and insert schedule into Supabase
   const handleAddSchedule = async () => {
-    // If "Others" is selected, check otherLandmark; otherwise, check newSchedule.location
+    if (isSaving) return; // Prevent double submission
+    
     const landmarkToSave = isOtherLandmark ? otherLandmark.trim() : newSchedule.location.trim();
 
-    if (!newSchedule.title || !landmarkToSave) {
+    if (!newSchedule.title || !landmarkToSave || !newSchedule.purok) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
 
+    setIsSaving(true);
+
     try {
-      // If "Others" is chosen and otherLandmark is filled, save to landmarks collection
+      // Show loading toast
+      Toast.show({
+        type: 'info',
+        text1: 'Saving schedule...',
+        text2: 'Please wait',
+      });
+
+      // If "Others" is chosen, save to landmarks collection
       if (isOtherLandmark && otherLandmark.trim()) {
         await addDoc(collection(db, "landmarks"), {
           name: otherLandmark.trim(),
@@ -256,58 +356,29 @@ export default function AddScheduleScreen({ navigation, route }) {
       let fileUrl = null;
       let fileName = null;
 
+      // Upload file if selected
       if (selectedFile) {
         try {
           const fileExt = selectedFile.name.split(".").pop();
           const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-          const filePath = `schedules/${uniqueFileName}`;
-
-          // On Android content:// URIs and iOS file:// URIs both work with fetch -> blob
-          // const response = await fetch(selectedFile.uri);
-          // const blob = await response.blob();
-          //
-          // const { data: uploadData, error: uploadError } = await supabase.storage
-          //   .from("schedule-files")
-          //   .upload(filePath, blob);
-          //
-          // if (uploadError) throw uploadError;
-          //
-          // const { data: urlData } = supabase.storage
-          //   .from("schedule-files")
-          //   .getPublicUrl(filePath);
-          //
-          // fileUrl = urlData?.publicUrl || null;
-          // fileName = selectedFile.name;
-          // } catch (fileError) {
-          //   console.error("File upload error:", fileError);
-          //   throw fileError;
-          // }
-
-          // Fetch file, convert to ArrayBuffer -> Uint8Array (works reliably with supabase-js in RN)
+          
           const response = await fetch(selectedFile.uri);
           const arrayBuffer = await response.arrayBuffer();
           const uint8Array = new Uint8Array(arrayBuffer);
 
-          // Use a simple filename (you may keep folders if you prefer)
-          const uploadName = uniqueFileName; // e.g. "166xxx_abcd.xlsx"
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from("schedule-files")
+            .upload(uniqueFileName, uint8Array, {
+              contentType: selectedFile.type || "application/octet-stream",
+              cacheControl: "3600",
+              upsert: false,
+            });
 
-          const { data: uploadData, error: uploadError } =
-            await supabase.storage
-              .from("schedule-files")
-              .upload(uploadName, uint8Array, {
-                contentType: selectedFile.type || "application/octet-stream",
-                cacheControl: "3600",
-                upsert: false,
-              });
-
-          if (uploadError) {
-            console.error("Supabase upload error detail:", uploadError);
-            throw uploadError;
-          }
+          if (uploadError) throw uploadError;
 
           const { data: urlData } = await supabase.storage
             .from("schedule-files")
-            .getPublicUrl(uploadName);
+            .getPublicUrl(uniqueFileName);
 
           fileUrl = urlData?.publicUrl || null;
           fileName = selectedFile.name;
@@ -322,6 +393,13 @@ export default function AddScheduleScreen({ navigation, route }) {
         minute: "2-digit",
       });
 
+      const formattedDate = newSchedule.date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+
+      // Save to Supabase
       const { data, error } = await supabase
         .from("food_schedules")
         .insert([
@@ -340,103 +418,85 @@ export default function AddScheduleScreen({ navigation, route }) {
 
       if (error) throw error;
 
+      // Save to Firebase (for Cloud Function triggers if needed)
+      const firebaseSchedule = await addDoc(collection(db, "food_schedules"), {
+        title: newSchedule.title,
+        date: formattedDate,
+        time: formattedTime,
+        location: landmarkToSave,
+        purok: newSchedule.purok,
+        createdAt: Timestamp.now(),
+      });
+
+      console.log('✅ Schedule saved to Firebase with ID:', firebaseSchedule.id);
+
       const newItem = {
         id: data.id,
         title: data.title,
-        date: new Date(data.date).toLocaleDateString(),
+        date: formattedDate,
         time: data.time,
         location: data.location,
+        purok: data.purok,
         fileUrl: data.file_url,
         fileName: data.file_name,
       };
 
-      // If parent provided onSave callback, call it
+      // ✅ Send FILTERED SMS and Push notifications (only to users in this barangay & purok)
+      const notificationResults = await sendCombinedNotifications({
+        title: newSchedule.title,
+        purok: newSchedule.purok,
+        location: landmarkToSave,
+        date: formattedDate,
+        time: formattedTime,
+      });
+
+      // Log activity
+      const userFirstName = await getUserFirstName();
+      await logUserActivity({
+        title: "Add Schedule",
+        description: `Added schedule for Barangay ${newSchedule.title}, Purok ${newSchedule.purok}, Landmark: ${landmarkToSave}`,
+        userFirstName,
+      });
+
+      // Call parent callback if provided
       if (onSave) onSave(newItem);
 
-      // reset and navigate back
+      // Reset form
       setNewSchedule({
         title: "",
         date: new Date(),
         time: new Date(),
         location: "",
+        purok: "",
       });
       setSelectedFile(null);
+      setIsOtherLandmark(false);
+      setOtherLandmark("");
 
-      // Send notification to users (best-effort)
-      try {
-        const notificationMessage =
-          `[Kalinga]\nNew Food Distribution Schedule\n` +
-          `Barangay: ${newItem.title}\n` +
-          `Date: ${newItem.date}\n` +
-          `Time: ${newItem.time}\n` +
-          `Landmark: ${newItem.location}`;
-
-        const notifyResult = await notifyUsers(notificationMessage);
-        console.log("notifyUsers result:", notifyResult);
-      } catch (notifyErr) {
-        console.error("Notification error:", notifyErr);
-      }
-
-      const userFirstName = await getUserFirstName();
-      await logUserActivity({
-        title: "Add Schedule",
-        description: `Added schedule for Barangay ${newSchedule.title}, Purok ${newSchedule.purok}, Landmark: ${newSchedule.location}`,
-        userFirstName,
+      // Show success message with notification count
+      Toast.show({
+        type: 'success',
+        text1: 'Schedule Created!',
+        text2: `${notificationResults.sms} SMS • ${notificationResults.push} Push notifications sent`,
+        visibilityTime: 4000,
       });
 
-      Alert.alert("Success", "New schedule added successfully!");
-      navigation.goBack();
+      // Navigate back after short delay
+      setTimeout(() => {
+        navigation.goBack();
+      }, 1500);
+
     } catch (error) {
       console.error("Error adding schedule:", error);
-      Alert.alert("Error", error?.message || "Failed to add schedule");
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error?.message || "Failed to add schedule",
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
-
-  // Edit schedule function (for future use)
-  async function handleEditSchedule(scheduleId, updatedSchedule) {
-    try {
-      // Example: Update in Supabase
-      const { error } = await supabase
-        .from("food_schedules")
-        .update({
-          title: updatedSchedule.title,
-          date: updatedSchedule.date,
-          time: updatedSchedule.time,
-          location: updatedSchedule.location,
-          purok: updatedSchedule.purok,
-          file_url: updatedSchedule.fileUrl,
-          file_name: updatedSchedule.fileName,
-        })
-        .eq("id", scheduleId);
-
-      if (error) throw error;
-
-      // REMOVE logUserActivity call here
-
-      // Optionally refresh list or navigate back
-    } catch (error) {
-      Alert.alert("Error", error?.message || "Failed to edit schedule");
-    }
-  }
-
-  // Remove the logUserActivity call from handleDeleteSchedule
-  async function handleDeleteSchedule(scheduleId, scheduleData) {
-    try {
-      // Example: Delete in Supabase
-      const { error } = await supabase
-        .from("food_schedules")
-        .delete()
-        .eq("id", scheduleId);
-
-      if (error) throw error;
-
-      // REMOVE logUserActivity call here
-
-      // Optionally refresh list or navigate back
-    } catch (error) {
-      Alert.alert("Error", error?.message || "Failed to delete schedule");
-    }
-  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -493,7 +553,7 @@ export default function AddScheduleScreen({ navigation, route }) {
                           ...newSchedule,
                           title: item,
                           purok: "",
-                        }); // <-- Reset purok when barangay changes
+                        });
                         setBarangayModalVisible(false);
                       }}
                     >
@@ -511,7 +571,7 @@ export default function AddScheduleScreen({ navigation, route }) {
             </View>
           </Modal>
 
-          {/* NEW: Purok Selector */}
+          {/* Purok Selector */}
           <View style={styles.input}>
             <Text style={{ marginBottom: 5, color: "#333" }}>Select Purok</Text>
             <TouchableOpacity
@@ -630,7 +690,7 @@ export default function AddScheduleScreen({ navigation, route }) {
             </View>
           </Modal>
 
-          {/* If "Others" is chosen, show input */}
+          {/* Custom Landmark Input */}
           {isOtherLandmark && (
             <TextInput
               style={styles.input}
@@ -640,6 +700,7 @@ export default function AddScheduleScreen({ navigation, route }) {
             />
           )}
 
+          {/* Date Picker */}
           <TouchableOpacity
             style={styles.dateButton}
             onPress={() => setShowDatePicker(true)}
@@ -662,6 +723,7 @@ export default function AddScheduleScreen({ navigation, route }) {
             />
           )}
 
+          {/* Time Picker */}
           <TouchableOpacity
             style={styles.dateButton}
             onPress={() => setShowTimePicker(true)}
@@ -684,8 +746,7 @@ export default function AddScheduleScreen({ navigation, route }) {
             />
           )}
 
-        
-
+          {/* File Upload */}
           <View style={styles.fileSection}>
             <Text style={styles.fileLabel}>List of Names (Excel File)</Text>
             <TouchableOpacity
@@ -715,22 +776,23 @@ export default function AddScheduleScreen({ navigation, route }) {
             )}
           </View>
 
+          {/* Save Button */}
           <View style={styles.buttonContainer}>
-            {/* <TouchableOpacity
-              style={[styles.button, styles.cancelButton]}
-              onPress={() => navigation.goBack()}
-            >
-              <Text style={styles.buttonText}>Cancel</Text>
-            </TouchableOpacity> */}
             <TouchableOpacity
-              style={[styles.button, styles.saveButton]}
+              style={[styles.button, styles.saveButton, isSaving && styles.disabledButton]}
               onPress={handleAddSchedule}
+              disabled={isSaving}
             >
-              <Text style={styles.buttonText}>Save</Text>
+              {isSaving ? (
+                <Text style={styles.buttonText}>Saving...</Text>
+              ) : (
+                <Text style={styles.buttonText}>Save & Send Notifications</Text>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
       </View>
+      <Toast />
     </SafeAreaView>
   );
 }
@@ -802,21 +864,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginHorizontal: 5,
   },
-  cancelButton: { backgroundColor: "#999" },
   saveButton: { backgroundColor: "#49A5A2" },
+  disabledButton: { backgroundColor: "#ccc" },
   buttonText: { color: "#fff", fontWeight: "600" },
-  pickerWrapper: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    backgroundColor: "#fff",
-    marginBottom: 15,
-  },
-  picker: {
-    height: 48,
-    width: "100%",
-    color: "#333",
-  },
   selectorButton: {
     flexDirection: "row",
     alignItems: "center",

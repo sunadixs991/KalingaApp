@@ -28,29 +28,125 @@ import {
 } from '../services/NotificationService';
 import Toast from 'react-native-toast-message';
 import { saveNotificationToHistory } from '../services/NotificationService';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function NotificationCenterScreen({ navigation, route }) {
-  const { username } = route.params || {};
+  const routeUsername = route?.params?.username;
+  const [resolvedUsername, setResolvedUsername] = useState(routeUsername || null);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchNotifications();
-    dismissAllNotifications();
+    // Resolve username from route params or AsyncStorage then load notifications
+    const resolveAndFetch = async () => {
+      try {
+        if (routeUsername) {
+          setResolvedUsername(routeUsername);
+          await fetchNotifications(routeUsername);
+        } else {
+          // Try AsyncStorage 'user' (string or JSON) then 'userInfo'
+          let userVal = null;
+          try {
+            userVal = await AsyncStorage.getItem('user');
+          } catch (e) {
+            userVal = null;
+          }
+
+          let usernameCandidate = null;
+          if (userVal) {
+            try {
+              // Some places store JSON; some store plain username string
+              const parsed = JSON.parse(userVal);
+              if (parsed && typeof parsed === 'object') {
+                usernameCandidate = parsed.username || parsed?.email || parsed?.uid || null;
+              } else if (typeof parsed === 'string') {
+                usernameCandidate = parsed;
+              }
+            } catch {
+              // not JSON, probably plain string
+              usernameCandidate = userVal;
+            }
+          }
+
+          if (!usernameCandidate) {
+            // try alternate key
+            try {
+              const userInfoStr = await AsyncStorage.getItem('userInfo');
+              if (userInfoStr) {
+                const userInfo = JSON.parse(userInfoStr);
+                usernameCandidate = userInfo.username || userInfo.email || userInfo.uid || null;
+              }
+            } catch {
+              // ignore
+            }
+          }
+
+          if (usernameCandidate) {
+            setResolvedUsername(usernameCandidate);
+            await fetchNotifications(usernameCandidate);
+          } else {
+            // no user context: still fetch broadcasts ("all")
+            setResolvedUsername(null);
+            await fetchNotifications(null);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to resolve username for notifications:', err);
+        await fetchNotifications(routeUsername || null);
+      } finally {
+        try {
+          // Clear any system/pending notifications
+          dismissAllNotifications();
+        } catch {}
+      }
+    };
+
+    resolveAndFetch();
   }, []);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (usernameToUse) => {
     setLoading(true);
     try {
-      const history = await getNotificationHistory(username);
-      history.sort((a, b) => {
-        if (!a.createdAt) return 1;
-        if (!b.createdAt) return -1;
-        return b.createdAt - a.createdAt;
+      let combined = [];
+
+      // If we have a specific user, fetch personal notifications
+      if (usernameToUse) {
+        const personal = await getNotificationHistory(usernameToUse);
+        if (Array.isArray(personal)) combined = combined.concat(personal);
+      }
+
+      // Always fetch broadcast notifications saved under 'all' (if any)
+      try {
+        const broadcast = await getNotificationHistory('all');
+        if (Array.isArray(broadcast)) combined = combined.concat(broadcast);
+      } catch (e) {
+        // if the service throws for 'all' ignore
+        console.debug('No broadcast notifications or failed to fetch them', e);
+      }
+
+      // If neither yielded anything and usernameToUse is falsy, try fetching 'all' only
+      if (!usernameToUse && combined.length === 0) {
+        const broadcastOnly = await getNotificationHistory('all');
+        if (Array.isArray(broadcastOnly)) combined = combined.concat(broadcastOnly);
+      }
+
+      // Deduplicate by id (some notifications might appear twice)
+      const uniqueById = {};
+      combined.forEach((n) => {
+        if (!n) return;
+        uniqueById[n.id] = n;
       });
-      setNotifications(history);
+      const merged = Object.values(uniqueById);
+
+      // Sort by createdAt descending (handle timestamps that may be numbers or Date objects)
+      merged.sort((a, b) => {
+        const ta = a?.createdAt ? (typeof a.createdAt === 'object' ? a.createdAt : new Date(a.createdAt)) : 0;
+        const tb = b?.createdAt ? (typeof b.createdAt === 'object' ? b.createdAt : new Date(b.createdAt)) : 0;
+        return tb - ta;
+      });
+
+      setNotifications(merged);
     } catch (error) {
       console.error('Error fetching notifications:', error);
       Toast.show({
@@ -65,7 +161,7 @@ export default function NotificationCenterScreen({ navigation, route }) {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchNotifications();
+    await fetchNotifications(resolvedUsername);
     setRefreshing(false);
   };
 
@@ -81,14 +177,19 @@ export default function NotificationCenterScreen({ navigation, route }) {
       navigation.navigate('Earthquake');
     } else if (notification.data?.type === 'incident') {
       navigation.navigate('IncidentsList');
-    } else if (notification.data?.type === 'weather' || notification.data?.type === 'typhoon') {  // UPDATE THIS LINE
+    } else if (notification.data?.type === 'weather' || notification.data?.type === 'typhoon') {
+      navigation.navigate('Home');
+    } else if (notification.data?.type === 'food_schedule' || notification.data?.type === 'schedule' || notification.data?.type === 'food') {
+      // if it's a schedule, navigate to Home or schedules screen as desired
       navigation.navigate('Home');
     }
   };
 
   const handleMarkAllAsRead = async () => {
     try {
-      await markAllNotificationsAsRead(username);
+      // mark for resolved user; if none, attempt marking 'all' (broadcast)
+      const target = resolvedUsername || 'all';
+      await markAllNotificationsAsRead(target);
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       Toast.show({
         type: 'success',
@@ -109,10 +210,14 @@ export default function NotificationCenterScreen({ navigation, route }) {
         return { name: 'pulse', color: '#e67e22' };
       case 'weather':
         return { name: 'cloud', color: '#3498db' };
-      case 'typhoon':  // ADD THIS
-        return { name: 'thunderstorm', color: '#8B0000' };  // ADD THIS
+      case 'typhoon':
+        return { name: 'thunderstorm', color: '#8B0000' };
       case 'incident':
         return { name: 'alert-circle', color: '#e75e33' };
+      case 'food_schedule':
+      case 'schedule':
+      case 'food':
+        return { name: 'calendar', color: '#49A5A2' };
       default:
         return { name: 'notifications', color: '#7f8c8d' };
     }
@@ -121,13 +226,14 @@ export default function NotificationCenterScreen({ navigation, route }) {
   const getTimeAgo = (date) => {
     if (!date) return 'Unknown time';
 
-    const seconds = Math.floor((new Date() - date) / 1000);
+    const d = typeof date === 'number' ? new Date(date) : (date instanceof Date ? date : new Date(date));
+    const seconds = Math.floor((new Date() - d) / 1000);
 
     if (seconds < 60) return 'Just now';
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
     if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-    return date.toLocaleDateString();
+    return d.toLocaleDateString();
   };
 
   const showTestMenu = () => {
@@ -140,13 +246,12 @@ export default function NotificationCenterScreen({ navigation, route }) {
           onPress: async () => {
             await sendEarthquakeAlert(5.8, 'Cebu City, Philippines');
             // Save to history so it appears in the list
-            await saveNotificationToHistory(username, {
+            await saveNotificationToHistory(resolvedUsername || 'all', {
               title: '🚨 Earthquake Alert - Magnitude 5.8',
               body: 'Earthquake detected in Cebu City, Philippines. Stay safe and follow emergency procedures.',
               data: { type: 'earthquake', magnitude: 5.8, location: 'Cebu City, Philippines' }
             });
-            // Refresh the list
-            fetchNotifications();
+            fetchNotifications(resolvedUsername);
           },
         },
         {
@@ -154,12 +259,12 @@ export default function NotificationCenterScreen({ navigation, route }) {
           onPress: async () => {
             await sendWeatherAlert('Typhoon Warning', 'Typhoon approaching. Prepare for heavy rain and strong winds.');
             // Save to history
-            await saveNotificationToHistory(username, {
+            await saveNotificationToHistory(resolvedUsername || 'all', {
               title: '⚠️ Weather Alert: Typhoon Warning',
               body: 'Typhoon approaching. Prepare for heavy rain and strong winds.',
               data: { type: 'weather', alertType: 'Typhoon Warning' }
             });
-            fetchNotifications();
+            fetchNotifications(resolvedUsername);
           },
         },
         {
@@ -167,12 +272,12 @@ export default function NotificationCenterScreen({ navigation, route }) {
           onPress: async () => {
             await sendIncidentAlert('Flood', '2.5 km');
             // Save to history
-            await saveNotificationToHistory(username, {
+            await saveNotificationToHistory(resolvedUsername || 'all', {
               title: '📍 New Incident Near You',
               body: 'Flood reported 2.5 km away. Tap to view details.',
               data: { type: 'incident', incidentType: 'Flood' }
             });
-            fetchNotifications();
+            fetchNotifications(resolvedUsername);
           },
         },
         { text: 'Cancel', style: 'cancel' },
@@ -215,11 +320,6 @@ export default function NotificationCenterScreen({ navigation, route }) {
       <Text style={styles.emptySubtext}>
         You'll receive alerts about earthquakes, weather, and incidents here
       </Text>
-
-      {/* <TouchableOpacity style={styles.testButton} onPress={showTestMenu}>
-        <Icon name="flask-outline" size={20} color="#fff" />
-        <Text style={styles.testButtonText}>Send Test Notification</Text>
-      </TouchableOpacity> */}
     </View>
   );
 
@@ -265,12 +365,6 @@ export default function NotificationCenterScreen({ navigation, route }) {
               tintColor="#e75e33"
             />
           }
-          // ListFooterComponent={
-          //   <TouchableOpacity style={styles.testButtonBottom} onPress={showTestMenu}>
-          //     <Icon name="flask-outline" size={18} color="#e75e33" />
-          //     <Text style={styles.testButtonBottomText}>Send Test Notification</Text>
-          //   </TouchableOpacity>
-          // }
         />
       )}
     </SafeAreaView>
@@ -386,31 +480,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     marginBottom: 24,
-  },
-  testButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#49A5A2',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 25,
-    gap: 8,
-  },
-  testButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  testButtonBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    gap: 8,
-  },
-  testButtonBottomText: {
-    color: '#e75e33',
-    fontWeight: '600',
-    fontSize: 13,
   },
 });
