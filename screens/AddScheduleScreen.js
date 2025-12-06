@@ -1,4 +1,4 @@
-﻿// screens/AddScheduleScreen.js - Combined SMS and Push Notifications (Filtered by Barangay & Purok)
+﻿// screens/AddScheduleScreen.js - With Remote Push Notifications
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -17,7 +17,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../services/supabaseClient";
-import { sendIprogSMS } from "../services/notification"; // SMS notification
+import { sendIprogSMS } from "../services/notification";
 import {
   addDoc,
   collection,
@@ -29,7 +29,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { db } from "../firebase";
 import Toast from 'react-native-toast-message';
-import { sendLocalNotification, saveNotificationToHistory } from '../services/NotificationService'; // Push notification
+import ScheduleMonitorService from '../services/ScheduleMonitorService';
 
 // Helper to log user activity
 async function logUserActivity({ title, description, userFirstName }) {
@@ -201,12 +201,12 @@ export default function AddScheduleScreen({ navigation, route }) {
     }
   };
 
-  // ✅ UPDATED: Send both SMS and Push notifications (FILTERED by Barangay & Purok)
+  // ✅ UPDATED: Send SMS + Remote Push Notifications (FILTERED by Barangay & Purok)
   const sendCombinedNotifications = async (scheduleData) => {
     try {
-      console.log('📤 Sending filtered notifications (SMS + Push) to:', scheduleData.title, scheduleData.purok);
+      console.log('📤 Sending filtered notifications (SMS + Remote Push) to:', scheduleData.title, scheduleData.purok);
 
-      // Prepare notification messages
+      // Prepare SMS message
       const smsMessage =
         `[Kalinga]\nNew Food Distribution Schedule\n` +
         `Barangay: ${scheduleData.title}\n` +
@@ -214,9 +214,6 @@ export default function AddScheduleScreen({ navigation, route }) {
         `Date: ${scheduleData.date}\n` +
         `Time: ${scheduleData.time}\n` +
         `Landmark: ${scheduleData.location}`;
-
-      const pushTitle = '📅 New Food Distribution Schedule';
-      const pushBody = `${scheduleData.title}, ${scheduleData.purok}\n📍 ${scheduleData.location}\n📆 ${scheduleData.date} at ${scheduleData.time}`;
 
       // ✅ Get users in BOTH the barangay AND purok
       const usersQuery = query(
@@ -233,26 +230,16 @@ export default function AddScheduleScreen({ navigation, route }) {
         return { sms: 0, push: 0 };
       }
 
-      // Collect phone numbers and usernames
+      // Collect phone numbers
       const phoneNumbers = [];
-      const users = [];
-
       usersSnapshot.forEach((userDoc) => {
         const userData = userDoc.data();
-
-        // Collect phone number for SMS
         if (userData.phone) {
           phoneNumbers.push(userData.phone);
-        }
-
-        // Collect user data for push notifications
-        if (userData.username) {
-          users.push(userData);
         }
       });
 
       let smsCount = 0;
-      let pushCount = 0;
 
       // 1️⃣ Send SMS notifications to filtered users
       if (phoneNumbers.length > 0) {
@@ -273,49 +260,18 @@ export default function AddScheduleScreen({ navigation, route }) {
         console.log('⚠️ No phone numbers found for SMS');
       }
 
-// 2️⃣ Send Push notifications to filtered users
-if (users.length > 0) {
-  console.log(`📲 Sending push notifications to ${users.length} users...`);
-  
-  for (const userData of users) {
-    try {
-      await sendLocalNotification({
-        title: pushTitle,
-        body: pushBody,
-        data: {
-          type: 'food_schedule',
-          barangay: scheduleData.title,
-          purok: scheduleData.purok,
-          location: scheduleData.location,
-          date: scheduleData.date,      // ✅ ADDED
-          time: scheduleData.time,      // ✅ ADDED
-        },
-        channelId: 'schedules',
-      });
-      
-      await saveNotificationToHistory(userData.username, {
-        title: pushTitle,
-        body: pushBody,
-        data: {
-          type: 'food_schedule',
-          barangay: scheduleData.title,
-          purok: scheduleData.purok,
-          location: scheduleData.location,
-          date: scheduleData.date,      // ✅ ADDED
-          time: scheduleData.time,      // ✅ ADDED
-        },
+      // 2️⃣ Send REMOTE Push notifications using ScheduleMonitorService
+      console.log('📲 Sending remote push notifications...');
+      const pushSuccess = await ScheduleMonitorService.sendScheduleNotificationImmediate({
+        id: scheduleData.id || 'temp-id',
+        title: scheduleData.title,
+        purok: scheduleData.purok,
+        location: scheduleData.location,
+        date: scheduleData.date,
+        time: scheduleData.time,
       });
 
-            pushCount++;
-          } catch (notifError) {
-            console.error(`❌ Failed to notify ${userData.username}:`, notifError);
-          }
-        }
-
-        console.log(`✅ Push notifications sent to ${pushCount} users`);
-      } else {
-        console.log('⚠️ No users found for push notifications');
-      }
+      const pushCount = pushSuccess ? usersSnapshot.size : 0;
 
       return { sms: smsCount, push: pushCount };
 
@@ -326,7 +282,7 @@ if (users.length > 0) {
   };
 
   const handleAddSchedule = async () => {
-    if (isSaving) return; // Prevent double submission
+    if (isSaving) return;
 
     const landmarkToSave = isOtherLandmark ? otherLandmark.trim() : newSchedule.location.trim();
 
@@ -338,7 +294,6 @@ if (users.length > 0) {
     setIsSaving(true);
 
     try {
-      // Show loading toast
       Toast.show({
         type: 'info',
         text1: 'Saving schedule...',
@@ -418,7 +373,7 @@ if (users.length > 0) {
 
       if (error) throw error;
 
-      // Save to Firebase (for Cloud Function triggers if needed)
+      // Save to Firebase
       const firebaseSchedule = await addDoc(collection(db, "food_schedules"), {
         title: newSchedule.title,
         date: formattedDate,
@@ -441,8 +396,9 @@ if (users.length > 0) {
         fileName: data.file_name,
       };
 
-      // ✅ Send FILTERED SMS and Push notifications (only to users in this barangay & purok)
+      // ✅ Send FILTERED SMS and Remote Push notifications
       const notificationResults = await sendCombinedNotifications({
+        id: firebaseSchedule.id,
         title: newSchedule.title,
         purok: newSchedule.purok,
         location: landmarkToSave,
@@ -473,7 +429,7 @@ if (users.length > 0) {
       setIsOtherLandmark(false);
       setOtherLandmark("");
 
-      // Show success message with notification count
+      // Show success message
       Toast.show({
         type: 'success',
         text1: 'Schedule Created!',
@@ -481,7 +437,6 @@ if (users.length > 0) {
         visibilityTime: 4000,
       });
 
-      // Navigate back after short delay
       setTimeout(() => {
         navigation.goBack();
       }, 1500);

@@ -1,10 +1,17 @@
-// services/ScheduleMonitorService.js - STANDALONE VERSION (FIXED EXPORTS)
+// services/ScheduleMonitorService.js - WITH REMOTE PUSH NOTIFICATIONS
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { sendLocalNotification, saveNotificationToHistory } from './NotificationService';
+import { 
+  sendLocalNotification, 
+  saveNotificationToHistory,
+  getUserPushToken,
+  sendRemotePushNotification,
+  getAllPushTokens,
+  sendBatchPushNotifications
+} from './NotificationService';
 
 const SCHEDULE_MONITOR_TASK = 'SCHEDULE_MONITOR_TASK';
 const LAST_SCHEDULE_CHECK = 'last_schedule_check';
@@ -98,7 +105,62 @@ async function getUserLocation(username) {
 }
 
 /**
- * Check for new food distribution schedules for the user's location
+ * ✅ NEW: Get all users in a specific barangay and purok
+ */
+async function getUsersInLocation(barangay, purok) {
+  try {
+    const usersRef = collection(db, 'users');
+    const q = query(
+      usersRef,
+      where('barangay', '==', barangay),
+      where('purok', '==', purok)
+    );
+    const snapshot = await getDocs(q);
+    
+    return snapshot.docs.map(doc => doc.data().username);
+  } catch (error) {
+    console.error('Error getting users in location:', error);
+    return [];
+  }
+}
+
+/**
+ * ✅ NEW: Get push tokens for users in specific location
+ */
+async function getPushTokensForLocation(barangay, purok) {
+  try {
+    const usernames = await getUsersInLocation(barangay, purok);
+    
+    if (usernames.length === 0) {
+      return [];
+    }
+
+    // Get push tokens for these users
+    const tokensRef = collection(db, 'pushTokens');
+    const tokens = [];
+
+    // Firebase doesn't support 'in' queries with more than 10 items,
+    // so we batch the queries
+    const batchSize = 10;
+    for (let i = 0; i < usernames.length; i += batchSize) {
+      const batch = usernames.slice(i, i + batchSize);
+      const q = query(tokensRef, where('username', 'in', batch));
+      const snapshot = await getDocs(q);
+      
+      snapshot.forEach(doc => {
+        tokens.push(doc.data().token);
+      });
+    }
+
+    return tokens;
+  } catch (error) {
+    console.error('Error getting push tokens for location:', error);
+    return [];
+  }
+}
+
+/**
+ * ✅ UPDATED: Check for new food distribution schedules with REMOTE push notifications
  */
 const checkForNewSchedules = async (username, isManualCheck = false) => {
   try {
@@ -176,38 +238,52 @@ const checkForNewSchedules = async (username, isManualCheck = false) => {
     for (const schedule of newSchedules) {
       const title = '📅 New Food Distribution Schedule';
       const body = `${schedule.title}, ${schedule.purok}\n📍 ${schedule.location}\n📆 ${schedule.date} at ${schedule.time}`;
+      
+      const notificationData = {
+        type: 'food_schedule',
+        barangay: schedule.title,
+        purok: schedule.purok,
+        location: schedule.location,
+        date: schedule.date,
+        time: schedule.time,
+        scheduleId: schedule.id,
+      };
 
       try {
-        // Send local notification
+        // 1️⃣ Send LOCAL notification (for current user if app is open)
         await sendLocalNotification({
           title,
           body,
-          data: {
-            type: 'food_schedule',
-            barangay: schedule.title,
-            purok: schedule.purok,
-            location: schedule.location,
-            date: schedule.date,
-            time: schedule.time,
-            scheduleId: schedule.id,
-          },
+          data: notificationData,
           channelId: 'schedules',
         });
 
-        // Save to notification history
-        await saveNotificationToHistory(username, {
-          title,
-          body,
-          data: {
-            type: 'food_schedule',
-            barangay: schedule.title,
-            purok: schedule.purok,
-            location: schedule.location,
-            scheduleId: schedule.id,
-          },
-        });
+        // 2️⃣ Send REMOTE push notifications to ALL users in this location
+        const tokens = await getPushTokensForLocation(schedule.title, schedule.purok);
+        console.log(`   📤 Sending to ${tokens.length} users in ${schedule.title}, ${schedule.purok}...`);
+        
+        if (tokens.length > 0) {
+          await sendBatchPushNotifications(
+            tokens,
+            title,
+            body,
+            notificationData,
+            'schedules'
+          );
+          console.log(`   ✅ Remote push sent to ${tokens.length} devices`);
+        }
 
-        // Mark as notified
+        // 3️⃣ Save to notification history for all users in this location
+        const usersInLocation = await getUsersInLocation(schedule.title, schedule.purok);
+        for (const user of usersInLocation) {
+          await saveNotificationToHistory(user, {
+            title,
+            body,
+            data: notificationData,
+          });
+        }
+
+        // 4️⃣ Mark as notified
         await markScheduleAsNotified(schedule.id);
 
         console.log(`   ✅ Notified about schedule: ${schedule.location} on ${schedule.date}`);
@@ -223,6 +299,73 @@ const checkForNewSchedules = async (username, isManualCheck = false) => {
 
   } catch (error) {
     console.error('❌ Error checking for new schedules:', error);
+    return false;
+  }
+};
+
+/**
+ * ✅ NEW: Send immediate schedule notification when admin creates a schedule
+ * This is called directly from AddScheduleScreen when a schedule is posted
+ */
+const sendScheduleNotificationImmediate = async (scheduleData) => {
+  try {
+    console.log('📅 Sending immediate schedule notification...');
+    console.log('   Location:', scheduleData.title, scheduleData.purok);
+
+    const title = '📅 New Food Distribution Schedule';
+    const body = `${scheduleData.title}, ${scheduleData.purok}\n📍 ${scheduleData.location}\n📆 ${scheduleData.date} at ${scheduleData.time}`;
+    
+    const notificationData = {
+      type: 'food_schedule',
+      barangay: scheduleData.title,
+      purok: scheduleData.purok,
+      location: scheduleData.location,
+      date: scheduleData.date,
+      time: scheduleData.time,
+      scheduleId: scheduleData.id,
+    };
+
+    // 1️⃣ Send LOCAL notification
+    await sendLocalNotification({
+      title,
+      body,
+      data: notificationData,
+      channelId: 'schedules',
+    });
+
+    // 2️⃣ Send REMOTE push notifications to ALL users in this location
+    const tokens = await getPushTokensForLocation(scheduleData.title, scheduleData.purok);
+    console.log(`   📤 Sending to ${tokens.length} users in ${scheduleData.title}, ${scheduleData.purok}...`);
+    
+    if (tokens.length > 0) {
+      await sendBatchPushNotifications(
+        tokens,
+        title,
+        body,
+        notificationData,
+        'schedules'
+      );
+      console.log(`   ✅ Remote push sent to ${tokens.length} devices`);
+    } else {
+      console.log('   ⚠️ No push tokens found for this location');
+    }
+
+    // 3️⃣ Save to notification history for all users in this location
+    const usersInLocation = await getUsersInLocation(scheduleData.title, scheduleData.purok);
+    console.log(`   💾 Saving to history for ${usersInLocation.length} users...`);
+    
+    for (const user of usersInLocation) {
+      await saveNotificationToHistory(user, {
+        title,
+        body,
+        data: notificationData,
+      });
+    }
+
+    console.log('   ✅ Schedule notification sent successfully!');
+    return true;
+  } catch (error) {
+    console.error('❌ Error sending immediate schedule notification:', error);
     return false;
   }
 };
@@ -354,7 +497,7 @@ const getScheduleMonitoringStatus = async (username) => {
   }
 };
 
-// ✅ DEFAULT EXPORT - This fixes the import issue
+// ✅ UPDATED DEFAULT EXPORT - Added sendScheduleNotificationImmediate
 export default {
   checkForNewSchedules,
   startScheduleMonitoring,
@@ -362,4 +505,5 @@ export default {
   isScheduleMonitoringActive,
   clearScheduleNotificationHistory,
   getScheduleMonitoringStatus,
+  sendScheduleNotificationImmediate, // ✅ NEW: For immediate notifications when admin posts
 };
