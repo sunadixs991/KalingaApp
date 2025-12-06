@@ -47,6 +47,7 @@ import {
   addNotificationResponseListener,
   getNotificationHistory,
   getBadgeCount,
+  sendLocalNotification,
 } from '../services/NotificationService';
 import { startDisasterMonitoring, resetDisasterMonitoring } from '../services/DisasterMonitorService';
 import { triggerManualCheck } from '../services/DisasterMonitorService';
@@ -1051,7 +1052,6 @@ export default function HomeScreen({ route, navigation }) {
                     type: 'info',
                     text1: 'Testing Notifications...',
                     text2: 'Resetting and checking for alerts',
-
                   });
 
                   // Clear schedule notification history
@@ -1065,17 +1065,20 @@ export default function HomeScreen({ route, navigation }) {
                     text1: 'Checking for all alerts...',
                     text2: 'This may take a few seconds',
                   });
+
+                  // ✅ FIXED: Now sendLocalNotification is properly imported
                   await sendLocalNotification({
                     title: 'Test Schedule Notification',
                     body: 'This is a test from HomeScreen',
                     channelId: 'schedules',
                     data: { type: 'food_schedule' }
                   });
+
                   // Check disasters
                   const disasterResult = await triggerManualCheck();
 
                   // Check schedules
-                  const scheduleResult = ScheduleMonitorService.checkForNewSchedules(username, true);
+                  const scheduleResult = await ScheduleMonitorService.checkForNewSchedules(username, true);
 
                   if (disasterResult || scheduleResult) {
                     Toast.show({
@@ -1097,9 +1100,6 @@ export default function HomeScreen({ route, navigation }) {
                 <Icon name="flask" size={60} color="#49A5A2" />
                 <Text style={styles.cardText}>Test All Notifications</Text>
               </TouchableOpacity>
-
-
-
 
             </View>
           </View>

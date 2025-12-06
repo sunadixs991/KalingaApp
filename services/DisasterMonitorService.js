@@ -1,10 +1,15 @@
-// services/DisasterMonitorService.js
+// services/DisasterMonitorService.js - WITH REMOTE PUSH NOTIFICATIONS
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
 import { fetchNearbyEarthquakes } from './EarthquakeService';
 import { fetchWeatherData } from './WeatherService';
 import { checkPhilippinesWeatherAlerts } from './PAGASAWeatherService';
-import { sendLocalNotification, saveNotificationToHistory } from './NotificationService';
+import { 
+  sendLocalNotification, 
+  saveNotificationToHistory,
+  getAllPushTokens,
+  sendBatchPushNotifications 
+} from './NotificationService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DISASTER_MONITOR_TASK = 'DISASTER_MONITOR_TASK';
@@ -18,10 +23,10 @@ const NOTIFIED_TYPHOON_KEY = 'notified_typhoon_alerts';
 // Configuration
 const EARTHQUAKE_MIN_MAGNITUDE = 3.0;
 const EARTHQUAKE_RADIUS_KM = 500;
-const CHECK_INTERVAL_MINUTES = 15; // ✅ CHANGED: Minimum supported by OS
+const CHECK_INTERVAL_MINUTES = 15;
 
-// ✅ NEW: Weather alert cooldown (prevent spam)
-const WEATHER_ALERT_COOLDOWN_HOURS = 3; // Only alert once per 3 hours for same condition
+// Weather alert cooldown (prevent spam)
+const WEATHER_ALERT_COOLDOWN_HOURS = 3;
 
 /**
  * Get user data from AsyncStorage
@@ -73,7 +78,7 @@ async function getLastCheckTime(key) {
 }
 
 /**
- * ✅ NEW: Get last alert time for a specific weather condition
+ * Get last alert time for a specific weather condition
  */
 async function getLastAlertTime(alertType) {
   try {
@@ -86,7 +91,7 @@ async function getLastAlertTime(alertType) {
 }
 
 /**
- * ✅ NEW: Set last alert time for a specific weather condition
+ * Set last alert time for a specific weather condition
  */
 async function setLastAlertTime(alertType) {
   try {
@@ -109,7 +114,7 @@ function getEarthquakeSeverity(magnitude) {
 }
 
 /**
- * Check for new earthquakes
+ * ✅ UPDATED: Check for new earthquakes with REMOTE push notifications
  */
 async function checkEarthquakes(latitude, longitude, username) {
   try {
@@ -146,25 +151,45 @@ async function checkEarthquakes(latitude, longitude, username) {
 
     for (const quake of newQuakes) {
       const severity = getEarthquakeSeverity(quake.magnitude);
+      const title = `🚨 Earthquake Alert - Magnitude ${quake.magnitude.toFixed(1)}`;
+      const body = `${quake.place} - ${quake.distanceKm.toFixed(0)}km away. ${severity}`;
+      const notificationData = {
+        type: 'earthquake',
+        magnitude: quake.magnitude,
+        location: quake.place,
+        quakeId: quake.id,
+        latitude: quake.latitude,
+        longitude: quake.longitude,
+      };
 
+      // 1️⃣ Send LOCAL notification
       await sendLocalNotification({
-        title: `🚨 Earthquake Alert - Magnitude ${quake.magnitude.toFixed(1)}`,
-        body: `${quake.place} - ${quake.distanceKm.toFixed(0)}km away. ${severity}`,
-        data: {
-          type: 'earthquake',
-          magnitude: quake.magnitude,
-          location: quake.place,
-          quakeId: quake.id,
-          latitude: quake.latitude,
-          longitude: quake.longitude,
-        },
+        title,
+        body,
+        data: notificationData,
         channelId: 'earthquake',
       });
 
+      // 2️⃣ Send REMOTE push notifications to ALL users
+      const tokens = await getAllPushTokens();
+      console.log(`   🌍 Sending earthquake alert to ${tokens.length} users...`);
+      
+      if (tokens.length > 0) {
+        await sendBatchPushNotifications(
+          tokens,
+          title,
+          body,
+          notificationData,
+          'earthquake'
+        );
+        console.log(`   ✅ Remote push sent to ${tokens.length} devices`);
+      }
+
+      // 3️⃣ Save to notification history
       await saveNotificationToHistory('all', {
-        title: `🚨 Earthquake Alert - Magnitude ${quake.magnitude.toFixed(1)}`,
-        body: `${quake.place} - ${quake.distanceKm.toFixed(0)}km away. ${severity}`,
-        data: { type: 'earthquake', quakeId: quake.id }
+        title,
+        body,
+        data: notificationData
       });
 
       notifiedQuakes.push(quake.id);
@@ -182,7 +207,7 @@ async function checkEarthquakes(latitude, longitude, username) {
 }
 
 /**
- * ✅ IMPROVED: Check for weather alerts with cooldown
+ * ✅ UPDATED: Check for weather alerts with REMOTE push notifications
  */
 async function checkWeatherAlerts(latitude, longitude, username) {
   try {
@@ -266,20 +291,39 @@ async function checkWeatherAlerts(latitude, longitude, username) {
     console.log(`   📢 Found ${alerts.length} new weather alerts!`);
 
     for (const alert of alerts) {
+      const notificationData = {
+        type: 'weather',
+        alertType: alert.type,
+      };
+
+      // 1️⃣ Send LOCAL notification
       await sendLocalNotification({
         title: alert.title,
         body: alert.body,
-        data: {
-          type: 'weather',
-          alertType: alert.type,
-        },
+        data: notificationData,
         channelId: 'weather',
       });
 
+      // 2️⃣ Send REMOTE push notifications to ALL users
+      const tokens = await getAllPushTokens();
+      console.log(`   ⛈️ Sending weather alert to ${tokens.length} users...`);
+      
+      if (tokens.length > 0) {
+        await sendBatchPushNotifications(
+          tokens,
+          alert.title,
+          alert.body,
+          notificationData,
+          'weather'
+        );
+        console.log(`   ✅ Remote push sent to ${tokens.length} devices`);
+      }
+
+      // 3️⃣ Save to notification history
       await saveNotificationToHistory('all', {
         title: alert.title,
         body: alert.body,
-        data: { type: 'weather', alertType: alert.type }
+        data: notificationData
       });
 
       // Set cooldown timer
@@ -297,13 +341,12 @@ async function checkWeatherAlerts(latitude, longitude, username) {
 }
 
 /**
- * ✅ IMPROVED: Check for typhoon alerts with better detection
+ * ✅ UPDATED: Check for typhoon alerts with REMOTE push notifications
  */
 async function checkTyphoonAlerts(latitude, longitude, username) {
   try {
     console.log('🌀 Checking typhoon alerts (PAGASA)...');
 
-    // Get current weather data
     const weather = await fetchWeatherData(latitude, longitude);
 
     if (!weather) {
@@ -311,7 +354,6 @@ async function checkTyphoonAlerts(latitude, longitude, username) {
       return false;
     }
 
-    // Check PAGASA alerts and detect typhoon conditions
     const typhoonAlerts = await checkPhilippinesWeatherAlerts(weather);
 
     if (typhoonAlerts.length === 0) {
@@ -319,7 +361,6 @@ async function checkTyphoonAlerts(latitude, longitude, username) {
       return false;
     }
 
-    // ✅ NEW: Use cooldown system for typhoon alerts
     const now = Date.now();
     const cooldownMs = WEATHER_ALERT_COOLDOWN_HOURS * 60 * 60 * 1000;
     const newAlerts = [];
@@ -343,42 +384,47 @@ async function checkTyphoonAlerts(latitude, longitude, username) {
     console.log(`   📢 Found ${newAlerts.length} new typhoon alerts!`);
 
     for (const alert of newAlerts) {
-      // Determine notification priority based on severity
       const priority = alert.severity === 'severe' || alert.level >= 4 ? 'high' : 'default';
-
-      // ✅ FIXED: Use details first (specific message), then description (generic)
       const notificationBody = alert.details || alert.description || alert.body || 'Check weather advisory';
 
-      await sendLocalNotification({
-        title: alert.title,
-        body: notificationBody, // ✅ Now uses detailed message first
-        data: {
-          type: 'typhoon',
-          source: alert.source,
-          severity: alert.severity,
-          level: alert.level,
-          risk: alert.risk,
-          url: alert.url,
-        },
-        channelId: 'weather',
-        priority,
-      });
-
-      // ✅ Only include defined fields to avoid Firebase errors
       const notificationData = {
         type: 'typhoon',
         source: alert.source,
         severity: alert.severity,
       };
 
-      // Add optional fields only if they exist
       if (alert.level !== undefined) notificationData.level = alert.level;
       if (alert.risk) notificationData.risk = alert.risk;
       if (alert.url) notificationData.url = alert.url;
 
+      // 1️⃣ Send LOCAL notification
+      await sendLocalNotification({
+        title: alert.title,
+        body: notificationBody,
+        data: notificationData,
+        channelId: 'weather',
+        priority,
+      });
+
+      // 2️⃣ Send REMOTE push notifications to ALL users
+      const tokens = await getAllPushTokens();
+      console.log(`   🌀 Sending typhoon alert to ${tokens.length} users...`);
+      
+      if (tokens.length > 0) {
+        await sendBatchPushNotifications(
+          tokens,
+          alert.title,
+          notificationBody,
+          notificationData,
+          'weather'
+        );
+        console.log(`   ✅ Remote push sent to ${tokens.length} devices`);
+      }
+
+      // 3️⃣ Save to notification history
       await saveNotificationToHistory('all', {
         title: alert.title,
-        body: notificationBody, // ✅ Same detailed message saved to history
+        body: notificationBody,
         data: notificationData
       });
 
@@ -461,6 +507,7 @@ export const startDisasterMonitoring = async (latitude, longitude, username) => 
     console.log(`   👤 User: ${username}`);
     console.log('   🌀 PAGASA typhoon monitoring enabled');
     console.log('   ⏱️  Weather alerts have 3-hour cooldown');
+    console.log('   📡 Remote push notifications enabled');
 
     return true;
   } catch (error) {
@@ -534,7 +581,7 @@ function getStatusMessage(status) {
 }
 
 /**
- * ✅ IMPROVED: Manually trigger a check (for testing)
+ * Manually trigger a check (for testing)
  */
 export const triggerManualCheck = async () => {
   try {
@@ -572,7 +619,7 @@ export const triggerManualCheck = async () => {
 };
 
 /**
- * ✅ NEW: Clear all alert cooldowns (for testing)
+ * Clear all alert cooldowns (for testing)
  */
 export const clearAlertCooldowns = async () => {
   try {
@@ -595,7 +642,7 @@ export const clearAlertCooldowns = async () => {
 };
 
 /**
- * ✅ NEW: Clear all notification history (for testing)
+ * Clear all notification history (for testing)
  */
 export const clearNotificationHistory = async () => {
   try {
@@ -615,7 +662,7 @@ export const clearNotificationHistory = async () => {
 };
 
 /**
- * ✅ NEW: Complete reset for testing (clears everything)
+ * Complete reset for testing (clears everything)
  */
 export const resetDisasterMonitoring = async () => {
   try {
