@@ -68,6 +68,7 @@ import PinInfoModal from "../components/PinInfoModal";
 import EvacuationInfoModal from "../components/EvacuationInfoModal";
 import MedicalInfoModal from "../components/MedicalInfoModal";
 import ProvideSupplyModal from "../components/ProvideSupplyModal";
+import Toast from 'react-native-toast-message';
 
 // Debug: Log the imports immediately
 // console.log("=== IMPORT DEBUG ===");
@@ -685,18 +686,15 @@ export default function MapScreen({ route }) {
         JSON.stringify({ type: "setCrosshairMode", enabled: true })
       );
     }
-    Alert.alert(
-      type === "supply_provide" ? "Provide Supplies" : "Request Supplies",
-      "Move the map to position the crosshair where you want to place your pin.",
-      [
-        {
-          text: "OK",
-          onPress: () => {
-            setShowCrosshairSheet(true);
-          },
-        },
-      ]
-    );
+    Toast.show({
+      type: 'info',
+      text1: type === "supply_provide" ? "Provide Supplies" : "Request Supplies",
+      text2: "Position the crosshair where you want to place your pin.",
+      visibilityTime: 3000,
+    });
+
+    setCrosshairMode(true);
+    setShowCrosshairSheet(true);
   };
 
   const handleEvacPinButton = () => {
@@ -712,19 +710,14 @@ export default function MapScreen({ route }) {
         );
       }
 
-      Alert.alert(
-        "Evacuation Pin Mode",
-        "Move the map to position the crosshair where you want to place your evacuation pin, then tap the confirm button.",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              // 👉 Show confirm/cancel modal after pressing OK
-              setShowCrosshairSheet(true);
-            },
-          },
-        ]
-      );
+      Toast.show({
+        type: 'info',
+        text1: "Evacuation Pin Mode",
+        text2: "Position the crosshair on the map, then tap confirm.",
+        visibilityTime: 3000,
+      });
+
+      setShowCrosshairSheet(true);
     } else {
       Alert.alert(
         "Sign in required",
@@ -754,19 +747,14 @@ export default function MapScreen({ route }) {
         );
       }
 
-      Alert.alert(
-        "Medical Support Pin Mode",
-        "Move the map to position the crosshair where you want to place your medical support pin, then tap the confirm button.",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              // 👉 Show confirm/cancel modal after pressing OK
-              setShowCrosshairSheet(true);
-            },
-          },
-        ]
-      );
+      Toast.show({
+        type: 'info',
+        text1: "Medical Support Pin Mode",
+        text2: "Position the crosshair on the map, then tap confirm.",
+        visibilityTime: 3000,
+      });
+
+      setShowCrosshairSheet(true);
     } else {
       Alert.alert(
         "Sign in required",

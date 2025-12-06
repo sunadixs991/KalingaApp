@@ -52,7 +52,7 @@ import AdminUtilsPurok from "./screens/AdminUtilsPurok";
 import AdminUtilsDRRM from "./screens/AdminUtilsDRRM";
 import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 import EarthquakeScreen from './screens/EarthquakeScreen';
-import { startAutoDeleteService } from './services/DeleteService';
+import * as DeleteService from './services/DeleteService';
 
 
 // ✅ Import Feedback Modal
@@ -144,25 +144,35 @@ export default function App() {
           color: '#0C5460'
         }}
         text2NumberOfLines={3}
+        
       />
     ),
   };
-  useEffect(() => {
-    // Initialize auto-delete service when app starts
-    const initializeServices = async () => {
-      try {
-        // Start auto-delete service
-        await startAutoDeleteService();
-        console.log('✅ Auto-delete service initialized');
-      } catch (error) {
-        console.error('❌ Failed to initialize auto-delete service:', error);
+
+useEffect(() => {
+  const initializeServices = async () => {
+    try {
+      console.log('🔍 Initializing Auto-Delete Service...');
+      
+      // Check if the function exists
+      if (DeleteService && DeleteService.startAutoDeleteService) {
+        await DeleteService.startAutoDeleteService();
+        console.log('✅ Auto-delete service initialized successfully');
+      } else {
+        console.error('❌ startAutoDeleteService not found');
+        console.log('Available exports:', Object.keys(DeleteService || {}));
       }
-    };
+    } catch (error) {
+      console.error('❌ Failed to initialize auto-delete service:');
+      console.error('   Error:', error.message);
+      console.error('   Stack:', error.stack);
+    }
+  };
 
-    initializeServices();
-  }, []);
+  initializeServices();
+}, []);
 
-  
+
   useEffect(() => {
     const loadUsername = async () => {
       try {
