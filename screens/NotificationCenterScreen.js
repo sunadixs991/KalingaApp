@@ -41,6 +41,9 @@ export default function NotificationCenterScreen({ navigation, route }) {
     // Resolve username from route params or AsyncStorage then load notifications
     const resolveAndFetch = async () => {
       try {
+        // Clear previous notifications first to prevent showing old user's data
+        setNotifications([]);
+        
         if (routeUsername) {
           setResolvedUsername(routeUsername);
           await fetchNotifications(routeUsername);
@@ -86,7 +89,7 @@ export default function NotificationCenterScreen({ navigation, route }) {
             setResolvedUsername(usernameCandidate);
             await fetchNotifications(usernameCandidate);
           } else {
-            // no user context: still fetch broadcasts ("all")
+            // No user logged in - show only public notifications (earthquake/weather)
             setResolvedUsername(null);
             await fetchNotifications(null);
           }
@@ -103,49 +106,84 @@ export default function NotificationCenterScreen({ navigation, route }) {
     };
 
     resolveAndFetch();
-  }, []);
+  }, [routeUsername]); // Re-run when routeUsername changes
 
   const fetchNotifications = async (usernameToUse) => {
     setLoading(true);
     try {
       let combined = [];
 
-      // If we have a specific user, fetch personal notifications
-      if (usernameToUse) {
-        const personal = await getNotificationHistory(usernameToUse);
-        if (Array.isArray(personal)) combined = combined.concat(personal);
-      }
+      console.log('🔍 Fetching notifications...');
+      console.log('   Current user:', usernameToUse || 'NOT LOGGED IN');
 
-      // Always fetch broadcast notifications saved under 'all' (if any)
+      // ALWAYS fetch public/broadcast notifications (earthquake, weather, typhoon)
+      // These should be visible to everyone, logged in or not
       try {
-        const broadcast = await getNotificationHistory('all');
-        if (Array.isArray(broadcast)) combined = combined.concat(broadcast);
+        const publicNotifications = await getNotificationHistory('all');
+        if (Array.isArray(publicNotifications)) {
+          // Filter to only show public notification types
+          const filtered = publicNotifications.filter(n => {
+            const type = n.data?.type || n.type;
+            return type === 'earthquake' || type === 'weather' || type === 'typhoon';
+          });
+          combined = combined.concat(filtered);
+          console.log(`   📢 Public notifications: ${filtered.length}`);
+        }
       } catch (e) {
-        // if the service throws for 'all' ignore
-        console.debug('No broadcast notifications or failed to fetch them', e);
+        console.debug('No public notifications available', e);
       }
 
-      // If neither yielded anything and usernameToUse is falsy, try fetching 'all' only
-      if (!usernameToUse && combined.length === 0) {
-        const broadcastOnly = await getNotificationHistory('all');
-        if (Array.isArray(broadcastOnly)) combined = combined.concat(broadcastOnly);
+      // If user is logged in, ALSO fetch their personal notifications (schedules, incidents)
+      if (usernameToUse) {
+        try {
+          const personalNotifications = await getNotificationHistory(usernameToUse);
+          if (Array.isArray(personalNotifications)) {
+            // Include all personal notifications for the logged-in user
+            combined = combined.concat(personalNotifications);
+            console.log(`   👤 Personal notifications: ${personalNotifications.length}`);
+          }
+        } catch (e) {
+          console.debug('No personal notifications available', e);
+        }
+      } else {
+        console.log('   👋 Not logged in - showing only public notifications');
       }
 
-      // Deduplicate by id (some notifications might appear twice)
+      // Deduplicate by id
       const uniqueById = {};
       combined.forEach((n) => {
         if (!n) return;
         uniqueById[n.id] = n;
       });
-      const merged = Object.values(uniqueById);
+      let merged = Object.values(uniqueById);
 
-      // Sort by createdAt descending (handle timestamps that may be numbers or Date objects)
+      // ✅ CRITICAL FIX: Filter notifications based on login status
+      merged = merged.filter(n => {
+        const type = n.data?.type || n.type;
+        const isScheduleNotification = type === 'food_schedule' || type === 'schedule' || type === 'food';
+        const isPublicNotification = type === 'earthquake' || type === 'weather' || type === 'typhoon';
+        
+        // If not logged in, only show public notifications
+        if (!usernameToUse) {
+          if (isScheduleNotification) {
+            console.log('   🚫 Filtered out schedule notification (not logged in):', n.title);
+            return false;
+          }
+          return isPublicNotification;
+        }
+        
+        // If logged in, show all notifications
+        return true;
+      });
+
+      // Sort by createdAt descending
       merged.sort((a, b) => {
         const ta = a?.createdAt ? (typeof a.createdAt === 'object' ? a.createdAt : new Date(a.createdAt)) : 0;
         const tb = b?.createdAt ? (typeof b.createdAt === 'object' ? b.createdAt : new Date(b.createdAt)) : 0;
         return tb - ta;
       });
 
+      console.log(`   ✅ Final notifications displayed: ${merged.length}`);
       setNotifications(merged);
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -154,6 +192,7 @@ export default function NotificationCenterScreen({ navigation, route }) {
         text1: 'Error',
         text2: 'Could not load notifications',
       });
+      setNotifications([]);
     } finally {
       setLoading(false);
     }
@@ -166,6 +205,7 @@ export default function NotificationCenterScreen({ navigation, route }) {
   };
 
   const handleNotificationPress = async (notification) => {
+    // Mark as read if unread
     if (!notification.read) {
       await markNotificationAsRead(notification.id);
       setNotifications(prev =>
@@ -173,14 +213,32 @@ export default function NotificationCenterScreen({ navigation, route }) {
       );
     }
 
-    if (notification.data?.type === 'earthquake') {
+    // Navigate based on notification type
+    const notificationType = notification.data?.type;
+
+    if (notificationType === 'earthquake') {
       navigation.navigate('Earthquake');
-    } else if (notification.data?.type === 'incident') {
+    } else if (notificationType === 'incident') {
       navigation.navigate('IncidentsList');
-    } else if (notification.data?.type === 'weather' || notification.data?.type === 'typhoon') {
+    } else if (notificationType === 'weather' || notificationType === 'typhoon') {
       navigation.navigate('Home');
-    } else if (notification.data?.type === 'food_schedule' || notification.data?.type === 'schedule' || notification.data?.type === 'food') {
-      // if it's a schedule, navigate to Home or schedules screen as desired
+    } else if (notificationType === 'food_schedule' || notificationType === 'schedule' || notificationType === 'food') {
+      // ✅ Only navigate to FoodDistribution if user is logged in
+      if (resolvedUsername) {
+        navigation.navigate('FoodDistribution', {
+          scheduleData: notification.data,
+          highlightSchedule: notification.data?.scheduleId,
+        });
+      } else {
+        // This shouldn't happen due to filtering, but just in case
+        Toast.show({
+          type: 'info',
+          text1: 'Login Required',
+          text2: 'Please log in to view schedule details',
+        });
+      }
+    } else {
+      // Default: go to Home if type is unknown
       navigation.navigate('Home');
     }
   };
@@ -318,7 +376,9 @@ export default function NotificationCenterScreen({ navigation, route }) {
       <Icon name="notifications-off-outline" size={80} color="#ccc" />
       <Text style={styles.emptyTitle}>No Notifications</Text>
       <Text style={styles.emptySubtext}>
-        You'll receive alerts about earthquakes, weather, and incidents here
+        {resolvedUsername 
+          ? "You'll receive alerts about earthquakes, weather, schedules, and incidents here"
+          : "You'll receive alerts about earthquakes and weather here. Log in to see schedule notifications."}
       </Text>
     </View>
   );

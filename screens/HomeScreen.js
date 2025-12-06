@@ -51,12 +51,7 @@ import {
 import { startDisasterMonitoring, resetDisasterMonitoring } from '../services/DisasterMonitorService';
 import { triggerManualCheck } from '../services/DisasterMonitorService';
 import { checkPhilippinesWeatherAlerts } from '../services/PAGASAWeatherService';
-import {
-  checkForNewSchedules,
-  startScheduleMonitoring,
-  clearScheduleNotificationHistory
-} from '../services/ScheduleMonitorService';
-const { width } = Dimensions.get("window");
+import ScheduleMonitorService from '../services/ScheduleMonitorService';
 
 // Cache key prefix (bump version if cache format changes)
 const NEARBY_CACHE_PREFIX = "nearby_pins_cache_v1";
@@ -269,54 +264,65 @@ export default function HomeScreen({ route, navigation }) {
       }
     };
   }, [username]);
+
   useEffect(() => {
     const startMonitoring = async () => {
       if (username) {
         console.log('📅 Starting schedule monitoring...');
         console.log('   Username:', username);
 
-        const started = await startScheduleMonitoring(username);
+        try {
+          const started = await ScheduleMonitorService.startScheduleMonitoring(username);
 
-        if (started) {
-          console.log('✅ Schedule monitoring initialized successfully');
-        } else {
-          console.log('❌ Failed to start schedule monitoring');
+          if (started) {
+            console.log('✅ Schedule monitoring initialized successfully');
+          } else {
+            console.log('❌ Failed to start schedule monitoring');
+          }
+        } catch (error) {
+          console.error('❌ Error starting schedule monitoring:', error);
         }
       }
     };
 
     startMonitoring();
-  }, [username]); // Only depends on username
+  }, [username]);
 
-  // 3. ADD THIS NEW useEffect - Catch-up check when app opens
-  //    (Place this AFTER the monitoring start useEffect)
+
   useEffect(() => {
     const runScheduleCatchupCheck = async () => {
       if (username) {
         console.log('📅 Running catch-up check for missed schedules...');
 
-        // Wait a bit for everything to initialize
-        await new Promise(resolve => setTimeout(resolve, 2500));
+        try {
+          // Wait a bit for everything to initialize
+          await new Promise(resolve => setTimeout(resolve, 2500));
 
-        const result = await checkForNewSchedules(username, true);
+          console.log('📅 About to call checkForNewSchedules with username:', username);
+          const result = await ScheduleMonitorService.checkForNewSchedules(username, true);
+          console.log('📅 checkForNewSchedules returned:', result);
 
-        if (result) {
-          console.log('✅ Caught up - found schedules that were created while app was closed');
-          Toast.show({
-            type: 'info',
-            text1: '📅 New Food Schedule',
-            text2: 'Check notifications for distribution details',
-            visibilityTime: 5000,
-          });
-        } else {
-          console.log('✅ Caught up - no missed schedules');
+          if (result) {
+            console.log('✅ Caught up - found schedules that were created while app was closed');
+            Toast.show({
+              type: 'info',
+              text1: '📅 New Food Schedule',
+              text2: 'Check notifications for distribution details',
+              visibilityTime: 5000,
+            });
+          } else {
+            console.log('✅ Caught up - no missed schedules');
+          }
+        } catch (error) {
+          console.error('❌ Schedule catch-up check failed:', error);
         }
+      } else {
+        console.log('⚠️ No username available for schedule catch-up check');
       }
     };
 
     runScheduleCatchupCheck();
   }, [username]);
-
   const initializeNotifications = async () => {
     // Register for push notifications
     const token = await registerForPushNotifications(username);
@@ -1038,8 +1044,6 @@ export default function HomeScreen({ route, navigation }) {
               </TouchableOpacity>
 
 
-              {/* DISASTER CHECK BUTTON - FOR TESTING PURPOSES ONLY */}
-
               <TouchableOpacity
                 style={styles.cardServices}
                 onPress={async () => {
@@ -1047,10 +1051,11 @@ export default function HomeScreen({ route, navigation }) {
                     type: 'info',
                     text1: 'Testing Notifications...',
                     text2: 'Resetting and checking for alerts',
+
                   });
 
                   // Clear schedule notification history
-                  await clearScheduleNotificationHistory();
+                  await ScheduleMonitorService.clearScheduleNotificationHistory();
 
                   // Also reset disaster monitoring
                   await resetDisasterMonitoring();
@@ -1060,12 +1065,17 @@ export default function HomeScreen({ route, navigation }) {
                     text1: 'Checking for all alerts...',
                     text2: 'This may take a few seconds',
                   });
-
+                  await sendLocalNotification({
+                    title: 'Test Schedule Notification',
+                    body: 'This is a test from HomeScreen',
+                    channelId: 'schedules',
+                    data: { type: 'food_schedule' }
+                  });
                   // Check disasters
                   const disasterResult = await triggerManualCheck();
 
                   // Check schedules
-                  const scheduleResult = await checkForNewSchedules(username, true);
+                  const scheduleResult = ScheduleMonitorService.checkForNewSchedules(username, true);
 
                   if (disasterResult || scheduleResult) {
                     Toast.show({
@@ -1087,6 +1097,10 @@ export default function HomeScreen({ route, navigation }) {
                 <Icon name="flask" size={60} color="#49A5A2" />
                 <Text style={styles.cardText}>Test All Notifications</Text>
               </TouchableOpacity>
+
+
+
+
             </View>
           </View>
 
@@ -1124,6 +1138,7 @@ export default function HomeScreen({ route, navigation }) {
                     >
                       <Icon name="close" size={22} color="#666" />
                     </TouchableOpacity>
+
 
                     {/* Content */}
                     <Text style={styles.modalTitle}>

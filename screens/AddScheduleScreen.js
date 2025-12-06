@@ -53,7 +53,7 @@ async function getUserFirstName() {
       const userInfo = JSON.parse(userInfoStr);
       return userInfo.firstName || "Unknown";
     }
-  } catch {}
+  } catch { }
   return "Unknown";
 }
 
@@ -205,7 +205,7 @@ export default function AddScheduleScreen({ navigation, route }) {
   const sendCombinedNotifications = async (scheduleData) => {
     try {
       console.log('📤 Sending filtered notifications (SMS + Push) to:', scheduleData.title, scheduleData.purok);
-      
+
       // Prepare notification messages
       const smsMessage =
         `[Kalinga]\nNew Food Distribution Schedule\n` +
@@ -225,7 +225,7 @@ export default function AddScheduleScreen({ navigation, route }) {
         where("purok", "==", scheduleData.purok)
       );
       const usersSnapshot = await getDocs(usersQuery);
-      
+
       console.log(`✅ Found ${usersSnapshot.size} users in ${scheduleData.title}, ${scheduleData.purok}`);
 
       if (usersSnapshot.empty) {
@@ -236,15 +236,15 @@ export default function AddScheduleScreen({ navigation, route }) {
       // Collect phone numbers and usernames
       const phoneNumbers = [];
       const users = [];
-      
+
       usersSnapshot.forEach((userDoc) => {
         const userData = userDoc.data();
-        
+
         // Collect phone number for SMS
         if (userData.phone) {
           phoneNumbers.push(userData.phone);
         }
-        
+
         // Collect user data for push notifications
         if (userData.username) {
           users.push(userData);
@@ -259,7 +259,7 @@ export default function AddScheduleScreen({ navigation, route }) {
         try {
           console.log(`📱 Sending SMS to ${phoneNumbers.length} users...`);
           const smsResult = await sendIprogSMS(smsMessage, phoneNumbers);
-          
+
           if (smsResult.success) {
             smsCount = phoneNumbers.length;
             console.log(`✅ SMS sent to ${smsCount} users`);
@@ -273,52 +273,52 @@ export default function AddScheduleScreen({ navigation, route }) {
         console.log('⚠️ No phone numbers found for SMS');
       }
 
-      // 2️⃣ Send Push notifications to filtered users
-      if (users.length > 0) {
-        console.log(`📲 Sending push notifications to ${users.length} users...`);
-        
-        for (const userData of users) {
-          try {
-            // Send local push notification
-            await sendLocalNotification({
-              title: pushTitle,
-              body: pushBody,
-              data: {
-                type: 'food_schedule',
-                barangay: scheduleData.title,
-                purok: scheduleData.purok,
-                location: scheduleData.location,
-                date: scheduleData.date,
-                time: scheduleData.time,
-              },
-              channelId: 'schedules',
-            });
-            
-            // Save to notification history
-            await saveNotificationToHistory(userData.username, {
-              title: pushTitle,
-              body: pushBody,
-              data: {
-                type: 'food_schedule',
-                barangay: scheduleData.title,
-                purok: scheduleData.purok,
-                location: scheduleData.location,
-              },
-            });
-            
+// 2️⃣ Send Push notifications to filtered users
+if (users.length > 0) {
+  console.log(`📲 Sending push notifications to ${users.length} users...`);
+  
+  for (const userData of users) {
+    try {
+      await sendLocalNotification({
+        title: pushTitle,
+        body: pushBody,
+        data: {
+          type: 'food_schedule',
+          barangay: scheduleData.title,
+          purok: scheduleData.purok,
+          location: scheduleData.location,
+          date: scheduleData.date,      // ✅ ADDED
+          time: scheduleData.time,      // ✅ ADDED
+        },
+        channelId: 'schedules',
+      });
+      
+      await saveNotificationToHistory(userData.username, {
+        title: pushTitle,
+        body: pushBody,
+        data: {
+          type: 'food_schedule',
+          barangay: scheduleData.title,
+          purok: scheduleData.purok,
+          location: scheduleData.location,
+          date: scheduleData.date,      // ✅ ADDED
+          time: scheduleData.time,      // ✅ ADDED
+        },
+      });
+
             pushCount++;
           } catch (notifError) {
             console.error(`❌ Failed to notify ${userData.username}:`, notifError);
           }
         }
-        
+
         console.log(`✅ Push notifications sent to ${pushCount} users`);
       } else {
         console.log('⚠️ No users found for push notifications');
       }
-      
+
       return { sms: smsCount, push: pushCount };
-      
+
     } catch (error) {
       console.error('❌ Failed to send notifications:', error);
       return { sms: 0, push: 0 };
@@ -327,7 +327,7 @@ export default function AddScheduleScreen({ navigation, route }) {
 
   const handleAddSchedule = async () => {
     if (isSaving) return; // Prevent double submission
-    
+
     const landmarkToSave = isOtherLandmark ? otherLandmark.trim() : newSchedule.location.trim();
 
     if (!newSchedule.title || !landmarkToSave || !newSchedule.purok) {
@@ -361,7 +361,7 @@ export default function AddScheduleScreen({ navigation, route }) {
         try {
           const fileExt = selectedFile.name.split(".").pop();
           const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-          
+
           const response = await fetch(selectedFile.uri);
           const arrayBuffer = await response.arrayBuffer();
           const uint8Array = new Uint8Array(arrayBuffer);

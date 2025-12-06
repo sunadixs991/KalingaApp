@@ -161,7 +161,7 @@ async function checkEarthquakes(latitude, longitude, username) {
         channelId: 'earthquake',
       });
 
-      await saveNotificationToHistory(username, {
+      await saveNotificationToHistory('all', {
         title: `🚨 Earthquake Alert - Magnitude ${quake.magnitude.toFixed(1)}`,
         body: `${quake.place} - ${quake.distanceKm.toFixed(0)}km away. ${severity}`,
         data: { type: 'earthquake', quakeId: quake.id }
@@ -276,7 +276,7 @@ async function checkWeatherAlerts(latitude, longitude, username) {
         channelId: 'weather',
       });
 
-      await saveNotificationToHistory(username, {
+      await saveNotificationToHistory('all', {
         title: alert.title,
         body: alert.body,
         data: { type: 'weather', alertType: alert.type }
@@ -376,7 +376,7 @@ async function checkTyphoonAlerts(latitude, longitude, username) {
       if (alert.risk) notificationData.risk = alert.risk;
       if (alert.url) notificationData.url = alert.url;
 
-      await saveNotificationToHistory(username, {
+      await saveNotificationToHistory('all', {
         title: alert.title,
         body: notificationBody, // ✅ Same detailed message saved to history
         data: notificationData

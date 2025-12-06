@@ -10,6 +10,7 @@ import {
 import Icon from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { triggerManualCleanup } from '../services/DeleteService';
 
 export default function AdminUtils() {
   const navigation = useNavigation();
@@ -32,6 +33,22 @@ export default function AdminUtils() {
 
       <ScrollView contentContainerStyle={styles.container}>
         {/* Options Section */}
+        {/* <TouchableOpacity
+          onPress={async () => {
+            const result = await triggerManualCleanup();
+            Alert.alert(
+              'Cleanup Done!',
+              `Schedules: ${result.schedulesDeleted}\n` +
+              `Posts: ${result.postsDeleted}\n` +
+              `Notifications: ${result.notificationsDeleted}`
+            );
+          }}
+          style={{ padding: 16, backgroundColor: '#e75e33', margin: 16, borderRadius: 8 }}
+        >
+          <Text style={{ color: '#fff', textAlign: 'center', fontWeight: 'bold' }}>
+            🧹 Test Cleanup Now
+          </Text>
+        </TouchableOpacity> */}
         <TouchableOpacity
           style={styles.option}
           onPress={() => navigation.navigate("ManageContact")}

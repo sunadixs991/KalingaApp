@@ -52,6 +52,7 @@ import AdminUtilsPurok from "./screens/AdminUtilsPurok";
 import AdminUtilsDRRM from "./screens/AdminUtilsDRRM";
 import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 import EarthquakeScreen from './screens/EarthquakeScreen';
+import { startAutoDeleteService } from './services/DeleteService';
 
 
 // ✅ Import Feedback Modal
@@ -146,7 +147,22 @@ export default function App() {
       />
     ),
   };
+  useEffect(() => {
+    // Initialize auto-delete service when app starts
+    const initializeServices = async () => {
+      try {
+        // Start auto-delete service
+        await startAutoDeleteService();
+        console.log('✅ Auto-delete service initialized');
+      } catch (error) {
+        console.error('❌ Failed to initialize auto-delete service:', error);
+      }
+    };
 
+    initializeServices();
+  }, []);
+
+  
   useEffect(() => {
     const loadUsername = async () => {
       try {
@@ -232,7 +248,7 @@ export default function App() {
             <Stack.Screen name="AdminUtilsPurok" component={AdminUtilsPurok} />
             <Stack.Screen name="AdminUtilsDRRM" component={AdminUtilsDRRM} />
             <Stack.Screen name="Earthquake" component={EarthquakeScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="NotificationCenter"component={NotificationCenterScreen} options={{ headerShown: false }}
+            <Stack.Screen name="NotificationCenter" component={NotificationCenterScreen} options={{ headerShown: false }}
             />
           </Stack.Navigator>
 
