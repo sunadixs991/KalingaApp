@@ -50,7 +50,7 @@ async function getNotifiedList(key) {
   try {
     const str = await AsyncStorage.getItem(key);
     const list = str ? JSON.parse(str) : [];
-    
+
     if (list.length > 100) {
       return list.slice(-100);
     }
@@ -132,8 +132,8 @@ async function checkEarthquakes(latitude, longitude, username) {
     const notifiedQuakes = await getNotifiedList(NOTIFIED_QUAKES_KEY);
     const lastCheck = await getLastCheckTime(LAST_EARTHQUAKE_CHECK);
 
-    const newQuakes = earthquakes.filter(quake => 
-      quake.time.getTime() > lastCheck && 
+    const newQuakes = earthquakes.filter(quake =>
+      quake.time.getTime() > lastCheck &&
       !notifiedQuakes.includes(quake.id)
     );
 
@@ -146,13 +146,13 @@ async function checkEarthquakes(latitude, longitude, username) {
 
     for (const quake of newQuakes) {
       const severity = getEarthquakeSeverity(quake.magnitude);
-      
+
       await sendLocalNotification({
         title: `🚨 Earthquake Alert - Magnitude ${quake.magnitude.toFixed(1)}`,
         body: `${quake.place} - ${quake.distanceKm.toFixed(0)}km away. ${severity}`,
-        data: { 
-          type: 'earthquake', 
-          magnitude: quake.magnitude, 
+        data: {
+          type: 'earthquake',
+          magnitude: quake.magnitude,
           location: quake.place,
           quakeId: quake.id,
           latitude: quake.latitude,
@@ -214,9 +214,9 @@ async function checkWeatherAlerts(latitude, longitude, username) {
     }
 
     // Heavy rain alert
-    if (weather.description.toLowerCase().includes('rain') && 
-        (weather.description.toLowerCase().includes('heavy') || 
-         weather.description.toLowerCase().includes('extreme'))) {
+    if (weather.description.toLowerCase().includes('rain') &&
+      (weather.description.toLowerCase().includes('heavy') ||
+        weather.description.toLowerCase().includes('extreme'))) {
       const lastAlert = await getLastAlertTime('heavy_rain');
       if (now - lastAlert > cooldownMs) {
         alerts.push({
@@ -244,8 +244,8 @@ async function checkWeatherAlerts(latitude, longitude, username) {
     }
 
     // Storm alert
-    if (weather.main.toLowerCase().includes('storm') || 
-        weather.main.toLowerCase().includes('thunderstorm')) {
+    if (weather.main.toLowerCase().includes('storm') ||
+      weather.main.toLowerCase().includes('thunderstorm')) {
       const lastAlert = await getLastAlertTime('storm');
       if (now - lastAlert > cooldownMs) {
         alerts.push({
@@ -269,8 +269,8 @@ async function checkWeatherAlerts(latitude, longitude, username) {
       await sendLocalNotification({
         title: alert.title,
         body: alert.body,
-        data: { 
-          type: 'weather', 
+        data: {
+          type: 'weather',
           alertType: alert.type,
         },
         channelId: 'weather',
@@ -305,7 +305,7 @@ async function checkTyphoonAlerts(latitude, longitude, username) {
 
     // Get current weather data
     const weather = await fetchWeatherData(latitude, longitude);
-    
+
     if (!weather) {
       console.log('   No weather data for typhoon check');
       return false;
@@ -327,7 +327,7 @@ async function checkTyphoonAlerts(latitude, longitude, username) {
     for (const alert of typhoonAlerts) {
       const alertKey = `typhoon_${alert.risk || 'general'}`;
       const lastAlert = await getLastAlertTime(alertKey);
-      
+
       if (now - lastAlert > cooldownMs) {
         newAlerts.push(alert);
       } else {
@@ -345,11 +345,14 @@ async function checkTyphoonAlerts(latitude, longitude, username) {
     for (const alert of newAlerts) {
       // Determine notification priority based on severity
       const priority = alert.severity === 'severe' || alert.level >= 4 ? 'high' : 'default';
-      
+
+      // ✅ FIXED: Use details first (specific message), then description (generic)
+      const notificationBody = alert.details || alert.description || alert.body || 'Check weather advisory';
+
       await sendLocalNotification({
         title: alert.title,
-        body: alert.description || alert.body || alert.details || 'Check weather advisory',
-        data: { 
+        body: notificationBody, // ✅ Now uses detailed message first
+        data: {
           type: 'typhoon',
           source: alert.source,
           severity: alert.severity,
@@ -367,7 +370,7 @@ async function checkTyphoonAlerts(latitude, longitude, username) {
         source: alert.source,
         severity: alert.severity,
       };
-      
+
       // Add optional fields only if they exist
       if (alert.level !== undefined) notificationData.level = alert.level;
       if (alert.risk) notificationData.risk = alert.risk;
@@ -375,7 +378,7 @@ async function checkTyphoonAlerts(latitude, longitude, username) {
 
       await saveNotificationToHistory(username, {
         title: alert.title,
-        body: alert.description || alert.body || alert.details || 'Check weather advisory',
+        body: notificationBody, // ✅ Same detailed message saved to history
         data: notificationData
       });
 
@@ -440,7 +443,7 @@ export const startDisasterMonitoring = async (latitude, longitude, username) => 
     await AsyncStorage.setItem('username', username);
 
     const isRegistered = await TaskManager.isTaskRegisteredAsync(DISASTER_MONITOR_TASK);
-    
+
     if (isRegistered) {
       console.log('✅ Disaster monitoring already active');
       return true;
@@ -458,7 +461,7 @@ export const startDisasterMonitoring = async (latitude, longitude, username) => 
     console.log(`   👤 User: ${username}`);
     console.log('   🌀 PAGASA typhoon monitoring enabled');
     console.log('   ⏱️  Weather alerts have 3-hour cooldown');
-    
+
     return true;
   } catch (error) {
     console.error('❌ Failed to start disaster monitoring:', error);
@@ -537,7 +540,7 @@ export const triggerManualCheck = async () => {
   try {
     console.log('🔍 Manual check triggered...');
     console.log('   Time:', new Date().toISOString());
-    
+
     const userData = await getUserData();
     if (!userData) {
       console.log('⚠️ No user data found');
@@ -554,7 +557,7 @@ export const triggerManualCheck = async () => {
     ]);
 
     const foundAlerts = earthquakeResult || weatherResult || typhoonResult;
-    
+
     if (foundAlerts) {
       console.log('✅ Manual check complete - found new alerts');
     } else {
@@ -573,16 +576,16 @@ export const triggerManualCheck = async () => {
  */
 export const clearAlertCooldowns = async () => {
   try {
-    const alertTypes = ['high_wind', 'heavy_rain', 'extreme_heat', 'storm', 
-                       'typhoon_general', 'typhoon_tropical_depression', 
-                       'typhoon_tropical_storm', 'typhoon_severe_tropical_storm',
-                       'typhoon_typhoon', 'typhoon_super_typhoon', 'typhoon_undefined'];
-    
+    const alertTypes = ['high_wind', 'heavy_rain', 'extreme_heat', 'storm',
+      'typhoon_general', 'typhoon_tropical_depression',
+      'typhoon_tropical_storm', 'typhoon_severe_tropical_storm',
+      'typhoon_typhoon', 'typhoon_super_typhoon', 'typhoon_undefined'];
+
     for (const type of alertTypes) {
       const key = `last_alert_${type}`;
       await AsyncStorage.removeItem(key);
     }
-    
+
     console.log('✅ All alert cooldowns cleared');
     return true;
   } catch (error) {
@@ -602,7 +605,7 @@ export const clearNotificationHistory = async () => {
     await AsyncStorage.removeItem(LAST_EARTHQUAKE_CHECK);
     await AsyncStorage.removeItem(LAST_WEATHER_CHECK);
     await AsyncStorage.removeItem(LAST_TYPHOON_CHECK);
-    
+
     console.log('✅ All notification history cleared');
     return true;
   } catch (error) {

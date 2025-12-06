@@ -9,7 +9,7 @@ export const fetchPAGASAAlerts = async () => {
   try {
     // PAGASA's main weather page
     const response = await fetch('https://www.pagasa.dost.gov.ph/');
-    
+
     if (!response.ok) {
       console.log('❌ PAGASA feed unavailable');
       return [];
@@ -17,7 +17,7 @@ export const fetchPAGASAAlerts = async () => {
 
     const text = await response.text();
     const alerts = [];
-    
+
     // Look for tropical cyclone warnings in the page content
     const keywords = [
       'Tropical Cyclone',
@@ -36,22 +36,25 @@ export const fetchPAGASAAlerts = async () => {
         break;
       }
     }
-    
+
     if (foundAlert) {
+      const message = 'PAGASA has issued a weather advisory. Check their website for details.';
+
       alerts.push({
         id: `pagasa_${new Date().toDateString()}`,
         source: 'PAGASA',
         title: 'Active Weather Advisory',
-        description: 'PAGASA has issued a weather advisory. Check their website for details.',
+        description: message,  // ✅ Keep for backward compatibility
+        details: message,      // ✅ ADD THIS LINE - DisasterMonitorService checks this first
         url: 'https://www.pagasa.dost.gov.ph/',
         severity: 'moderate',
-        level: 2, // ✅ ADD DEFAULT LEVEL for PAGASA alerts
+        level: 2,
         timestamp: new Date(),
       });
     }
-    
+
     return alerts;
-    
+
   } catch (error) {
     console.error('❌ Error fetching PAGASA alerts:', error);
     return [];
@@ -66,10 +69,10 @@ export const detectTyphoonRisk = (weather) => {
   if (!weather) return null;
 
   const { windSpeed, pressure, description } = weather;
-  
+
   // Convert m/s to km/h for Philippine standards (multiply by 3.6)
   const windKmh = windSpeed * 3.6;
-  
+
   // Super Typhoon (220+ km/h sustained winds)
   if (windKmh >= 220) {
     return {
@@ -80,7 +83,7 @@ export const detectTyphoonRisk = (weather) => {
       color: '#8B0000', // Dark red
     };
   }
-  
+
   // Typhoon (118-220 km/h)
   if (windKmh >= 118) {
     return {
@@ -91,7 +94,7 @@ export const detectTyphoonRisk = (weather) => {
       color: '#DC143C', // Crimson
     };
   }
-  
+
   // Severe Tropical Storm (89-117 km/h)
   if (windKmh >= 89) {
     return {
@@ -102,7 +105,7 @@ export const detectTyphoonRisk = (weather) => {
       color: '#FF4500', // Orange red
     };
   }
-  
+
   // Tropical Storm (62-88 km/h)
   if (windKmh >= 62) {
     return {
@@ -113,7 +116,7 @@ export const detectTyphoonRisk = (weather) => {
       color: '#FFA500', // Orange
     };
   }
-  
+
   // Tropical Depression (45-61 km/h)
   if (windKmh >= 45) {
     return {
@@ -124,10 +127,10 @@ export const detectTyphoonRisk = (weather) => {
       color: '#FFD700', // Gold
     };
   }
-  
+
   // Check for heavy rain even without high winds
-  if (description.toLowerCase().includes('heavy rain') || 
-      description.toLowerCase().includes('thunderstorm')) {
+  if (description.toLowerCase().includes('heavy rain') ||
+    description.toLowerCase().includes('thunderstorm')) {
     return {
       risk: 'heavy_rain',
       level: 1,
@@ -136,7 +139,7 @@ export const detectTyphoonRisk = (weather) => {
       color: '#4169E1', // Royal blue
     };
   }
-  
+
   return null;
 };
 
@@ -145,7 +148,7 @@ export const detectTyphoonRisk = (weather) => {
  */
 export const getTyphoonCategory = (windSpeed) => {
   const windKmh = windSpeed * 3.6;
-  
+
   if (windKmh >= 220) return 'Super Typhoon';
   if (windKmh >= 118) return 'Typhoon';
   if (windKmh >= 89) return 'Severe Tropical Storm';
@@ -169,36 +172,46 @@ export const isInTyphoonSeason = () => {
  */
 export const checkPhilippinesWeatherAlerts = async (weather) => {
   const alerts = [];
-  
+
   try {
     // 1. Check PAGASA official alerts
+    console.log('   🔍 Fetching PAGASA website...');
     const pagasaAlerts = await fetchPAGASAAlerts();
+    console.log(`   📋 PAGASA alerts found: ${pagasaAlerts.length}`);
     alerts.push(...pagasaAlerts);
-    
+
     // 2. Detect typhoon risk from current weather conditions
+    console.log(`   🌬️  Current wind speed: ${weather.windSpeed} m/s (${(weather.windSpeed * 3.6).toFixed(0)} km/h)`);
     const typhoonRisk = detectTyphoonRisk(weather);
+
     if (typhoonRisk) {
+      console.log(`   ⚠️  Typhoon risk detected: ${typhoonRisk.risk} (level ${typhoonRisk.level})`);
       alerts.push({
         id: `typhoon_${new Date().toDateString()}`,
         source: 'Detection',
         title: typhoonRisk.message,
         description: typhoonRisk.details,
+        details: typhoonRisk.details, // ✅ Add this for consistency
         severity: typhoonRisk.level >= 3 ? 'severe' : 'moderate',
         risk: typhoonRisk.risk,
-        level: typhoonRisk.level, // ✅ This will always be defined
+        level: typhoonRisk.level,
         color: typhoonRisk.color,
         timestamp: new Date(),
       });
+    } else {
+      console.log('   ✅ No typhoon conditions detected (wind speed too low)');
     }
-    
+
     // 3. Seasonal awareness
     if (isInTyphoonSeason() && alerts.length === 0) {
       console.log('📅 Currently in typhoon season (June-November)');
     }
-    
+
+    console.log(`   📊 Total alerts to return: ${alerts.length}`);
+
   } catch (error) {
     console.error('❌ Error checking Philippines weather alerts:', error);
   }
-  
+
   return alerts;
 };

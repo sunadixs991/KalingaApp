@@ -50,6 +50,7 @@ import {
 } from '../services/NotificationService';
 import { startDisasterMonitoring, resetDisasterMonitoring } from '../services/DisasterMonitorService';
 import { triggerManualCheck } from '../services/DisasterMonitorService';
+import { checkPhilippinesWeatherAlerts } from '../services/PAGASAWeatherService';
 const { width } = Dimensions.get("window");
 
 // Cache key prefix (bump version if cache format changes)
@@ -315,48 +316,51 @@ export default function HomeScreen({ route, navigation }) {
     }
   };
 
-  const fetchWeather = async () => {
-    if (!currentLocation) return;
+ const fetchWeather = async () => {
+  if (!currentLocation) return;
 
-    setLoadingWeather(true);
-    try {
-      // Try to load from cache first
-      const cached = await loadWeatherFromCache();
-      if (cached) {
-        setWeatherData(cached);
-      }
-
-      // Check network
-      const netState = await NetInfo.fetch();
-      if (!netState.isConnected) {
-        if (!cached) {
-          Toast.show({
-            type: "info",
-            text1: "Offline",
-            text2: "Weather data unavailable offline",
-          });
-        }
-        return;
-      }
-
-      // Fetch fresh weather data
-      const weather = await fetchWeatherData(
-        currentLocation.latitude,
-        currentLocation.longitude
-      );
-      setWeatherData(weather);
-      await saveWeatherToCache(weather);
-    } catch (error) {
-      console.error("Error fetching weather:", error);
-      Toast.show({
-        type: "error",
-        text1: "Weather Error",
-        text2: "Could not load weather data",
-      });
-    } finally {
-      setLoadingWeather(false);
+  setLoadingWeather(true);
+  try {
+    // Try to load from cache first
+    const cached = await loadWeatherFromCache();
+    if (cached) {
+      setWeatherData(cached);
     }
-  };
+
+    // Check network
+    const netState = await NetInfo.fetch();
+    if (!netState.isConnected) {
+      if (!cached) {
+        Toast.show({
+          type: "info",
+          text1: "Offline",
+          text2: "Weather data unavailable offline",
+        });
+      }
+      return;
+    }
+
+    // Fetch fresh weather data
+    const weather = await fetchWeatherData(
+      currentLocation.latitude,
+      currentLocation.longitude
+    );
+    setWeatherData(weather);
+    await saveWeatherToCache(weather);
+
+
+
+  } catch (error) {
+    console.error("Error fetching weather:", error);
+    Toast.show({
+      type: "error",
+      text1: "Weather Error",
+      text2: "Could not load weather data",
+    });
+  } finally {
+    setLoadingWeather(false);
+  }
+};
   const fetchEarthquakes = async () => {
     if (!currentLocation) return;
 
@@ -580,50 +584,74 @@ export default function HomeScreen({ route, navigation }) {
   };
 
   const renderWeatherCard = () => {
-    if (loadingWeather && !weatherData) {
-      return (
-        <View style={styles.weatherCard}>
-          <ActivityIndicator size="small" color="#e75e33" />
-        </View>
-      );
-    }
-
-    if (!weatherData) return null;
-
-    const iconName = getWeatherIcon(weatherData.main, weatherData.icon);
-
+  if (loadingWeather && !weatherData) {
     return (
       <View style={styles.weatherCard}>
-        <View style={styles.weatherHeader}>
-          <Icon name={iconName} size={48} color="#e75e33" />
-          <View style={styles.weatherInfo}>
-            <Text style={styles.weatherTemp}>{weatherData.temperature}°C</Text>
-            <Text style={styles.weatherDescription}>
-              {weatherData.description.charAt(0).toUpperCase() +
-                weatherData.description.slice(1)}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.weatherDetails}>
-          <View style={styles.weatherDetailItem}>
-            <Icon name="water-outline" size={20} color="#49A5A2" />
-            <Text style={styles.weatherDetailText}>{weatherData.humidity}%</Text>
-          </View>
-          <View style={styles.weatherDetailItem}>
-            <Icon name="speedometer-outline" size={20} color="#49A5A2" />
-            <Text style={styles.weatherDetailText}>{weatherData.windSpeed} m/s</Text>
-          </View>
-          <View style={styles.weatherDetailItem}>
-            <Icon name="thermometer-outline" size={20} color="#49A5A2" />
-            <Text style={styles.weatherDetailText}>
-              Feels like {weatherData.feelsLike}°C
-            </Text>
-          </View>
-        </View>
+        <ActivityIndicator size="small" color="#e75e33" />
       </View>
     );
+  }
+
+  if (!weatherData) return null;
+
+  const iconName = getWeatherIcon(weatherData.main, weatherData.icon);
+  const windKmh = (weatherData.windSpeed * 3.6).toFixed(0);
+  
+  // ✅ Add wind warning color
+  const getWindColor = (speed) => {
+    if (speed >= 62) return '#e74c3c'; // Red - Tropical Storm+
+    if (speed >= 45) return '#f39c12'; // Orange - Tropical Depression
+    if (speed >= 30) return '#3498db'; // Blue - Moderate
+    return '#49A5A2'; // Default
   };
+
+  return (
+    <View style={styles.weatherCard}>
+      <View style={styles.weatherHeader}>
+        <Icon name={iconName} size={48} color="#e75e33" />
+        <View style={styles.weatherInfo}>
+          <Text style={styles.weatherTemp}>{weatherData.temperature}°C</Text>
+          <Text style={styles.weatherDescription}>
+            {weatherData.description.charAt(0).toUpperCase() +
+              weatherData.description.slice(1)}
+          </Text>
+        </View>
+      </View>
+
+      {/* ✅ NEW: Prominent Wind Speed Display */}
+      <View style={[styles.windSpeedBanner, { borderLeftColor: getWindColor(windKmh) }]}>
+        <Icon name="speedometer-outline" size={24} color={getWindColor(windKmh)} />
+        <View style={{ marginLeft: 12 }}>
+          <Text style={styles.windSpeedLabel}>Wind Speed</Text>
+          <Text style={[styles.windSpeedText, { color: getWindColor(windKmh) }]}>
+            {weatherData.windSpeed.toFixed(1)} m/s ({windKmh} km/h)
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.weatherDetails}>
+        <View style={styles.weatherDetailItem}>
+          <Icon name="water-outline" size={20} color="#49A5A2" />
+          <Text style={styles.weatherDetailText}>{weatherData.humidity}%</Text>
+        </View>
+        <View style={styles.weatherDetailItem}>
+          <Icon name="thermometer-outline" size={20} color="#49A5A2" />
+          <Text style={styles.weatherDetailText}>
+            Feels like {weatherData.feelsLike}°C
+          </Text>
+        </View>
+        <View style={styles.weatherDetailItem}>
+          <Icon name="eye-outline" size={20} color="#49A5A2" />
+          <Text style={styles.weatherDetailText}>
+            {weatherData.pressure} hPa
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+  
   const renderEarthquakeCard = () => {
     if (loadingEarthquakes && earthquakes.length === 0) {
       return (
@@ -960,7 +988,7 @@ export default function HomeScreen({ route, navigation }) {
 
               {/* DISASTER CHECK BUTTON - FOR TESTING PURPOSES ONLY */}
 
-              {/* <TouchableOpacity
+              <TouchableOpacity
                 style={styles.cardServices}
                 onPress={async () => {
                   Toast.show({
@@ -999,7 +1027,7 @@ export default function HomeScreen({ route, navigation }) {
               >
                 <Icon name="flask" size={60} color="#49A5A2" />
                 <Text style={styles.cardText}>Test Disaster Check</Text>
-              </TouchableOpacity> */}
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -1663,4 +1691,22 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
   },
+  windSpeedBanner: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#f8f9fa',
+  padding: 12,
+  borderRadius: 8,
+  marginVertical: 12,
+  borderLeftWidth: 4,
+},
+windSpeedLabel: {
+  fontSize: 12,
+  color: '#666',
+  marginBottom: 2,
+},
+windSpeedText: {
+  fontSize: 18,
+  fontWeight: 'bold',
+},
 });
