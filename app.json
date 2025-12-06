@@ -29,7 +29,8 @@
         "ACCESS_FINE_LOCATION",
         "NOTIFICATIONS",
         "SMS"
-      ]
+      ],
+      "useNextNotificationsApi": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
