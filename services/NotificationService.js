@@ -9,7 +9,9 @@ import { collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc, 
 // Configure notification handler
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowAlert: true,      // ⚠️ Deprecated
+    shouldShowBanner: true,     // ✅ New
+    shouldShowList: true,       // ✅ New (shows in notification center)
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -58,12 +60,15 @@ export const registerForPushNotifications = async (username) => {
 
     // Android specific setup
     if (Platform.OS === 'android') {
-      Notifications.setNotificationChannelAsync('default', {
+      console.log('🔔 Creating Android notification channels...');
+      
+      await Notifications.setNotificationChannelAsync('default', {
         name: 'default',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#e75e33',
       });
+      console.log('✅ Created channel: default');
 
       // Create notification channels for different alert types
       await Notifications.setNotificationChannelAsync('earthquake', {
@@ -73,6 +78,7 @@ export const registerForPushNotifications = async (username) => {
         lightColor: '#e67e22',
         sound: 'default',
       });
+      console.log('✅ Created channel: earthquake');
 
       await Notifications.setNotificationChannelAsync('weather', {
         name: 'Weather Alerts',
@@ -81,6 +87,7 @@ export const registerForPushNotifications = async (username) => {
         lightColor: '#3498db',
         sound: 'default',
       });
+      console.log('✅ Created channel: weather');
 
       await Notifications.setNotificationChannelAsync('incident', {
         name: 'Incident Reports',
@@ -88,6 +95,19 @@ export const registerForPushNotifications = async (username) => {
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#e75e33',
       });
+      console.log('✅ Created channel: incident');
+
+      // ✅ NEW: Food Distribution Schedules channel
+      await Notifications.setNotificationChannelAsync('schedules', {
+        name: 'Food Distribution Schedules',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#49A5A2',
+        sound: 'default',
+      });
+      console.log('✅ Created channel: schedules');
+      
+      console.log('🎉 All notification channels created successfully!');
     }
 
     return token;
@@ -135,16 +155,24 @@ const saveTokenToFirestore = async (username, token) => {
  * @param {Object} options - Notification options
  */
 export const sendLocalNotification = async ({ title, body, data = {}, channelId = 'default' }) => {
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title,
-      body,
-      data,
-      sound: true,
-      priority: Notifications.AndroidNotificationPriority.HIGH,
-    },
-    trigger: null, // Show immediately
-  });
+  try {
+    console.log('📱 Sending local notification:', { title, channelId });
+    
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        data,
+        sound: true,
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+      },
+      trigger: null, // Show immediately
+    });
+    
+    console.log('✅ Local notification sent successfully');
+  } catch (error) {
+    console.error('❌ Failed to send local notification:', error);
+  }
 };
 
 /**
@@ -217,6 +245,8 @@ export const addNotificationResponseListener = (callback) => {
  */
 export const saveNotificationToHistory = async (username, notification) => {
   try {
+    console.log('💾 Saving notification to history:', username);
+    
     await addDoc(collection(db, 'notifications'), {
       username,
       title: notification.title,
@@ -225,8 +255,10 @@ export const saveNotificationToHistory = async (username, notification) => {
       read: false,
       createdAt: serverTimestamp(),
     });
+    
+    console.log('✅ Notification saved to history');
   } catch (error) {
-    console.error('Error saving notification:', error);
+    console.error('❌ Error saving notification:', error);
   }
 };
 
@@ -278,7 +310,7 @@ export const markAllNotificationsAsRead = async (username) => {
     const q = query(notificationsRef, where('username', '==', username), where('read', '==', false));
     const snapshot = await getDocs(q);
 
-    const promises = snapshot.docs.map(doc => 
+    const promises = snapshot.docs.map(doc =>
       updateDoc(doc.ref, { read: true })
     );
 
