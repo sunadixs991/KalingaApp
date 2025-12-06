@@ -1,14 +1,11 @@
-// services/NotificationService.js - WITH REMOTE PUSH NOTIFICATIONS
+// services/NotificationService.js - COMPLETE VERSION WITH ALL FUNCTIONS
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../firebase';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import Constants from 'expo-constants';
-
-// ❌ REMOVED: Notification handler moved to App.js
-// This should be configured at the app level, not in the service
 
 /**
  * Register device for push notifications and save token to Firestore
@@ -63,7 +60,56 @@ export const registerForPushNotifications = async (username) => {
       await saveTokenToFirestore(username, token);
     }
 
-    // ... rest of channel setup code ...
+    if (Platform.OS === 'android') {
+      console.log('🔔 Creating Android notification channels...');
+      
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#e75e33',
+        sound: 'default',
+      });
+      console.log('✅ Created channel: default');
+
+      await Notifications.setNotificationChannelAsync('earthquake', {
+        name: 'Earthquake Alerts',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#e67e22',
+        sound: 'default',
+      });
+      console.log('✅ Created channel: earthquake');
+
+      await Notifications.setNotificationChannelAsync('weather', {
+        name: 'Weather Alerts',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#3498db',
+        sound: 'default',
+      });
+      console.log('✅ Created channel: weather');
+
+      await Notifications.setNotificationChannelAsync('incident', {
+        name: 'Incident Reports',
+        importance: Notifications.AndroidImportance.DEFAULT,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#e75e33',
+        sound: 'default',
+      });
+      console.log('✅ Created channel: incident');
+
+      await Notifications.setNotificationChannelAsync('schedules', {
+        name: 'Food Distribution Schedules',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#49A5A2',
+        sound: 'default',
+      });
+      console.log('✅ Created channel: schedules');
+      
+      console.log('🎉 All notification channels created successfully!');
+    }
 
     return token;
   } catch (error) {
@@ -103,8 +149,38 @@ const saveTokenToFirestore = async (username, token) => {
 };
 
 /**
- * 🆕 Send REMOTE push notification via Expo's service (works when app is closed!)
- * This is 100% FREE - no backend server needed!
+ * ✅ Send LOCAL notification (works when app is open/background)
+ */
+export const sendLocalNotification = async ({ title, body, data = {}, channelId = 'default', priority = 'high' }) => {
+  try {
+    console.log('📱 Sending local notification:', { title, channelId, priority });
+    
+    const content = {
+      title,
+      body,
+      data,
+      sound: true,
+      priority: Notifications.AndroidNotificationPriority.HIGH,
+    };
+
+    if (Platform.OS === 'android') {
+      content.channelId = channelId;
+    }
+
+    await Notifications.scheduleNotificationAsync({
+      content,
+      trigger: null,
+    });
+    
+    console.log('✅ Local notification sent successfully');
+  } catch (error) {
+    console.error('❌ Failed to send local notification:', error);
+    throw error;
+  }
+};
+
+/**
+ * ✅ Send REMOTE push notification via Expo's service (works when app is closed!)
  */
 export const sendRemotePushNotification = async (
   pushToken,
@@ -123,7 +199,6 @@ export const sendRemotePushNotification = async (
     console.log('   Token type:', isExpoToken ? 'Expo' : isFCMToken ? 'FCM' : 'Unknown');
 
     // Both FCM and Expo tokens can use Expo's push service
-    // Expo's service automatically routes FCM tokens correctly!
     const message = {
       to: pushToken,
       sound: 'default',
@@ -160,7 +235,7 @@ export const sendRemotePushNotification = async (
 };
 
 /**
- * 🆕 Send push notifications to multiple users at once
+ * ✅ Send push notifications to multiple users at once
  */
 export const sendBatchPushNotifications = async (
   tokens,
@@ -230,6 +305,63 @@ export const sendBatchPushNotifications = async (
   } catch (error) {
     console.error('❌ Error sending batch push notifications:', error);
     throw error;
+  }
+};
+
+/**
+ * ✅ Get all push tokens from Firestore
+ */
+export const getAllPushTokens = async () => {
+  try {
+    const tokensRef = collection(db, 'pushTokens');
+    const snapshot = await getDocs(tokensRef);
+    return snapshot.docs.map(doc => doc.data().token);
+  } catch (error) {
+    console.error('Error fetching push tokens:', error);
+    return [];
+  }
+};
+
+/**
+ * ✅ Get push token for specific user
+ */
+export const getUserPushToken = async (username) => {
+  try {
+    const tokensRef = collection(db, 'pushTokens');
+    const q = query(tokensRef, where('username', '==', username));
+    const snapshot = await getDocs(q);
+    
+    if (!snapshot.empty) {
+      return snapshot.docs[0].data().token;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error fetching user push token:', error);
+    return null;
+  }
+};
+
+/**
+ * ✅ Clear all old tokens (for migration)
+ */
+export const clearAllPushTokens = async () => {
+  try {
+    const tokensRef = collection(db, 'pushTokens');
+    const snapshot = await getDocs(tokensRef);
+    
+    console.log(`🗑️ Deleting ${snapshot.size} old tokens...`);
+    
+    const deletePromises = snapshot.docs.map(doc => 
+      deleteDoc(doc.ref)
+    );
+    
+    await Promise.all(deletePromises);
+    
+    console.log('✅ All old tokens cleared');
+    return true;
+  } catch (error) {
+    console.error('Error clearing tokens:', error);
+    return false;
   }
 };
 
@@ -397,7 +529,7 @@ export const markAllNotificationsAsRead = async (username) => {
 };
 
 /**
- * ✅ UPDATED: Send earthquake alert with BOTH local + remote push
+ * ✅ Send earthquake alert with BOTH local + remote push
  */
 export const sendEarthquakeAlert = async (magnitude, location) => {
   const notification = {
@@ -406,13 +538,13 @@ export const sendEarthquakeAlert = async (magnitude, location) => {
     data: { type: 'earthquake', magnitude, location },
   };
 
-  // 1. Send local notification (for users with app open)
+  // 1. Send local notification
   await sendLocalNotification({
     ...notification,
     channelId: 'earthquake',
   });
 
-  // 2. Send REMOTE push notifications to ALL users (works when app is closed!)
+  // 2. Send REMOTE push notifications to ALL users
   const tokens = await getAllPushTokens();
   console.log(`🌍 Sending earthquake alert to ${tokens.length} users...`);
 
@@ -431,7 +563,7 @@ export const sendEarthquakeAlert = async (magnitude, location) => {
 };
 
 /**
- * ✅ UPDATED: Send weather alert with BOTH local + remote push
+ * ✅ Send weather alert with BOTH local + remote push
  */
 export const sendWeatherAlert = async (alertType, description) => {
   const notification = {
@@ -465,7 +597,7 @@ export const sendWeatherAlert = async (alertType, description) => {
 };
 
 /**
- * ✅ UPDATED: Send incident alert with BOTH local + remote push
+ * ✅ Send incident alert with BOTH local + remote push
  */
 export const sendIncidentAlert = async (incidentType, distance) => {
   const notification = {
