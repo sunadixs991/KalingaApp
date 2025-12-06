@@ -53,7 +53,7 @@ import AdminUtilsDRRM from "./screens/AdminUtilsDRRM";
 import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 import EarthquakeScreen from './screens/EarthquakeScreen';
 import * as DeleteService from './services/DeleteService';
-
+import * as Notifications from 'expo-notifications'; 
 
 // ✅ Import Feedback Modal
 import FeedbackModal from "./components/FeedbackModal";
@@ -144,35 +144,51 @@ export default function App() {
           color: '#0C5460'
         }}
         text2NumberOfLines={3}
-        
+
       />
     ),
   };
 
-useEffect(() => {
-  const initializeServices = async () => {
-    try {
-      console.log('🔍 Initializing Auto-Delete Service...');
-      
-      // Check if the function exists
-      if (DeleteService && DeleteService.startAutoDeleteService) {
-        await DeleteService.startAutoDeleteService();
-        console.log('✅ Auto-delete service initialized successfully');
-      } else {
-        console.error('❌ startAutoDeleteService not found');
-        console.log('Available exports:', Object.keys(DeleteService || {}));
+  useEffect(() => {
+    const initializeServices = async () => {
+      try {
+        console.log('🔍 Initializing Auto-Delete Service...');
+
+        // Check if the function exists
+        if (DeleteService && DeleteService.startAutoDeleteService) {
+          await DeleteService.startAutoDeleteService();
+          console.log('✅ Auto-delete service initialized successfully');
+        } else {
+          console.error('❌ startAutoDeleteService not found');
+          console.log('Available exports:', Object.keys(DeleteService || {}));
+        }
+      } catch (error) {
+        console.error('❌ Failed to initialize auto-delete service:');
+        console.error('   Error:', error.message);
+        console.error('   Stack:', error.stack);
       }
-    } catch (error) {
-      console.error('❌ Failed to initialize auto-delete service:');
-      console.error('   Error:', error.message);
-      console.error('   Stack:', error.stack);
-    }
-  };
+    };
 
-  initializeServices();
-}, []);
+    initializeServices();
+  }, []);
 
+  useEffect(() => {
+    // Listen for notifications when app is in foreground
+    const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
+      console.log('Notification received in foreground:', notification);
+    });
 
+    // Listen for user tapping on notifications
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('Notification tapped:', response);
+    });
+
+    return () => {
+      foregroundSubscription.remove();
+      responseSubscription.remove();
+    };
+  }, []);
+  
   useEffect(() => {
     const loadUsername = async () => {
       try {

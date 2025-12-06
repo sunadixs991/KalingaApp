@@ -1,4 +1,4 @@
-// services/NotificationService.js - FIXED VERSION
+// services/NotificationService.js - WITH REMOTE PUSH NOTIFICATIONS
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
@@ -140,7 +140,111 @@ const saveTokenToFirestore = async (username, token) => {
 };
 
 /**
- * Send a local notification
+ * 🆕 Send REMOTE push notification via Expo's service (works when app is closed!)
+ * This is 100% FREE - no backend server needed!
+ */
+export const sendRemotePushNotification = async (expoPushToken, title, body, data = {}, channelId = 'default') => {
+  const message = {
+    to: expoPushToken,
+    sound: 'default',
+    title: title,
+    body: body,
+    data: data,
+    channelId: channelId, // For Android
+    priority: 'high',
+  };
+
+  try {
+    console.log('📤 Sending remote push notification to:', expoPushToken);
+    const response = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Accept-encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    });
+
+    const result = await response.json();
+    console.log('✅ Remote push notification sent:', result);
+    return result;
+  } catch (error) {
+    console.error('❌ Error sending remote push notification:', error);
+    throw error;
+  }
+};
+
+/**
+ * 🆕 Send push notifications to multiple users at once
+ */
+export const sendBatchPushNotifications = async (tokens, title, body, data = {}, channelId = 'default') => {
+  const messages = tokens.map(token => ({
+    to: token,
+    sound: 'default',
+    title: title,
+    body: body,
+    data: data,
+    channelId: channelId,
+    priority: 'high',
+  }));
+
+  try {
+    console.log(`📤 Sending ${messages.length} remote push notifications...`);
+    const response = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Accept-encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(messages),
+    });
+
+    const result = await response.json();
+    console.log('✅ Batch push notifications sent:', result);
+    return result;
+  } catch (error) {
+    console.error('❌ Error sending batch push notifications:', error);
+    throw error;
+  }
+};
+
+/**
+ * 🆕 Get all push tokens from Firestore
+ */
+export const getAllPushTokens = async () => {
+  try {
+    const tokensRef = collection(db, 'pushTokens');
+    const snapshot = await getDocs(tokensRef);
+    return snapshot.docs.map(doc => doc.data().token);
+  } catch (error) {
+    console.error('Error fetching push tokens:', error);
+    return [];
+  }
+};
+
+/**
+ * 🆕 Get push token for specific user
+ */
+export const getUserPushToken = async (username) => {
+  try {
+    const tokensRef = collection(db, 'pushTokens');
+    const q = query(tokensRef, where('username', '==', username));
+    const snapshot = await getDocs(q);
+    
+    if (!snapshot.empty) {
+      return snapshot.docs[0].data().token;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error fetching user push token:', error);
+    return null;
+  }
+};
+
+/**
+ * Send a local notification (only works when app is open/background)
  */
 export const sendLocalNotification = async ({ title, body, data = {}, channelId = 'default', priority = 'high' }) => {
   try {
@@ -241,21 +345,15 @@ export const addNotificationResponseListener = (callback) => {
 };
 
 /**
- * ✅ FIXED: Save notification to Firestore with proper type handling
- * @param {string} username - Username or 'all' for public notifications
- * @param {Object} notification - Notification object
+ * Save notification to Firestore with proper type handling
  */
 export const saveNotificationToHistory = async (username, notification) => {
   try {
     console.log('💾 Saving notification to history for:', username);
     console.log('   Type:', notification.data?.type);
     
-    // Determine if this is a public notification
     const notificationType = notification.data?.type;
     const isPublicNotification = ['earthquake', 'weather', 'typhoon'].includes(notificationType);
-    
-    // Public notifications should be saved to 'all'
-    // Personal notifications should be saved to the specific user
     const saveToUsername = isPublicNotification ? 'all' : username;
     
     console.log('   Saving to:', saveToUsername);
@@ -265,8 +363,8 @@ export const saveNotificationToHistory = async (username, notification) => {
       title: notification.title,
       body: notification.body,
       data: notification.data || {},
-      type: notificationType || 'general', // ✅ Add type field for easier filtering
-      isPublic: isPublicNotification, // ✅ Flag for public notifications
+      type: notificationType || 'general',
+      isPublic: isPublicNotification,
       read: false,
       createdAt: serverTimestamp(),
     });
@@ -278,17 +376,13 @@ export const saveNotificationToHistory = async (username, notification) => {
 };
 
 /**
- * ✅ FIXED: Get user's notification history with proper filtering
- * @param {string} username - Username or 'all' for public notifications
- * @param {number} limit - Maximum number of notifications to fetch
+ * Get user's notification history with proper filtering
  */
 export const getNotificationHistory = async (username, limit = 50) => {
   try {
     console.log('📥 Fetching notifications for:', username);
     
     const notificationsRef = collection(db, 'notifications');
-    
-    // Query based on username
     const q = query(
       notificationsRef,
       where('username', '==', username)
@@ -344,7 +438,7 @@ export const markAllNotificationsAsRead = async (username) => {
 };
 
 /**
- * ✅ FIXED: Send earthquake alert (saves to 'all' automatically)
+ * ✅ UPDATED: Send earthquake alert with BOTH local + remote push
  */
 export const sendEarthquakeAlert = async (magnitude, location) => {
   const notification = {
@@ -353,17 +447,32 @@ export const sendEarthquakeAlert = async (magnitude, location) => {
     data: { type: 'earthquake', magnitude, location },
   };
   
+  // 1. Send local notification (for users with app open)
   await sendLocalNotification({
     ...notification,
     channelId: 'earthquake',
   });
   
-  // Save to 'all' for everyone to see
+  // 2. Send REMOTE push notifications to ALL users (works when app is closed!)
+  const tokens = await getAllPushTokens();
+  console.log(`🌍 Sending earthquake alert to ${tokens.length} users...`);
+  
+  if (tokens.length > 0) {
+    await sendBatchPushNotifications(
+      tokens,
+      notification.title,
+      notification.body,
+      notification.data,
+      'earthquake'
+    );
+  }
+  
+  // 3. Save to history
   await saveNotificationToHistory('all', notification);
 };
 
 /**
- * ✅ FIXED: Send weather alert (saves to 'all' automatically)
+ * ✅ UPDATED: Send weather alert with BOTH local + remote push
  */
 export const sendWeatherAlert = async (alertType, description) => {
   const notification = {
@@ -372,17 +481,32 @@ export const sendWeatherAlert = async (alertType, description) => {
     data: { type: 'weather', alertType },
   };
   
+  // 1. Send local notification
   await sendLocalNotification({
     ...notification,
     channelId: 'weather',
   });
   
-  // Save to 'all' for everyone to see
+  // 2. Send REMOTE push notifications to ALL users
+  const tokens = await getAllPushTokens();
+  console.log(`⛈️ Sending weather alert to ${tokens.length} users...`);
+  
+  if (tokens.length > 0) {
+    await sendBatchPushNotifications(
+      tokens,
+      notification.title,
+      notification.body,
+      notification.data,
+      'weather'
+    );
+  }
+  
+  // 3. Save to history
   await saveNotificationToHistory('all', notification);
 };
 
 /**
- * ✅ FIXED: Send incident alert (saves to 'all' automatically)
+ * ✅ UPDATED: Send incident alert with BOTH local + remote push
  */
 export const sendIncidentAlert = async (incidentType, distance) => {
   const notification = {
@@ -391,11 +515,26 @@ export const sendIncidentAlert = async (incidentType, distance) => {
     data: { type: 'incident', incidentType },
   };
   
+  // 1. Send local notification
   await sendLocalNotification({
     ...notification,
     channelId: 'incident',
   });
   
-  // Save to 'all' for everyone to see
+  // 2. Send REMOTE push notifications to ALL users
+  const tokens = await getAllPushTokens();
+  console.log(`🚨 Sending incident alert to ${tokens.length} users...`);
+  
+  if (tokens.length > 0) {
+    await sendBatchPushNotifications(
+      tokens,
+      notification.title,
+      notification.body,
+      notification.data,
+      'incident'
+    );
+  }
+  
+  // 3. Save to history
   await saveNotificationToHistory('all', notification);
 };
