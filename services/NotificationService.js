@@ -32,27 +32,14 @@ export const registerForPushNotifications = async (username) => {
       return null;
     }
 
-    // ✅ Try to get FCM device token first (for standalone builds)
-    try {
-      console.log('🔧 Attempting to get device push token (FCM)...');
-      const devicePushToken = await Notifications.getDevicePushTokenAsync();
-
-      if (devicePushToken && devicePushToken.data) {
-        token = devicePushToken.data;
-        console.log('✅ Got FCM device token:', token.substring(0, 50) + '...');
-      } else {
-        throw new Error('Device token data is null');
-      }
-    } catch (deviceTokenError) {
-      console.log('⚠️ Could not get device token, using Expo token:', deviceTokenError.message);
-
-      // Fallback to Expo push token
-      const expoToken = await Notifications.getExpoPushTokenAsync({
-        projectId: Constants.expoConfig?.extra?.eas?.projectId
-      });
-      token = expoToken.data;
-      console.log('📱 Using Expo push token:', token);
-    }
+    // ✅ Get Expo push token (works with Expo's free push service)
+    // Note: Using Expo tokens because Expo's push service doesn't accept raw FCM tokens
+    console.log('🔧 Getting Expo push token...');
+    const expoToken = await Notifications.getExpoPushTokenAsync({
+      projectId: Constants.expoConfig?.extra?.eas?.projectId
+    });
+    token = expoToken.data;
+    console.log('📱 Got Expo push token:', token);
 
     await AsyncStorage.setItem('pushToken', token);
 
