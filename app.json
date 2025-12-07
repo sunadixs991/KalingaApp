@@ -33,6 +33,14 @@
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
         "WAKE_LOCK",
+        "SMS",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "NOTIFICATIONS",
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "WAKE_LOCK",
         "SMS"
       ],
       "useNextNotificationsApi": true
@@ -72,7 +80,7 @@
     },
     "scheme": "kalingaapp",
     "updates": {
-      "url": "https://u.expo.dev/a00ebb60-4678-4296-acd5-82fde80bea41"
+      "url": "https://u.expo.dev/b5d643b6-d684-49b9-8551-b7a5ed7fad3d"
     },
     "extra": {
       "eas": {

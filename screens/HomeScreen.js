@@ -49,6 +49,8 @@ import {
   addNotificationResponseListener,
   getNotificationHistory,
   getBadgeCount,
+  sendBatchPushNotifications,
+  sendRemotePushNotification,
   sendLocalNotification,
 } from '../services/NotificationService';
 import { startDisasterMonitoring, resetDisasterMonitoring } from '../services/DisasterMonitorService';
@@ -292,17 +294,42 @@ export default function HomeScreen({ route, navigation }) {
   }, [username]);
 
   const testPush = async () => {
-    const token = await AsyncStorage.getItem('pushToken');
-    console.log('Testing with token:', token);
+    try {
+      const token = await AsyncStorage.getItem('pushToken');
+      console.log('🧪 Testing with token:', token);
 
-    if (token) {
-      await sendRemotePushNotification(
+      if (!token) {
+        Alert.alert('No Token', 'Push token not found. Try restarting the app.');
+        return;
+      }
+
+      Toast.show({
+        type: 'info',
+        text1: '📤 Sending Test Notification',
+        text2: 'Check if you receive it...',
+      });
+
+      const result = await sendRemotePushNotification(
         token,
         '🎯 TEST NOTIFICATION',
         'If you see this, push notifications are working!',
         { type: 'test' },
         'default'
       );
+
+      console.log('✅ Test result:', result);
+
+      Alert.alert(
+        'Test Sent!',
+        `Result: ${JSON.stringify(result, null, 2)}\n\nDid you receive the notification?`,
+        [
+          { text: 'Yes! 🎉', onPress: () => console.log('Push notifications working!') },
+          { text: 'No 😞', onPress: () => console.log('Push notifications not working') }
+        ]
+      );
+    } catch (error) {
+      console.error('❌ Test failed:', error);
+      Alert.alert('Test Failed', error.message);
     }
   };
 
@@ -812,7 +839,7 @@ export default function HomeScreen({ route, navigation }) {
           <Text style={styles.viewAllEarthquakesText}>View All Earthquakes</Text>
           <Icon name="chevron-forward" size={16} color="#e75e33" />
         </TouchableOpacity>
-        <Button title="Test Push Notification" onPress={testPush} />
+        {/* <Button title="Test Push Notification" onPress={testPush} /> */}
 
       </View>
     );
@@ -1025,6 +1052,15 @@ export default function HomeScreen({ route, navigation }) {
           {renderWeatherCard()}
           {/* Earthquake Card */}
           {renderEarthquakeCard()}
+          <TouchableOpacity
+            style={styles.testNotificationButton}
+            onPress={testPush}
+          >
+            <Icon name="notifications-outline" size={24} color="#fff" />
+            <Text style={styles.testNotificationText}>
+              🧪 Test Push Notification
+            </Text>
+          </TouchableOpacity>
           {/* Services */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Services</Text>
@@ -1800,5 +1836,26 @@ const styles = StyleSheet.create({
   windSpeedText: {
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  testNotificationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#49A5A2',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  testNotificationText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
   },
 });
