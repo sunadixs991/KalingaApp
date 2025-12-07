@@ -1,4 +1,6 @@
 // supabase/functions/send-push-notification/index.ts
+// @ts-ignore: Deno global
+declare const Deno: any;
 
 const EXPO_PUSH_ENDPOINT = 'https://exp.host/--/api/v2/push/send';
 
