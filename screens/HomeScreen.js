@@ -812,7 +812,7 @@ export default function HomeScreen({ route, navigation }) {
           <Text style={styles.viewAllEarthquakesText}>View All Earthquakes</Text>
           <Icon name="chevron-forward" size={16} color="#e75e33" />
         </TouchableOpacity>
-        {/* <Button title="Test Push Notification" onPress={testPush} /> */}
+        <Button title="Test Push Notification" onPress={testPush} />
 
       </View>
     );
