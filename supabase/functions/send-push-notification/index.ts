@@ -2,8 +2,6 @@
 // @ts-ignore: Deno global
 declare const Deno: any;
 
-const EXPO_PUSH_ENDPOINT = 'https://exp.host/--/api/v2/push/send';
-
 interface PushNotificationRequest {
   tokens: string[];
   title: string;
@@ -12,10 +10,29 @@ interface PushNotificationRequest {
   channelId?: string;
 }
 
-interface PushResult {
-  status: string;
-  message?: string;
-  details?: any;
+interface FCMMessage {
+  token: string;
+  notification: {
+    title: string;
+    body: string;
+  };
+  data?: Record<string, string>;
+  android?: {
+    priority: string;
+    notification: {
+      channelId: string;
+      sound: string;
+      priority: string;
+    };
+  };
+  apns?: {
+    payload: {
+      aps: {
+        sound: string;
+        badge: number;
+      };
+    };
+  };
 }
 
 Deno.serve(async (req: Request) => {
@@ -79,49 +96,67 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Create messages for Expo Push Service
-    const messages = validTokens.map((token: string) => ({
-      to: token,
-      sound: 'default',
-      title: title,
-      body: body,
-      data: data,
-      channelId: channelId,
-      categoryId: channelId,
-      priority: 'high',
-      badge: 1,
-    }));
-
-    console.log(`📨 Sending ${messages.length} messages to Expo Push Service...`);
-
-    // Send to Expo Push Service
-    const response = await fetch(EXPO_PUSH_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(messages),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Expo Push Service error:', errorText);
-      throw new Error(`Expo Push Service returned ${response.status}: ${errorText}`);
+    // Get Firebase service account from environment
+    const serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
+    if (!serviceAccountJson) {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT environment variable not set');
     }
 
-    const result = await response.json();
+    const serviceAccount = JSON.parse(serviceAccountJson);
+    const projectId = serviceAccount.project_id;
+
+    if (!projectId) {
+      throw new Error('Firebase project_id not found in service account');
+    }
+
+    console.log(`🔐 Using Firebase project: ${projectId}`);
+
+    // Get OAuth2 access token for FCM v1 API
+    const accessToken = await getAccessToken(serviceAccount);
+    console.log('✅ Got FCM access token');
+
+    console.log(`📨 Sending ${validTokens.length} messages to FCM...`);
+
+    // Send notifications
+    const results = await Promise.allSettled(
+      validTokens.map(async (token: string) => {
+        // Extract FCM token from Expo format
+        const fcmToken = extractFCMToken(token);
+        
+        // For iOS tokens (no FCM token extracted), use Expo's service
+        if (!fcmToken) {
+          console.log('📱 iOS token detected, using Expo service');
+          return await sendViaExpo(token, title, body, data, channelId);
+        }
+
+        // For Android tokens, send directly via FCM v1
+        console.log('🤖 Android token detected, using FCM v1');
+        return await sendViaFCM(
+          accessToken,
+          projectId,
+          fcmToken,
+          title,
+          body,
+          data,
+          channelId
+        );
+      })
+    );
 
     // Count successes and failures
-    const results: PushResult[] = result.data || [];
-    const successes = results.filter((r: PushResult) => r.status === 'ok').length;
-    const failures = results.filter((r: PushResult) => r.status === 'error').length;
+    const successes = results.filter(r => r.status === 'fulfilled').length;
+    const failures = results.filter(r => r.status === 'rejected').length;
 
     console.log(`✅ Success: ${successes} notifications sent`);
+    
     if (failures > 0) {
       console.error(`❌ Failed: ${failures} notifications`);
-      const errors = results.filter((r: PushResult) => r.status === 'error');
+      const errors = results
+        .filter(r => r.status === 'rejected')
+        .map(r => ({
+          status: 'error',
+          message: (r as PromiseRejectedResult).reason?.message || 'Unknown error',
+        }));
       console.error('Errors:', JSON.stringify(errors, null, 2));
     }
 
@@ -131,7 +166,6 @@ Deno.serve(async (req: Request) => {
         sent: successes,
         failed: failures,
         total: validTokens.length,
-        details: result.data,
       }),
       {
         status: 200,
@@ -143,7 +177,6 @@ Deno.serve(async (req: Request) => {
     );
 
   } catch (error) {
-    // Type-safe error handling
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     console.error('❌ Error in edge function:', errorMessage);
     console.error('Stack:', error instanceof Error ? error.stack : 'No stack trace');
@@ -163,3 +196,207 @@ Deno.serve(async (req: Request) => {
     );
   }
 });
+
+// Extract FCM token from Expo token format
+function extractFCMToken(expoToken: string): string | null {
+  // Expo tokens for Android contain the actual FCM token
+  // Format: ExponentPushToken[ACTUAL_FCM_TOKEN]
+  if (expoToken.startsWith('ExponentPushToken[')) {
+    return expoToken.slice(18, -1);
+  }
+  
+  // If it's already a raw FCM token (contains colon)
+  if (expoToken.includes(':')) {
+    return expoToken;
+  }
+  
+  // iOS tokens don't have FCM tokens
+  return null;
+}
+
+// Send notification via FCM HTTP v1 API
+async function sendViaFCM(
+  accessToken: string,
+  projectId: string,
+  fcmToken: string,
+  title: string,
+  body: string,
+  data: Record<string, any>,
+  channelId: string
+): Promise<any> {
+  // Convert data object to string values (FCM requirement)
+  const stringData: Record<string, string> = {};
+  for (const [key, value] of Object.entries(data)) {
+    stringData[key] = String(value);
+  }
+  stringData.channelId = channelId;
+
+  const message: FCMMessage = {
+    token: fcmToken,
+    notification: {
+      title,
+      body,
+    },
+    data: stringData,
+    android: {
+      priority: 'high',
+      notification: {
+        channelId,
+        sound: 'default',
+        priority: 'high',
+      },
+    },
+  };
+
+  const response = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ message }),
+    }
+  );
+
+  const result = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(result.error?.message || `FCM request failed with status ${response.status}`);
+  }
+
+  return result;
+}
+
+// Fallback to Expo service for iOS tokens
+async function sendViaExpo(
+  token: string,
+  title: string,
+  body: string,
+  data: Record<string, any>,
+  channelId: string
+): Promise<any> {
+  const response = await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      to: token,
+      sound: 'default',
+      title,
+      body,
+      data,
+      channelId,
+      priority: 'high',
+      badge: 1,
+    }),
+  });
+
+  const result = await response.json();
+  
+  if (!response.ok || result.data?.[0]?.status === 'error') {
+    throw new Error(result.data?.[0]?.message || 'Expo push failed');
+  }
+
+  return result;
+}
+
+// Get OAuth2 access token for FCM v1 API
+async function getAccessToken(serviceAccount: any): Promise<string> {
+  const SCOPES = ['https://www.googleapis.com/auth/firebase.messaging'];
+  
+  // Create JWT header
+  const header = {
+    alg: 'RS256',
+    typ: 'JWT',
+  };
+  
+  // Create JWT claims
+  const now = Math.floor(Date.now() / 1000);
+  const claims = {
+    iss: serviceAccount.client_email,
+    scope: SCOPES.join(' '),
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: now + 3600,
+    iat: now,
+  };
+  
+  // Base64url encode header and claims
+  const encodedHeader = base64UrlEncode(JSON.stringify(header));
+  const encodedClaims = base64UrlEncode(JSON.stringify(claims));
+  const signatureInput = `${encodedHeader}.${encodedClaims}`;
+  
+  // Import private key for signing
+  const privateKey = await importPrivateKey(serviceAccount.private_key);
+  
+  // Sign the JWT
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    privateKey,
+    new TextEncoder().encode(signatureInput)
+  );
+  
+  // Create final JWT
+  const encodedSignature = base64UrlEncode(signature);
+  const jwt = `${signatureInput}.${encodedSignature}`;
+  
+  // Exchange JWT for access token
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
+    }).toString(),
+  });
+  
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to get access token: ${error}`);
+  }
+  
+  const data = await response.json();
+  return data.access_token;
+}
+
+// Import RSA private key from PEM format
+async function importPrivateKey(pem: string): Promise<CryptoKey> {
+  // Remove PEM headers and whitespace
+  const pemContents = pem
+    .replace('-----BEGIN PRIVATE KEY-----', '')
+    .replace('-----END PRIVATE KEY-----', '')
+    .replace(/\s/g, '');
+  
+  // Convert base64 to binary
+  const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+  
+  // Import as CryptoKey
+  return await crypto.subtle.importKey(
+    'pkcs8',
+    binaryDer,
+    {
+      name: 'RSASSA-PKCS1-v1_5',
+      hash: 'SHA-256',
+    },
+    false,
+    ['sign']
+  );
+}
+
+// Base64url encode (RFC 4648)
+function base64UrlEncode(data: string | ArrayBuffer): string {
+  const bytes = typeof data === 'string' 
+    ? new TextEncoder().encode(data)
+    : new Uint8Array(data);
+  
+  const base64 = btoa(String.fromCharCode(...bytes));
+  
+  // Convert to base64url format
+  return base64
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+}
