@@ -9,8 +9,16 @@ import {
   Alert,
 } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome";
-import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
-// import { getAuth } from "firebase/auth";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // exported helper to save feedback (can be reused elsewhere)
 export async function saveFeedbackToFirestore({ rating = 0, feedback = "", username = null } = {}) {
@@ -37,27 +45,121 @@ const FeedbackModal = ({ username = null }) => {
   const [feedback, setFeedback] = useState("");
   const [rating, setRating] = useState(0);
   const [submitted, setSubmitted] = useState(false); // ✅ Track if user already submitted
+  const TIMER_MS = 30 * 60 * 1000; // 30 minutes
+  const [initialCheckDone, setInitialCheckDone] = useState(false);
 
-  // Show modal every 30 minutes (if not submitted yet)
   useEffect(() => {
-    if (submitted) return;
-    const timer = setInterval(() => {
-      setVisible(true);
-    }, 1800000); // 30 minutes
-    return () => clearInterval(timer);
-  }, [submitted]);
+    let timer = null;
+    let cancelled = false;
+
+    const resolveCurrentUsername = async () => {
+      // Prefer prop username, else try AsyncStorage 'user' or 'sessionToken' payload
+      if (username) return username;
+
+      try {
+        const stored = await AsyncStorage.getItem("user");
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (parsed && typeof parsed === "object") {
+              return parsed.username || parsed.email || parsed.id || null;
+            }
+          } catch {
+            // stored plain string
+            return stored;
+          }
+        }
+
+        // fallback: try sessionToken or other keys
+        const session = await AsyncStorage.getItem("sessionToken");
+        if (session) {
+          // we don't have a username but there's a session: don't show until app provides username prop
+          return null;
+        }
+        return null;
+      } catch (e) {
+        return null;
+      }
+    };
+
+    const checkExistingFeedback = async (currentUsername) => {
+      try {
+        if (!currentUsername) return false;
+        const db = getFirestore();
+        const q = query(collection(db, "feedback"), where("username", "==", currentUsername));
+        const snap = await getDocs(q);
+        return !snap.empty;
+      } catch (e) {
+        console.warn("Feedback check error:", e);
+        return false;
+      }
+    };
+
+    const start = async () => {
+      const currentUsername = await resolveCurrentUsername();
+
+      // Not logged in or no username resolved -> do not show modal
+      if (!currentUsername) {
+        setInitialCheckDone(true);
+        return;
+      }
+
+      // check Firestore for existing feedback by this user
+      const already = await checkExistingFeedback(currentUsername);
+      if (cancelled) return;
+      if (already) {
+        setSubmitted(true);
+        setInitialCheckDone(true);
+        return;
+      }
+
+      // Also check local persistence key as a fallback
+      try {
+        const localKey = `feedback_submitted_${currentUsername}`;
+        const local = await AsyncStorage.getItem(localKey);
+        if (local === "1") {
+          setSubmitted(true);
+          setInitialCheckDone(true);
+          return;
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      // schedule one-time modal show after TIMER_MS if still not submitted
+      timer = setTimeout(() => {
+        if (!submitted) setVisible(true);
+      }, TIMER_MS);
+
+      setInitialCheckDone(true);
+    };
+
+    start();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [username, submitted]);
 
   const handleSubmit = async () => {
     try {
-      console.log("Feedback submit payload:", { rating, feedback, username });
+      const currentUsername = username || (await AsyncStorage.getItem("user")) || null;
+      console.log("Feedback submit payload:", { rating, feedback, currentUsername });
 
       const res = await saveFeedbackToFirestore({
         rating,
         feedback,
-        username,
+        username: currentUsername,
       });
       if (res.ok) {
-        console.log("✅ Feedback saved!");
+        const userKey = currentUsername ? `feedback_submitted_${currentUsername}` : "feedback_submitted_anonymous";
+        try {
+          await AsyncStorage.setItem(userKey, "1");
+        } catch (e) {
+          // non-fatal
+        }
+
         setVisible(false);
         setFeedback("");
         setRating(0);
@@ -71,6 +173,12 @@ const FeedbackModal = ({ username = null }) => {
       Alert.alert("Error", "Unable to submit feedback. Please try again.");
     }
   };
+
+  // Do not render / show until initial check finishes
+  if (!initialCheckDone) return null;
+
+  // Do not show modal if user already submitted or not logged in
+  if (submitted) return null;
 
   return (
     <Modal

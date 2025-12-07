@@ -1,3 +1,0 @@
-import CommentsScreen from "./screens/CommentsScreen";
-
-<Stack.Screen name="CommentsScreen" component={CommentsScreen} />

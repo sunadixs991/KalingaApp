@@ -114,7 +114,7 @@ export default function ProfileScreen() {
       );
       const userSnap = await getDocs(userQuery);
       let userData = null;
-      
+
       if (!userSnap.empty) {
         userData = userSnap.docs[0].data();
         console.log("Found user data:", userData);
@@ -276,11 +276,23 @@ export default function ProfileScreen() {
         text: "Log Out",
         style: "destructive",
         onPress: async () => {
-          await AsyncStorage.removeItem("user");
-          navigation.reset({
-            index: 0,
-            routes: [{ name: "Splash" }],
-          });
+          try {
+            // ✅ Clear ALL AsyncStorage keys related to user data
+            await AsyncStorage.removeItem("user");
+            await AsyncStorage.removeItem("userInfo");
+            await AsyncStorage.removeItem("user_profile_cache_v1"); // Clear profile cache too
+
+            console.log("✅ Cleared all user data from AsyncStorage");
+
+            // Reset navigation to Splash screen
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "Splash" }],
+            });
+          } catch (error) {
+            console.error("❌ Logout error:", error);
+            Alert.alert("Error", "Failed to log out. Please try again.");
+          }
         },
       },
     ]);
@@ -340,7 +352,7 @@ export default function ProfileScreen() {
           cleanIdentifier =
             parsed.username || parsed.email || parsed.id || userIdentifier;
         }
-      } catch (e) {}
+      } catch (e) { }
       cleanIdentifier = cleanIdentifier.toString().trim();
 
       const userQuery = query(
@@ -365,7 +377,7 @@ export default function ProfileScreen() {
         setUserInfo(info);
         try {
           await AsyncStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(info));
-        } catch (e) {}
+        } catch (e) { }
         Alert.alert("Success", "Account information updated!");
       }
     } catch (error) {
@@ -373,7 +385,7 @@ export default function ProfileScreen() {
     }
   };
 
- 
+
   if (profileLoading) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -400,12 +412,12 @@ export default function ProfileScreen() {
                     ? userInfo.profilePicUrl
                       ? { uri: userInfo.profilePicUrl }
                       : userInfo.gender === "Female"
-                      ? womanProfile
-                      : userInfo.gender === "Male"
-                      ? boyProfile
-                      : userInfo.gender === "admin"
-                      ? adminProfile
-                      : userProfile
+                        ? womanProfile
+                        : userInfo.gender === "Male"
+                          ? boyProfile
+                          : userInfo.gender === "admin"
+                            ? adminProfile
+                            : userProfile
                     : userProfile
                 }
                 style={styles.profileImage}
@@ -758,11 +770,11 @@ export default function ProfileScreen() {
         </Modal>
 
       </ScrollView>
-     </SafeAreaView>
-   );
- }
- 
- const styles = StyleSheet.create({
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#fff",

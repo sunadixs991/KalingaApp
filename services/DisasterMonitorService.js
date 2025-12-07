@@ -27,7 +27,7 @@ const CHECK_INTERVAL_MINUTES = 15;
 
 // Weather alert cooldown (prevent spam)
 const WEATHER_ALERT_COOLDOWN_HOURS = 3;
-
+console.log('🔧 DisasterMonitorService loaded');
 /**
  * Get user data from AsyncStorage
  */

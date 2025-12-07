@@ -13,7 +13,7 @@ export async function scanImageWithSightengine({ uri, type, fileName }) {
   formData.append("api_secret", API_SECRET);
 
   try {
-    const response = await fetch("https://api.sightengine.com/1.0/check.json", {
+    const response = await fetch("https://api.sightengine .com/1.0/check.json", {
       method: "POST",
       body: formData,
     });
