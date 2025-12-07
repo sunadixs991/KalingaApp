@@ -33,38 +33,12 @@ export const registerForPushNotifications = async (username) => {
       return null;
     }
 
-    // ✅ Detect if running in Expo Go or built app
-    const isExpoGo = Constants.appOwnership === 'expo';
-    console.log(`🔧 App ownership: ${Constants.appOwnership} (Expo Go: ${isExpoGo})`);
-
-    if (isExpoGo) {
-      // Running in Expo Go → use Expo tokens
-      console.log('📱 Running in Expo Go - getting Expo token...');
-      const expoToken = await Notifications.getExpoPushTokenAsync({
-        projectId: Constants.expoConfig?.extra?.eas?.projectId
-      });
-      token = expoToken.data;
-      console.log('✅ Got Expo token:', token);
-    } else {
-      // Running as built standalone app → use FCM tokens
-      console.log('🏗️ Running as built app - getting FCM token...');
-      try {
-        const fcmToken = await FirebaseMessaging.getToken();
-        if (fcmToken) {
-          token = fcmToken;
-          console.log('✅ Got FCM token:', token);
-        } else {
-          throw new Error('No FCM token returned');
-        }
-      } catch (error) {
-        console.warn('⚠️ FCM token unavailable, falling back to Expo token:', error);
-        const expoToken = await Notifications.getExpoPushTokenAsync({
-          projectId: Constants.expoConfig?.extra?.eas?.projectId
-        });
-        token = expoToken.data;
-        console.log('✅ Got Expo token (fallback):', token);
-      }
-    }
+    // Get Expo token (works for both Expo Go and Cloud Function delivery)
+    const expoToken = await Notifications.getExpoPushTokenAsync({
+      projectId: Constants.expoConfig?.extra?.eas?.projectId
+    });
+    token = expoToken.data;
+    console.log('✅ Got Expo token:', token);
 
     await AsyncStorage.setItem('pushToken', token);
 
@@ -72,6 +46,7 @@ export const registerForPushNotifications = async (username) => {
       await saveTokenToFirestore(username, token);
     }
 
+    // Create Android notification channels
     if (Platform.OS === 'android') {
       console.log('🔔 Creating Android notification channels...');
       
@@ -192,7 +167,7 @@ export const sendLocalNotification = async ({ title, body, data = {}, channelId 
 };
 
 /**
- * ✅ Send REMOTE push notification via Expo's service (works when app is closed!)
+ * ✅ Send push notification via Cloud Function (handles Expo + FCM server-side)
  */
 export const sendRemotePushNotification = async (
   pushToken,
@@ -202,52 +177,42 @@ export const sendRemotePushNotification = async (
   channelId = 'default'
 ) => {
   try {
-    console.log('📤 Sending push notification...');
+    console.log('📤 Sending push via Cloud Function...');
 
-    // Determine token type
-    const isExpoToken = pushToken.startsWith('ExponentPushToken');
-    const isFCMToken = pushToken.includes(':'); // FCM tokens have colons like "xxx:APA91b..."
-
-    console.log('   Token type:', isExpoToken ? 'Expo' : isFCMToken ? 'FCM' : 'Unknown');
-
-    // Both FCM and Expo tokens can use Expo's push service
-    const message = {
-      to: pushToken,
-      sound: 'default',
-      title: title,
-      body: body,
-      data: data,
-      channelId: channelId,
-      priority: 'high',
-    };
-
-    const response = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(message),
-    });
+    const response = await fetch(
+      'https://us-central1-kalingaapp-799a0.cloudfunctions.net/sendPushNotification',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token: pushToken,
+          title: title,
+          body: body,
+          data: data,
+          channelId: channelId,
+        }),
+      }
+    );
 
     const result = await response.json();
 
-    if (result.data && result.data[0]?.status === 'error') {
-      console.error('❌ Push notification error:', result.data[0]);
-    } else {
+    if (response.ok) {
       console.log('✅ Push notification sent successfully');
+    } else {
+      console.error('❌ Cloud Function error:', result);
     }
 
     return result;
   } catch (error) {
-    console.error('❌ Error sending push notification:', error);
+    console.error('❌ Error calling Cloud Function:', error);
     throw error;
   }
 };
 
 /**
- * ✅ Send push notifications to multiple users at once
+ * ✅ Send batch push notifications via Cloud Function
  */
 export const sendBatchPushNotifications = async (
   tokens,
@@ -272,50 +237,40 @@ export const sendBatchPushNotifications = async (
       return { data: [] };
     }
 
-    console.log(`📤 Sending ${validTokens.length} push notifications...`);
+    console.log(`📤 Sending ${validTokens.length} notifications via Cloud Function...`);
 
-    // Count token types
     const expoCount = validTokens.filter(t => t.startsWith('ExponentPushToken')).length;
     const fcmCount = validTokens.length - expoCount;
     console.log(`   📱 ${expoCount} Expo tokens, 🔥 ${fcmCount} FCM tokens`);
 
-    const messages = validTokens.map(token => ({
-      to: token,
-      sound: 'default',
-      title: title,
-      body: body,
-      data: data,
-      channelId: channelId,
-      priority: 'high',
-    }));
-
-    const response = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(messages),
-    });
+    const response = await fetch(
+      'https://us-central1-kalingaapp-799a0.cloudfunctions.net/sendBatchPushNotifications',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tokens: validTokens,
+          title: title,
+          body: body,
+          data: data,
+          channelId: channelId,
+        }),
+      }
+    );
 
     const result = await response.json();
 
-    // Check for errors
-    if (result.data) {
-      const errors = result.data.filter(r => r.status === 'error');
-      const successes = result.data.filter(r => r.status === 'ok');
-
-      console.log(`✅ Sent: ${successes.length} successful, ❌ ${errors.length} failed`);
-
-      if (errors.length > 0) {
-        console.error('Failed notifications:', errors);
-      }
+    if (response.ok) {
+      console.log(`✅ Sent: ${result.successCount || 0} successful, ❌ ${result.failureCount || 0} failed`);
+    } else {
+      console.error('❌ Cloud Function error:', result);
     }
 
     return result;
   } catch (error) {
-    console.error('❌ Error sending batch push notifications:', error);
+    console.error('❌ Error calling Cloud Function:', error);
     throw error;
   }
 };

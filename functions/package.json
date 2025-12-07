@@ -1,0 +1,15 @@
+{
+  "name": "kalinga-app-functions",
+  "version": "1.0.0",
+  "description": "Push notification functions for Kalinga App",
+  "main": "index.js",
+  "scripts": {
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.0.0",
+    "axios": "^1.13.2"
+  }
+}
