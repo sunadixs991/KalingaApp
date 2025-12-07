@@ -2,7 +2,7 @@
   "expo": {
     "name": "Kalinga",
     "slug": "Kalinga-App",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/Kalinga_logo.png",
     "userInterfaceStyle": "light",
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.kalingaapp"
+      "bundleIdentifier": "com.sunadixs98.kalingaapp"
     },
     "android": {
       "icon": "./assets/kalinga-icon.png",
@@ -23,11 +23,16 @@
         "foregroundImage": "./assets/kalinga-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
-      "package": "com.yourcompany.kalingaapp",
+      "package": "com.sunadixs98.kalingaapp",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
         "NOTIFICATIONS",
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "WAKE_LOCK",
         "SMS"
       ],
       "useNextNotificationsApi": true

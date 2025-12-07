@@ -85,10 +85,7 @@ Deno.serve(async (req: Request) => {
       sound: 'default',
       title: title,
       body: body,
-      data: {
-        ...data,
-        experienceId: '@sunadixs98/Kalinga-App', // Your Expo account + app slug
-      },
+      data: data,
       channelId: channelId,
       categoryId: channelId,
       priority: 'high',

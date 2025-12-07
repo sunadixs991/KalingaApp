@@ -22,7 +22,7 @@ Notifications.setNotificationHandler({
  */
 export const registerForPushNotifications = async (username) => {
   let token = null;
- 
+
   if (!Device.isDevice) {
     console.log('Must use physical device for Push Notifications');
     return null;

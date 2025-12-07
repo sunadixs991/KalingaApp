@@ -1,6 +1,8 @@
 // HomeScreen.js
 import React, { useEffect, useState, useRef } from "react";
 import { Modal } from "react-native";
+import { Button } from "react-native";
+
 import {
   View,
   Text,
@@ -288,6 +290,21 @@ export default function HomeScreen({ route, navigation }) {
 
     startMonitoring();
   }, [username]);
+
+  const testPush = async () => {
+    const token = await AsyncStorage.getItem('pushToken');
+    console.log('Testing with token:', token);
+
+    if (token) {
+      await sendRemotePushNotification(
+        token,
+        '🎯 TEST NOTIFICATION',
+        'If you see this, push notifications are working!',
+        { type: 'test' },
+        'default'
+      );
+    }
+  };
 
 
   useEffect(() => {
@@ -687,7 +704,6 @@ export default function HomeScreen({ route, navigation }) {
             </Text>
           </View>
         </View>
-
         <View style={styles.weatherDetails}>
           <View style={styles.weatherDetailItem}>
             <Icon name="water-outline" size={20} color="#49A5A2" />
@@ -796,6 +812,8 @@ export default function HomeScreen({ route, navigation }) {
           <Text style={styles.viewAllEarthquakesText}>View All Earthquakes</Text>
           <Icon name="chevron-forward" size={16} color="#e75e33" />
         </TouchableOpacity>
+        <Button title="Test Push Notification" onPress={testPush} />
+
       </View>
     );
   };
