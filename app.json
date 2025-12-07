@@ -42,6 +42,17 @@
     },
     "plugins": [
       [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "34.0.0",
+            "enableDexingArtifactTransform": false
+          }
+        }
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/kalinga-icon.png",
