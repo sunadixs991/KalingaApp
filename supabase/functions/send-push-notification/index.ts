@@ -10,31 +10,6 @@ interface PushNotificationRequest {
   channelId?: string;
 }
 
-interface FCMMessage {
-  token: string;
-  notification: {
-    title: string;
-    body: string;
-  };
-  data?: Record<string, string>;
-  android?: {
-    priority: string;
-    notification: {
-      channelId: string;
-      sound: string;
-      priority: string;
-    };
-  };
-  apns?: {
-    payload: {
-      aps: {
-        sound: string;
-        badge: number;
-      };
-    };
-  };
-}
-
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -199,18 +174,31 @@ Deno.serve(async (req: Request) => {
 
 // Extract FCM token from Expo token format
 function extractFCMToken(expoToken: string): string | null {
+  console.log('🔍 Extracting token from:', expoToken.substring(0, 50) + '...');
+  
   // Expo tokens for Android contain the actual FCM token
   // Format: ExponentPushToken[ACTUAL_FCM_TOKEN]
   if (expoToken.startsWith('ExponentPushToken[')) {
-    return expoToken.slice(18, -1);
+    const extracted = expoToken.slice(18, -1);
+    console.log('   Extracted FCM token:', extracted.substring(0, 50) + '...');
+    
+    // Validate it looks like an FCM token (contains colon and proper length)
+    if (extracted.includes(':') && extracted.length > 100) {
+      return extracted;
+    } else {
+      console.log('   ⚠️ Extracted token doesn\'t look valid, treating as iOS');
+      return null; // Treat as iOS token
+    }
   }
   
   // If it's already a raw FCM token (contains colon)
-  if (expoToken.includes(':')) {
+  if (expoToken.includes(':') && expoToken.length > 100) {
+    console.log('   Using raw FCM token');
     return expoToken;
   }
   
-  // iOS tokens don't have FCM tokens
+  // iOS tokens or unknown format
+  console.log('   No FCM token found, treating as iOS');
   return null;
 }
 
@@ -227,11 +215,10 @@ async function sendViaFCM(
   // Convert data object to string values (FCM requirement)
   const stringData: Record<string, string> = {};
   for (const [key, value] of Object.entries(data)) {
-    stringData[key] = String(value);
+    stringData[key] = typeof value === 'object' ? JSON.stringify(value) : String(value);
   }
-  stringData.channelId = channelId;
 
-  const message: FCMMessage = {
+  const message = {
     token: fcmToken,
     notification: {
       title,
@@ -243,7 +230,7 @@ async function sendViaFCM(
       notification: {
         channelId,
         sound: 'default',
-        priority: 'high',
+        // Do NOT include priority here - it's not supported in FCM v1 android.notification
       },
     },
   };
