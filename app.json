@@ -30,6 +30,7 @@
         "NOTIFICATIONS",
         "SMS"
       ],
+      "googleServicesFile": "./google-services.json",
       "useNextNotificationsApi": true
     },
     "web": {

@@ -1,4 +1,4 @@
-// services/NotificationService.js - COMPLETE VERSION WITH ALL FUNCTIONS
+// services/NotificationService.js - EXPO COMPATIBLE WITH FCM TOKENS
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
@@ -8,7 +8,8 @@ import { collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc, 
 import Constants from 'expo-constants';
 
 /**
- * Register device for push notifications and save token to Firestore
+ * ✅ Register device for push notifications
+ * Gets FCM token for standalone builds, Expo token for development
  */
 export const registerForPushNotifications = async (username) => {
   let token = null;
@@ -32,14 +33,27 @@ export const registerForPushNotifications = async (username) => {
       return null;
     }
 
-    // ✅ Get Expo push token (works with Expo's free push service)
-    // Note: Using Expo tokens because Expo's push service doesn't accept raw FCM tokens
-    console.log('🔧 Getting Expo push token...');
-    const expoToken = await Notifications.getExpoPushTokenAsync({
-      projectId: Constants.expoConfig?.extra?.eas?.projectId
-    });
-    token = expoToken.data;
-    console.log('📱 Got Expo push token:', token);
+    console.log('🔧 Getting push token...');
+    console.log('   Platform:', Platform.OS);
+    console.log('   App ownership:', Constants.appOwnership || 'standalone');
+
+    // Get device push token (FCM for Android, APNS for iOS)
+    try {
+      const deviceToken = await Notifications.getDevicePushTokenAsync();
+      token = deviceToken.data;
+      console.log('✅ Got device push token (FCM)');
+      console.log('   Token:', token.substring(0, 30) + '...');
+    } catch (error) {
+      console.error('⚠️ Failed to get device token, trying Expo token:', error);
+      
+      // Fallback to Expo token
+      const expoToken = await Notifications.getExpoPushTokenAsync({
+        projectId: Constants.expoConfig?.extra?.eas?.projectId
+      });
+      token = expoToken.data;
+      console.log('✅ Got Expo push token (fallback)');
+      console.log('   Token:', token);
+    }
 
     await AsyncStorage.setItem('pushToken', token);
 
@@ -47,17 +61,17 @@ export const registerForPushNotifications = async (username) => {
       await saveTokenToFirestore(username, token);
     }
 
+    // Create Android notification channels
     if (Platform.OS === 'android') {
       console.log('🔔 Creating Android notification channels...');
       
       await Notifications.setNotificationChannelAsync('default', {
-        name: 'default',
+        name: 'Default',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#e75e33',
         sound: 'default',
       });
-      console.log('✅ Created channel: default');
 
       await Notifications.setNotificationChannelAsync('earthquake', {
         name: 'Earthquake Alerts',
@@ -66,7 +80,6 @@ export const registerForPushNotifications = async (username) => {
         lightColor: '#e67e22',
         sound: 'default',
       });
-      console.log('✅ Created channel: earthquake');
 
       await Notifications.setNotificationChannelAsync('weather', {
         name: 'Weather Alerts',
@@ -75,7 +88,6 @@ export const registerForPushNotifications = async (username) => {
         lightColor: '#3498db',
         sound: 'default',
       });
-      console.log('✅ Created channel: weather');
 
       await Notifications.setNotificationChannelAsync('incident', {
         name: 'Incident Reports',
@@ -84,7 +96,6 @@ export const registerForPushNotifications = async (username) => {
         lightColor: '#e75e33',
         sound: 'default',
       });
-      console.log('✅ Created channel: incident');
 
       await Notifications.setNotificationChannelAsync('schedules', {
         name: 'Food Distribution Schedules',
@@ -93,9 +104,8 @@ export const registerForPushNotifications = async (username) => {
         lightColor: '#49A5A2',
         sound: 'default',
       });
-      console.log('✅ Created channel: schedules');
       
-      console.log('🎉 All notification channels created successfully!');
+      console.log('✅ All notification channels created!');
     }
 
     return token;
@@ -114,21 +124,24 @@ const saveTokenToFirestore = async (username, token) => {
     const q = query(tokensRef, where('username', '==', username));
     const snapshot = await getDocs(q);
 
+    const tokenData = {
+      username,
+      token,
+      platform: Platform.OS,
+      tokenType: token.startsWith('ExponentPushToken') ? 'expo' : 'fcm',
+      updatedAt: serverTimestamp(),
+    };
+
     if (snapshot.empty) {
       await addDoc(tokensRef, {
-        username,
-        token,
-        platform: Platform.OS,
+        ...tokenData,
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
       });
+      console.log('✅ Token saved to Firestore');
     } else {
       const docRef = doc(db, 'pushTokens', snapshot.docs[0].id);
-      await updateDoc(docRef, {
-        token,
-        platform: Platform.OS,
-        updatedAt: serverTimestamp(),
-      });
+      await updateDoc(docRef, tokenData);
+      console.log('✅ Token updated in Firestore');
     }
   } catch (error) {
     console.error('Error saving token to Firestore:', error);
@@ -136,11 +149,11 @@ const saveTokenToFirestore = async (username, token) => {
 };
 
 /**
- * ✅ Send LOCAL notification (works when app is open/background)
+ * ✅ Send LOCAL notification
  */
 export const sendLocalNotification = async ({ title, body, data = {}, channelId = 'default', priority = 'high' }) => {
   try {
-    console.log('📱 Sending local notification:', { title, channelId, priority });
+    console.log('📱 Sending local notification:', { title, channelId });
     
     const content = {
       title,
@@ -159,7 +172,7 @@ export const sendLocalNotification = async ({ title, body, data = {}, channelId 
       trigger: null,
     });
     
-    console.log('✅ Local notification sent successfully');
+    console.log('✅ Local notification sent');
   } catch (error) {
     console.error('❌ Failed to send local notification:', error);
     throw error;
@@ -167,7 +180,8 @@ export const sendLocalNotification = async ({ title, body, data = {}, channelId 
 };
 
 /**
- * ✅ Send REMOTE push notification via Expo's service (works when app is closed!)
+ * ✅ FIXED: Send REMOTE push notification - Works with both Expo and FCM tokens
+ * Uses Expo's push service which accepts both token types
  */
 export const sendRemotePushNotification = async (
   pushToken,
@@ -177,15 +191,14 @@ export const sendRemotePushNotification = async (
   channelId = 'default'
 ) => {
   try {
-    console.log('📤 Sending push notification...');
+    console.log('📤 Sending push notification via Expo service...');
 
-    // Determine token type
     const isExpoToken = pushToken.startsWith('ExponentPushToken');
-    const isFCMToken = pushToken.includes(':'); // FCM tokens have colons like "xxx:APA91b..."
+    const isFCMToken = !isExpoToken && pushToken.includes(':');
 
     console.log('   Token type:', isExpoToken ? 'Expo' : isFCMToken ? 'FCM' : 'Unknown');
 
-    // Both FCM and Expo tokens can use Expo's push service
+    // Expo's push service accepts BOTH Expo tokens and FCM tokens
     const message = {
       to: pushToken,
       sound: 'default',
@@ -194,6 +207,11 @@ export const sendRemotePushNotification = async (
       data: data,
       channelId: channelId,
       priority: 'high',
+      // Important for Android
+      android: {
+        channelId: channelId,
+        priority: 'high',
+      },
     };
 
     const response = await fetch('https://exp.host/--/api/v2/push/send', {
@@ -210,14 +228,14 @@ export const sendRemotePushNotification = async (
 
     if (result.data && result.data[0]?.status === 'error') {
       console.error('❌ Push notification error:', result.data[0]);
+      return { success: false, error: result.data[0] };
     } else {
       console.log('✅ Push notification sent successfully');
+      return { success: true, result };
     }
-
-    return result;
   } catch (error) {
     console.error('❌ Error sending push notification:', error);
-    throw error;
+    return { success: false, error: error.message };
   }
 };
 
@@ -233,27 +251,27 @@ export const sendBatchPushNotifications = async (
 ) => {
   try {
     if (!tokens || tokens.length === 0) {
-      console.log('⚠️ No tokens provided for batch notification');
-      return { data: [] };
+      console.log('⚠️ No tokens provided');
+      return { success: 0, failure: 0 };
     }
 
     // Filter out invalid tokens
-    const validTokens = tokens.filter(token =>
-      token && (token.startsWith('ExponentPushToken') || token.includes(':'))
-    );
+    const validTokens = tokens.filter(token => token && token.length > 20);
 
     if (validTokens.length === 0) {
       console.log('⚠️ No valid tokens found');
-      return { data: [] };
+      return { success: 0, failure: 0 };
     }
 
     console.log(`📤 Sending ${validTokens.length} push notifications...`);
 
-    // Count token types
-    const expoCount = validTokens.filter(t => t.startsWith('ExponentPushToken')).length;
-    const fcmCount = validTokens.length - expoCount;
-    console.log(`   📱 ${expoCount} Expo tokens, 🔥 ${fcmCount} FCM tokens`);
+    // Better token type detection
+    const expoTokens = validTokens.filter(t => t.startsWith('ExponentPushToken'));
+    const fcmTokens = validTokens.filter(t => !t.startsWith('ExponentPushToken'));
+    
+    console.log(`   📱 ${expoTokens.length} Expo tokens, 🔥 ${fcmTokens.length} FCM tokens`);
 
+    // Send all tokens to Expo's service (it handles both types)
     const messages = validTokens.map(token => ({
       to: token,
       sound: 'default',
@@ -262,6 +280,10 @@ export const sendBatchPushNotifications = async (
       data: data,
       channelId: channelId,
       priority: 'high',
+      android: {
+        channelId: channelId,
+        priority: 'high',
+      },
     }));
 
     const response = await fetch('https://exp.host/--/api/v2/push/send', {
@@ -276,28 +298,36 @@ export const sendBatchPushNotifications = async (
 
     const result = await response.json();
 
-    // Check for errors
+    // Count successes and failures
+    let successCount = 0;
+    let failureCount = 0;
+
     if (result.data) {
-      const errors = result.data.filter(r => r.status === 'error');
-      const successes = result.data.filter(r => r.status === 'ok');
-
-      console.log(`✅ Sent: ${successes.length} successful, ❌ ${errors.length} failed`);
-
-      if (errors.length > 0) {
-        console.error('Failed notifications:', errors);
-      }
+      result.data.forEach(r => {
+        if (r.status === 'ok') {
+          successCount++;
+        } else if (r.status === 'error') {
+          failureCount++;
+          console.error('   ❌ Failed token:', r.message);
+        }
+      });
     }
 
-    return result;
+    console.log(`✅ Sent: ${successCount} successful, ❌ ${failureCount} failed`);
+
+    return {
+      success: successCount,
+      failure: failureCount,
+      details: result.data,
+    };
   } catch (error) {
     console.error('❌ Error sending batch push notifications:', error);
     throw error;
   }
 };
 
-/**
- * ✅ Get all push tokens from Firestore
- */
+// ========== ALL OTHER FUNCTIONS (UNCHANGED) ==========
+
 export const getAllPushTokens = async () => {
   try {
     const tokensRef = collection(db, 'pushTokens');
@@ -309,9 +339,6 @@ export const getAllPushTokens = async () => {
   }
 };
 
-/**
- * ✅ Get push token for specific user
- */
 export const getUserPushToken = async (username) => {
   try {
     const tokensRef = collection(db, 'pushTokens');
@@ -328,9 +355,6 @@ export const getUserPushToken = async (username) => {
   }
 };
 
-/**
- * ✅ Clear all old tokens (for migration)
- */
 export const clearAllPushTokens = async () => {
   try {
     const tokensRef = collection(db, 'pushTokens');
@@ -338,10 +362,7 @@ export const clearAllPushTokens = async () => {
     
     console.log(`🗑️ Deleting ${snapshot.size} old tokens...`);
     
-    const deletePromises = snapshot.docs.map(doc => 
-      deleteDoc(doc.ref)
-    );
-    
+    const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
     await Promise.all(deletePromises);
     
     console.log('✅ All old tokens cleared');
@@ -352,9 +373,6 @@ export const clearAllPushTokens = async () => {
   }
 };
 
-/**
- * Schedule a notification for later
- */
 export const scheduleNotification = async ({ title, body, data = {}, channelId = 'default' }, seconds) => {
   try {
     const content = {
@@ -370,9 +388,7 @@ export const scheduleNotification = async ({ title, body, data = {}, channelId =
 
     await Notifications.scheduleNotificationAsync({
       content,
-      trigger: {
-        seconds,
-      },
+      trigger: { seconds },
     });
   } catch (error) {
     console.error('Error scheduling notification:', error);
@@ -380,61 +396,35 @@ export const scheduleNotification = async ({ title, body, data = {}, channelId =
   }
 };
 
-/**
- * Cancel all scheduled notifications
- */
 export const cancelAllNotifications = async () => {
   await Notifications.cancelAllScheduledNotificationsAsync();
 };
 
-/**
- * Get notification badge count
- */
 export const getBadgeCount = async () => {
   return await Notifications.getBadgeCountAsync();
 };
 
-/**
- * Set notification badge count
- */
 export const setBadgeCount = async (count) => {
   await Notifications.setBadgeCountAsync(count);
 };
 
-/**
- * Clear all notifications from notification tray
- */
 export const dismissAllNotifications = async () => {
   await Notifications.dismissAllNotificationsAsync();
 };
 
-/**
- * Add notification listener
- */
 export const addNotificationReceivedListener = (callback) => {
   return Notifications.addNotificationReceivedListener(callback);
 };
 
-/**
- * Add notification response listener
- */
 export const addNotificationResponseListener = (callback) => {
   return Notifications.addNotificationResponseReceivedListener(callback);
 };
 
-/**
- * Save notification to Firestore with proper type handling
- */
 export const saveNotificationToHistory = async (username, notification) => {
   try {
-    console.log('💾 Saving notification to history for:', username);
-    console.log('   Type:', notification.data?.type);
-
     const notificationType = notification.data?.type;
     const isPublicNotification = ['earthquake', 'weather', 'typhoon'].includes(notificationType);
     const saveToUsername = isPublicNotification ? 'all' : username;
-
-    console.log('   Saving to:', saveToUsername);
 
     await addDoc(collection(db, 'notifications'), {
       username: saveToUsername,
@@ -446,78 +436,50 @@ export const saveNotificationToHistory = async (username, notification) => {
       read: false,
       createdAt: serverTimestamp(),
     });
-
-    console.log('✅ Notification saved successfully');
   } catch (error) {
     console.error('❌ Error saving notification:', error);
   }
 };
 
-/**
- * Get user's notification history with proper filtering
- */
 export const getNotificationHistory = async (username, limit = 50) => {
   try {
-    console.log('📥 Fetching notifications for:', username);
-
     const notificationsRef = collection(db, 'notifications');
-    const q = query(
-      notificationsRef,
-      where('username', '==', username)
-    );
-
+    const q = query(notificationsRef, where('username', '==', username));
     const snapshot = await getDocs(q);
-    const notifications = snapshot.docs.map(doc => ({
+    
+    return snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
       createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt),
     }));
-
-    console.log(`   Found ${notifications.length} notifications`);
-
-    return notifications;
   } catch (error) {
     console.error('❌ Error fetching notifications:', error);
     return [];
   }
 };
 
-/**
- * Mark notification as read
- */
 export const markNotificationAsRead = async (notificationId) => {
   try {
     const notificationRef = doc(db, 'notifications', notificationId);
-    await updateDoc(notificationRef, {
-      read: true,
-    });
+    await updateDoc(notificationRef, { read: true });
   } catch (error) {
     console.error('Error marking notification as read:', error);
   }
 };
 
-/**
- * Mark all notifications as read for user
- */
 export const markAllNotificationsAsRead = async (username) => {
   try {
     const notificationsRef = collection(db, 'notifications');
     const q = query(notificationsRef, where('username', '==', username), where('read', '==', false));
     const snapshot = await getDocs(q);
 
-    const promises = snapshot.docs.map(doc =>
-      updateDoc(doc.ref, { read: true })
-    );
-
+    const promises = snapshot.docs.map(doc => updateDoc(doc.ref, { read: true }));
     await Promise.all(promises);
   } catch (error) {
     console.error('Error marking all notifications as read:', error);
   }
 };
 
-/**
- * ✅ Send earthquake alert with BOTH local + remote push
- */
 export const sendEarthquakeAlert = async (magnitude, location) => {
   const notification = {
     title: `🚨 Earthquake Alert - Magnitude ${magnitude}`,
@@ -525,33 +487,16 @@ export const sendEarthquakeAlert = async (magnitude, location) => {
     data: { type: 'earthquake', magnitude, location },
   };
 
-  // 1. Send local notification
-  await sendLocalNotification({
-    ...notification,
-    channelId: 'earthquake',
-  });
+  await sendLocalNotification({ ...notification, channelId: 'earthquake' });
 
-  // 2. Send REMOTE push notifications to ALL users
   const tokens = await getAllPushTokens();
-  console.log(`🌍 Sending earthquake alert to ${tokens.length} users...`);
-
   if (tokens.length > 0) {
-    await sendBatchPushNotifications(
-      tokens,
-      notification.title,
-      notification.body,
-      notification.data,
-      'earthquake'
-    );
+    await sendBatchPushNotifications(tokens, notification.title, notification.body, notification.data, 'earthquake');
   }
 
-  // 3. Save to history
   await saveNotificationToHistory('all', notification);
 };
 
-/**
- * ✅ Send weather alert with BOTH local + remote push
- */
 export const sendWeatherAlert = async (alertType, description) => {
   const notification = {
     title: `⚠️ Weather Alert: ${alertType}`,
@@ -559,33 +504,16 @@ export const sendWeatherAlert = async (alertType, description) => {
     data: { type: 'weather', alertType },
   };
 
-  // 1. Send local notification
-  await sendLocalNotification({
-    ...notification,
-    channelId: 'weather',
-  });
+  await sendLocalNotification({ ...notification, channelId: 'weather' });
 
-  // 2. Send REMOTE push notifications to ALL users
   const tokens = await getAllPushTokens();
-  console.log(`⛈️ Sending weather alert to ${tokens.length} users...`);
-
   if (tokens.length > 0) {
-    await sendBatchPushNotifications(
-      tokens,
-      notification.title,
-      notification.body,
-      notification.data,
-      'weather'
-    );
+    await sendBatchPushNotifications(tokens, notification.title, notification.body, notification.data, 'weather');
   }
 
-  // 3. Save to history
   await saveNotificationToHistory('all', notification);
 };
 
-/**
- * ✅ Send incident alert with BOTH local + remote push
- */
 export const sendIncidentAlert = async (incidentType, distance) => {
   const notification = {
     title: `📍 New Incident Near You`,
@@ -593,26 +521,25 @@ export const sendIncidentAlert = async (incidentType, distance) => {
     data: { type: 'incident', incidentType },
   };
 
-  // 1. Send local notification
-  await sendLocalNotification({
-    ...notification,
-    channelId: 'incident',
-  });
+  await sendLocalNotification({ ...notification, channelId: 'incident' });
 
-  // 2. Send REMOTE push notifications to ALL users
   const tokens = await getAllPushTokens();
-  console.log(`🚨 Sending incident alert to ${tokens.length} users...`);
-
   if (tokens.length > 0) {
-    await sendBatchPushNotifications(
-      tokens,
-      notification.title,
-      notification.body,
-      notification.data,
-      'incident'
-    );
+    await sendBatchPushNotifications(tokens, notification.title, notification.body, notification.data, 'incident');
   }
 
-  // 3. Save to history
   await saveNotificationToHistory('all', notification);
+};
+
+// Add to NotificationService.js
+export const debugTokenTypes = async () => {
+  const tokensRef = collection(db, 'pushTokens');
+  const snapshot = await getDocs(tokensRef);
+  
+  console.log('=== TOKEN DEBUG ===');
+  snapshot.docs.forEach(doc => {
+    const data = doc.data();
+    const isExpo = data.token.startsWith('ExponentPushToken');
+    console.log(`${data.username}: ${isExpo ? 'Expo' : 'FCM'} (${data.platform})`);
+  });
 };
