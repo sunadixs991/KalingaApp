@@ -1,4 +1,4 @@
-// services/NotificationService.js - WITH SUPABASE EDGE FUNCTIONS
+// services/NotificationService.js - FIXED VERSION
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
@@ -6,9 +6,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import Constants from 'expo-constants';
-import { supabase } from './supabaseClient'; // Adjust path based on your file structure
+import { supabase } from './supabaseClient';
 
-// ✅ Set notification handler
+// ✅ Set notification handler at module load
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -24,30 +24,38 @@ export const registerForPushNotifications = async (username) => {
   let token = null;
 
   if (!Device.isDevice) {
-    console.log('Must use physical device for Push Notifications');
+    console.log('⚠️ Must use physical device for Push Notifications');
     return null;
   }
 
   try {
+    console.log('🔧 Starting notification registration for:', username);
+    
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
     if (existingStatus !== 'granted') {
+      console.log('   Requesting notification permissions...');
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
 
     if (finalStatus !== 'granted') {
-      console.log('Failed to get push token for push notification!');
+      console.log('❌ Notification permission not granted:', finalStatus);
       return null;
     }
+
+    console.log('✅ Notification permission granted');
 
     const projectId = Constants.expoConfig?.extra?.eas?.projectId || 
                       Constants.easConfig?.projectId ||
                       Constants.manifest?.extra?.eas?.projectId;
 
     if (!projectId) {
-      console.error('❌ No EAS project ID found!');
+      console.error('❌ No EAS project ID found! Checked all paths:');
+      console.error('   - Constants.expoConfig?.extra?.eas?.projectId:', Constants.expoConfig?.extra?.eas?.projectId);
+      console.error('   - Constants.easConfig?.projectId:', Constants.easConfig?.projectId);
+      console.error('   - Constants.manifest?.extra?.eas?.projectId:', Constants.manifest?.extra?.eas?.projectId);
     }
 
     console.log('🔧 Getting Expo push token...');
@@ -61,9 +69,12 @@ export const registerForPushNotifications = async (username) => {
     console.log('📱 Got Expo push token:', token);
 
     await AsyncStorage.setItem('pushToken', token);
+    console.log('✅ Saved token to AsyncStorage');
 
     if (username) {
       await saveTokenToFirestore(username, token);
+    } else {
+      console.log('⚠️ No username provided, skipping Firestore save');
     }
 
     // Create notification channels
@@ -133,38 +144,56 @@ export const registerForPushNotifications = async (username) => {
 
     return token;
   } catch (error) {
-    console.error('Error registering for push notifications:', error);
+    console.error('❌ Error registering for push notifications:', error);
+    console.error('   Stack:', error.stack);
     return null;
   }
 };
 
 /**
- * Save push token to Firestore
+ * Save push token to Firestore with detailed logging
  */
 const saveTokenToFirestore = async (username, token) => {
   try {
+    console.log('💾 Attempting to save token to Firestore...');
+    console.log('   Username:', username);
+    console.log('   Token:', token.substring(0, 40) + '...');
+    
     const tokensRef = collection(db, 'pushTokens');
+    console.log('   Collection reference created');
+    
     const q = query(tokensRef, where('username', '==', username));
+    console.log('   Query created, executing...');
+    
     const snapshot = await getDocs(q);
+    console.log('   Query executed. Docs found:', snapshot.size);
 
     if (snapshot.empty) {
-      await addDoc(tokensRef, {
+      console.log('   No existing token found, creating new document...');
+      const newDoc = await addDoc(tokensRef, {
         username,
         token,
         platform: Platform.OS,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+      console.log('✅ Token saved successfully! Doc ID:', newDoc.id);
     } else {
+      console.log('   Existing token found, updating document...');
       const docRef = doc(db, 'pushTokens', snapshot.docs[0].id);
       await updateDoc(docRef, {
         token,
         platform: Platform.OS,
         updatedAt: serverTimestamp(),
       });
+      console.log('✅ Token updated successfully! Doc ID:', snapshot.docs[0].id);
     }
   } catch (error) {
-    console.error('Error saving token to Firestore:', error);
+    console.error('❌ Error saving token to Firestore:', error);
+    console.error('   Error code:', error.code);
+    console.error('   Error message:', error.message);
+    console.error('   Stack:', error.stack);
+    throw error; // Re-throw so caller knows it failed
   }
 };
 
@@ -201,7 +230,7 @@ export const sendLocalNotification = async ({ title, body, data = {}, channelId 
 };
 
 /**
- * ✅ NEW: Send REMOTE push notification via Supabase Edge Function
+ * ✅ Send REMOTE push notification via Supabase Edge Function
  */
 export const sendRemotePushNotification = async (
   pushToken,
@@ -239,7 +268,7 @@ export const sendRemotePushNotification = async (
 };
 
 /**
- * ✅ NEW: Send batch push notifications via Supabase Edge Function
+ * ✅ Send batch push notifications via Supabase Edge Function
  */
 export const sendBatchPushNotifications = async (
   tokens,
@@ -251,7 +280,7 @@ export const sendBatchPushNotifications = async (
   try {
     if (!tokens || tokens.length === 0) {
       console.log('⚠️ No tokens provided for batch notification');
-      return { data: [] };
+      return { sent: 0, failed: 0, total: 0 };
     }
 
     const validTokens = tokens.filter(token =>
@@ -260,7 +289,7 @@ export const sendBatchPushNotifications = async (
 
     if (validTokens.length === 0) {
       console.log('⚠️ No valid tokens found');
-      return { data: [] };
+      return { sent: 0, failed: 0, total: 0 };
     }
 
     console.log(`📤 Sending ${validTokens.length} push notifications via Supabase...`);
@@ -303,7 +332,9 @@ export const getAllPushTokens = async () => {
   try {
     const tokensRef = collection(db, 'pushTokens');
     const snapshot = await getDocs(tokensRef);
-    return snapshot.docs.map(doc => doc.data().token);
+    const allTokens = snapshot.docs.map(doc => doc.data().token);
+    console.log(`📋 Retrieved ${allTokens.length} push tokens from Firestore`);
+    return allTokens;
   } catch (error) {
     console.error('Error fetching push tokens:', error);
     return [];
