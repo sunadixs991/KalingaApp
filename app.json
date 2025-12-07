@@ -71,13 +71,13 @@
       "androidCollapsedTitle": "Kalinga"
     },
     "scheme": "kalingaapp",
-    "extra": {
-      "eas": {
-        "projectId": "a00ebb60-4678-4296-acd5-82fde80bea41"
-      }
-    },
     "updates": {
       "url": "https://u.expo.dev/a00ebb60-4678-4296-acd5-82fde80bea41"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "b5d643b6-d684-49b9-8551-b7a5ed7fad3d"
+      }
     }
   }
 }
