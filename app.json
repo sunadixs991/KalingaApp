@@ -28,14 +28,8 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "NOTIFICATIONS",
-        "POST_NOTIFICATIONS",
+        "USE_FULL_SCREEN_INTENT",
         "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE",
-        "WAKE_LOCK",
-        "SMS",
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
         "NOTIFICATIONS",
         "POST_NOTIFICATIONS",
         "RECEIVE_BOOT_COMPLETED",
@@ -80,12 +74,14 @@
     },
     "scheme": "kalingaapp",
     "updates": {
-      "url": "https://u.expo.dev/b5d643b6-d684-49b9-8551-b7a5ed7fad3d"
+      "url": "https://u.expo.dev/a00ebb60-4678-4296-acd5-82fde80bea41"
     },
     "extra": {
       "eas": {
         "projectId": "b5d643b6-d684-49b9-8551-b7a5ed7fad3d"
-      }
-    }
+      },
+      "oneSignalAppId": "9b05e6b2-89e5-4584-9dba-06817513b4da"
+    },
+    "owner": "bhean199"
   }
 }
