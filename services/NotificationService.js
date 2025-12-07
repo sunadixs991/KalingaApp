@@ -1,12 +1,12 @@
-// services/NotificationService.js - WITH SUPABASE EDGE FUNCTIONS
+// services/NotificationService.js - OPTION 2: WITH FCM TOKENS
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore';
-import Constants from 'expo-constants';
-import { supabase } from './supabaseClient'; // Adjust path based on your file structure
+import messaging from '@react-native-firebase/messaging';
+import { supabase } from './supabaseClient';
 
 // ✅ Set notification handler
 Notifications.setNotificationHandler({
@@ -18,7 +18,7 @@ Notifications.setNotificationHandler({
 });
 
 /**
- * Register device for push notifications and save token to Firestore
+ * Register device for push notifications with REAL FCM tokens (Option 2)
  */
 export const registerForPushNotifications = async (username) => {
   let token = null;
@@ -29,36 +29,22 @@ export const registerForPushNotifications = async (username) => {
   }
 
   try {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
+    // ✅ Request Firebase messaging permission
+    const authStatus = await messaging().requestPermission();
+    const enabled =
+      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-
-    if (finalStatus !== 'granted') {
-      console.log('Failed to get push token for push notification!');
+    if (!enabled) {
+      console.log('❌ Permission not granted');
       return null;
     }
 
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId || 
-                      Constants.easConfig?.projectId ||
-                      Constants.manifest?.extra?.eas?.projectId;
-
-    if (!projectId) {
-      console.error('❌ No EAS project ID found!');
-    }
-
-    console.log('🔧 Getting Expo push token...');
-    console.log('   Project ID:', projectId);
-    
-    const expoToken = await Notifications.getExpoPushTokenAsync({
-      projectId: projectId
-    });
-    
-    token = expoToken.data;
-    console.log('📱 Got Expo push token:', token);
+    // ✅ Get ACTUAL FCM token (not Expo token!)
+    token = await messaging().getToken();
+    console.log('📱 Got FCM token:', token.substring(0, 50) + '...');
+    console.log('   Token length:', token.length);
+    console.log('   Contains colon:', token.includes(':'));
 
     await AsyncStorage.setItem('pushToken', token);
 
@@ -66,7 +52,7 @@ export const registerForPushNotifications = async (username) => {
       await saveTokenToFirestore(username, token);
     }
 
-    // Create notification channels
+    // Create notification channels for Android
     if (Platform.OS === 'android') {
       console.log('🔔 Creating Android notification channels...');
       
@@ -131,9 +117,38 @@ export const registerForPushNotifications = async (username) => {
       console.log('🎉 All notification channels created successfully!');
     }
 
+    // ✅ Listen for token refresh
+    messaging().onTokenRefresh(async (newToken) => {
+      console.log('🔄 FCM token refreshed:', newToken.substring(0, 50) + '...');
+      await AsyncStorage.setItem('pushToken', newToken);
+      if (username) {
+        await saveTokenToFirestore(username, newToken);
+      }
+    });
+
+    // ✅ Handle foreground messages
+    messaging().onMessage(async remoteMessage => {
+      console.log('📱 Foreground message received:', remoteMessage.notification?.title);
+      
+      // Show notification using Expo Notifications
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: remoteMessage.notification?.title || 'New Notification',
+          body: remoteMessage.notification?.body || '',
+          data: remoteMessage.data || {},
+        },
+        trigger: null,
+      });
+    });
+
+    // ✅ Handle background messages
+    messaging().setBackgroundMessageHandler(async remoteMessage => {
+      console.log('🔔 Background message received:', remoteMessage.notification?.title);
+    });
+
     return token;
   } catch (error) {
-    console.error('Error registering for push notifications:', error);
+    console.error('❌ Error registering for push notifications:', error);
     return null;
   }
 };
@@ -152,6 +167,7 @@ const saveTokenToFirestore = async (username, token) => {
         username,
         token,
         platform: Platform.OS,
+        tokenType: 'fcm', // Mark as FCM token
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -160,9 +176,11 @@ const saveTokenToFirestore = async (username, token) => {
       await updateDoc(docRef, {
         token,
         platform: Platform.OS,
+        tokenType: 'fcm', // Mark as FCM token
         updatedAt: serverTimestamp(),
       });
     }
+    console.log('✅ FCM token saved to Firestore');
   } catch (error) {
     console.error('Error saving token to Firestore:', error);
   }
@@ -201,7 +219,7 @@ export const sendLocalNotification = async ({ title, body, data = {}, channelId 
 };
 
 /**
- * ✅ NEW: Send REMOTE push notification via Supabase Edge Function
+ * ✅ Send REMOTE push notification via Supabase Edge Function (FCM v1)
  */
 export const sendRemotePushNotification = async (
   pushToken,
@@ -211,9 +229,9 @@ export const sendRemotePushNotification = async (
   channelId = 'default'
 ) => {
   try {
-    console.log('📤 Sending push via Supabase Edge Function...');
+    console.log('📤 Sending push via Supabase Edge Function (FCM v1)...');
     console.log('   Channel:', channelId);
-    console.log('   Token:', pushToken.substring(0, 30) + '...');
+    console.log('   Token:', pushToken.substring(0, 50) + '...');
 
     const { data: result, error } = await supabase.functions.invoke('send-push-notification', {
       body: {
@@ -239,7 +257,7 @@ export const sendRemotePushNotification = async (
 };
 
 /**
- * ✅ NEW: Send batch push notifications via Supabase Edge Function
+ * ✅ Send batch push notifications via Supabase Edge Function (FCM v1)
  */
 export const sendBatchPushNotifications = async (
   tokens,
@@ -254,16 +272,18 @@ export const sendBatchPushNotifications = async (
       return { data: [] };
     }
 
+    // ✅ FCM tokens are long strings with colons
     const validTokens = tokens.filter(token =>
-      token && (token.startsWith('ExponentPushToken') || token.includes(':'))
+      token && token.includes(':') && token.length > 100
     );
 
     if (validTokens.length === 0) {
-      console.log('⚠️ No valid tokens found');
+      console.log('⚠️ No valid FCM tokens found');
+      console.log('   Sample token:', tokens[0]?.substring(0, 50));
       return { data: [] };
     }
 
-    console.log(`📤 Sending ${validTokens.length} push notifications via Supabase...`);
+    console.log(`📤 Sending ${validTokens.length} push notifications via Supabase (FCM v1)...`);
     console.log('   Channel:', channelId);
 
     const { data: result, error } = await supabase.functions.invoke('send-push-notification', {
@@ -330,7 +350,7 @@ export const getUserPushToken = async (username) => {
 };
 
 /**
- * Clear all old tokens (for migration)
+ * Clear all old tokens (for migration from Expo to FCM)
  */
 export const clearAllPushTokens = async () => {
   try {
