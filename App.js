@@ -1,4 +1,4 @@
-// App.js - UPDATED WITH NOTIFICATION HANDLER
+// App.js - UPDATED WITH ONESIGNAL
 import React, { useState, useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
@@ -57,6 +57,7 @@ import * as DeleteService from './services/DeleteService';
 import FeedbackModal from "./components/FeedbackModal";
 import CommentsScreen from "./screens/CommentsScreen";
 import NotificationCenterScreen from "./screens/NotificationCenterScreen";
+import { initializeOneSignal } from './services/NotificationService';
 
 const Stack = createStackNavigator();
 
@@ -176,10 +177,10 @@ export default function App() {
     // Listen for notifications when app is in FOREGROUND
     const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
       console.log('📬 Notification received in foreground:', notification);
-      
+
       // Show Toast notification for better visibility
       const notificationType = notification.request.content.data?.type || 'info';
-      
+
       // Map notification types to toast types
       const toastType = {
         'earthquake': 'error',
@@ -188,7 +189,7 @@ export default function App() {
         'food_schedule': 'info',
         'schedule': 'info',
       }[notificationType] || 'info';
-      
+
       Toast.show({
         type: toastType,
         text1: notification.request.content.title,
@@ -206,9 +207,9 @@ export default function App() {
     // Listen for user TAPPING on notifications
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
       console.log('👆 Notification tapped:', response);
-      
+
       const data = response.notification.request.content.data;
-      
+
       // Handle navigation based on notification type
       if (data?.type === 'food_schedule' || data?.type === 'schedule') {
         console.log('Navigate to Food Distribution screen');
@@ -230,7 +231,29 @@ export default function App() {
       responseSubscription.remove();
     };
   }, []);
-  
+
+  // ✅ Initialize OneSignal when app starts
+  useEffect(() => {
+    const setupOneSignal = async () => {
+      try {
+        // CHANGED: Use 'user' instead of 'username' to match your storage key
+        const username = await AsyncStorage.getItem('user');
+        
+        if (username) {
+          console.log('🔧 Setting up OneSignal for user:', username);
+          await initializeOneSignal(username);
+          console.log('✅ OneSignal initialized successfully');
+        } else {
+          console.log('⚠️ No user logged in, skipping OneSignal setup');
+        }
+      } catch (error) {
+        console.error('❌ Failed to initialize OneSignal:', error);
+      }
+    };
+
+    setupOneSignal();
+  }, []);
+
   // Load username from storage
   useEffect(() => {
     const loadUsername = async () => {
