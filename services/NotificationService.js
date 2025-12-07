@@ -1,4 +1,4 @@
-// services/NotificationService.js - COMPLETE VERSION WITH ALL FUNCTIONS
+// services/NotificationService.js - VERIFIED AND CORRECTED
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
@@ -6,6 +6,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import Constants from 'expo-constants';
+
+// ✅ CRITICAL: Set notification handler BEFORE any notifications are sent
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
 /**
  * Register device for push notifications and save token to Firestore
@@ -32,12 +41,22 @@ export const registerForPushNotifications = async (username) => {
       return null;
     }
 
-    // ✅ Get Expo push token (works with Expo's free push service)
-    // Note: Using Expo tokens because Expo's push service doesn't accept raw FCM tokens
+    // ✅ Get project ID
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId || 
+                      Constants.easConfig?.projectId ||
+                      Constants.manifest?.extra?.eas?.projectId;
+
+    if (!projectId) {
+      console.error('❌ No EAS project ID found! Check your app.json');
+    }
+
     console.log('🔧 Getting Expo push token...');
+    console.log('   Project ID:', projectId);
+    
     const expoToken = await Notifications.getExpoPushTokenAsync({
-      projectId: Constants.expoConfig?.extra?.eas?.projectId
+      projectId: projectId
     });
+    
     token = expoToken.data;
     console.log('📱 Got Expo push token:', token);
 
@@ -47,24 +66,32 @@ export const registerForPushNotifications = async (username) => {
       await saveTokenToFirestore(username, token);
     }
 
+    // ✅ Create notification channels
     if (Platform.OS === 'android') {
       console.log('🔔 Creating Android notification channels...');
       
       await Notifications.setNotificationChannelAsync('default', {
-        name: 'default',
-        importance: Notifications.AndroidImportance.MAX,
+        name: 'Default Notifications',
+        importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#e75e33',
         sound: 'default',
+        enableLights: true,
+        enableVibrate: true,
+        showBadge: true,
       });
       console.log('✅ Created channel: default');
 
       await Notifications.setNotificationChannelAsync('earthquake', {
         name: 'Earthquake Alerts',
-        importance: Notifications.AndroidImportance.HIGH,
-        vibrationPattern: [0, 250, 250, 250],
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 500, 250, 500],
         lightColor: '#e67e22',
         sound: 'default',
+        enableLights: true,
+        enableVibrate: true,
+        showBadge: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
       console.log('✅ Created channel: earthquake');
 
@@ -74,6 +101,10 @@ export const registerForPushNotifications = async (username) => {
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#3498db',
         sound: 'default',
+        enableLights: true,
+        enableVibrate: true,
+        showBadge: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
       console.log('✅ Created channel: weather');
 
@@ -83,6 +114,9 @@ export const registerForPushNotifications = async (username) => {
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#e75e33',
         sound: 'default',
+        enableLights: true,
+        enableVibrate: true,
+        showBadge: true,
       });
       console.log('✅ Created channel: incident');
 
@@ -92,6 +126,10 @@ export const registerForPushNotifications = async (username) => {
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#49A5A2',
         sound: 'default',
+        enableLights: true,
+        enableVibrate: true,
+        showBadge: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
       console.log('✅ Created channel: schedules');
       
@@ -154,12 +192,13 @@ export const sendLocalNotification = async ({ title, body, data = {}, channelId 
       content.channelId = channelId;
     }
 
-    await Notifications.scheduleNotificationAsync({
+    const id = await Notifications.scheduleNotificationAsync({
       content,
       trigger: null,
     });
     
-    console.log('✅ Local notification sent successfully');
+    console.log('✅ Local notification sent successfully, ID:', id);
+    return id;
   } catch (error) {
     console.error('❌ Failed to send local notification:', error);
     throw error;
@@ -167,7 +206,8 @@ export const sendLocalNotification = async ({ title, body, data = {}, channelId 
 };
 
 /**
- * ✅ Send REMOTE push notification via Expo's service (works when app is closed!)
+ * ✅ CORRECTED: Send REMOTE push notification with experienceId
+ * This is CRITICAL for standalone builds to show your app name, not "Expo Go"
  */
 export const sendRemotePushNotification = async (
   pushToken,
@@ -177,23 +217,29 @@ export const sendRemotePushNotification = async (
   channelId = 'default'
 ) => {
   try {
-    console.log('📤 Sending push notification...');
+    console.log('📤 Sending remote push notification...');
+    console.log('   Channel:', channelId);
+    console.log('   Token:', pushToken.substring(0, 30) + '...');
 
-    // Determine token type
     const isExpoToken = pushToken.startsWith('ExponentPushToken');
-    const isFCMToken = pushToken.includes(':'); // FCM tokens have colons like "xxx:APA91b..."
+    const isFCMToken = pushToken.includes(':');
 
     console.log('   Token type:', isExpoToken ? 'Expo' : isFCMToken ? 'FCM' : 'Unknown');
 
-    // Both FCM and Expo tokens can use Expo's push service
+    // ✅ CRITICAL FIX: Add experienceId to route notification to YOUR app
     const message = {
       to: pushToken,
       sound: 'default',
       title: title,
       body: body,
-      data: data,
+      data: {
+        ...data,
+        experienceId: '@sunadixs98/Kalinga-App', // 🔴 CHANGE THIS TO YOUR EXPO USERNAME
+      },
       channelId: channelId,
+      categoryId: channelId,
       priority: 'high',
+      badge: 1,
     };
 
     const response = await fetch('https://exp.host/--/api/v2/push/send', {
@@ -210,6 +256,8 @@ export const sendRemotePushNotification = async (
 
     if (result.data && result.data[0]?.status === 'error') {
       console.error('❌ Push notification error:', result.data[0]);
+      console.error('   Message:', result.data[0].message);
+      console.error('   Details:', result.data[0].details);
     } else {
       console.log('✅ Push notification sent successfully');
     }
@@ -222,7 +270,7 @@ export const sendRemotePushNotification = async (
 };
 
 /**
- * ✅ Send push notifications to multiple users at once
+ * ✅ CORRECTED: Send batch push notifications with experienceId
  */
 export const sendBatchPushNotifications = async (
   tokens,
@@ -237,7 +285,6 @@ export const sendBatchPushNotifications = async (
       return { data: [] };
     }
 
-    // Filter out invalid tokens
     const validTokens = tokens.filter(token =>
       token && (token.startsWith('ExponentPushToken') || token.includes(':'))
     );
@@ -248,20 +295,26 @@ export const sendBatchPushNotifications = async (
     }
 
     console.log(`📤 Sending ${validTokens.length} push notifications...`);
+    console.log('   Channel:', channelId);
 
-    // Count token types
     const expoCount = validTokens.filter(t => t.startsWith('ExponentPushToken')).length;
     const fcmCount = validTokens.length - expoCount;
     console.log(`   📱 ${expoCount} Expo tokens, 🔥 ${fcmCount} FCM tokens`);
 
+    // ✅ CRITICAL FIX: Add experienceId to each message
     const messages = validTokens.map(token => ({
       to: token,
       sound: 'default',
       title: title,
       body: body,
-      data: data,
+      data: {
+        ...data,
+        experienceId: '@sunadixs98/Kalinga-App', // 🔴 CHANGE THIS TO YOUR EXPO USERNAME
+      },
       channelId: channelId,
+      categoryId: channelId,
       priority: 'high',
+      badge: 1,
     }));
 
     const response = await fetch('https://exp.host/--/api/v2/push/send', {
@@ -276,7 +329,6 @@ export const sendBatchPushNotifications = async (
 
     const result = await response.json();
 
-    // Check for errors
     if (result.data) {
       const errors = result.data.filter(r => r.status === 'error');
       const successes = result.data.filter(r => r.status === 'ok');
@@ -284,7 +336,10 @@ export const sendBatchPushNotifications = async (
       console.log(`✅ Sent: ${successes.length} successful, ❌ ${errors.length} failed`);
 
       if (errors.length > 0) {
-        console.error('Failed notifications:', errors);
+        console.error('Failed notifications:');
+        errors.forEach((err, index) => {
+          console.error(`  ${index + 1}. ${err.message}`, err.details);
+        });
       }
     }
 
