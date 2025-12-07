@@ -6,9 +6,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import Constants from 'expo-constants';
+import * as FirebaseMessaging from 'expo-firebase-messaging';
 
 /**
- * Register device for push notifications and save token to Firestore
+ * ✅ UPDATED: Register device for push notifications (Expo Go + Built APK with FCM)
  */
 export const registerForPushNotifications = async (username) => {
   let token = null;
@@ -32,14 +33,38 @@ export const registerForPushNotifications = async (username) => {
       return null;
     }
 
-    // ✅ Get Expo push token (works with Expo's free push service)
-    // Note: Using Expo tokens because Expo's push service doesn't accept raw FCM tokens
-    console.log('🔧 Getting Expo push token...');
-    const expoToken = await Notifications.getExpoPushTokenAsync({
-      projectId: Constants.expoConfig?.extra?.eas?.projectId
-    });
-    token = expoToken.data;
-    console.log('📱 Got Expo push token:', token);
+    // ✅ Detect if running in Expo Go or built app
+    const isExpoGo = Constants.appOwnership === 'expo';
+    console.log(`🔧 App ownership: ${Constants.appOwnership} (Expo Go: ${isExpoGo})`);
+
+    if (isExpoGo) {
+      // Running in Expo Go → use Expo tokens
+      console.log('📱 Running in Expo Go - getting Expo token...');
+      const expoToken = await Notifications.getExpoPushTokenAsync({
+        projectId: Constants.expoConfig?.extra?.eas?.projectId
+      });
+      token = expoToken.data;
+      console.log('✅ Got Expo token:', token);
+    } else {
+      // Running as built standalone app → use FCM tokens
+      console.log('🏗️ Running as built app - getting FCM token...');
+      try {
+        const fcmToken = await FirebaseMessaging.getToken();
+        if (fcmToken) {
+          token = fcmToken;
+          console.log('✅ Got FCM token:', token);
+        } else {
+          throw new Error('No FCM token returned');
+        }
+      } catch (error) {
+        console.warn('⚠️ FCM token unavailable, falling back to Expo token:', error);
+        const expoToken = await Notifications.getExpoPushTokenAsync({
+          projectId: Constants.expoConfig?.extra?.eas?.projectId
+        });
+        token = expoToken.data;
+        console.log('✅ Got Expo token (fallback):', token);
+      }
+    }
 
     await AsyncStorage.setItem('pushToken', token);
 
