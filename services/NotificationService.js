@@ -1,4 +1,4 @@
-// services/NotificationService.js - VERIFIED AND CORRECTED
+// services/NotificationService.js - WITH SUPABASE EDGE FUNCTIONS
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
@@ -6,8 +6,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import Constants from 'expo-constants';
+import { supabase } from './supabaseClient'; // Adjust path based on your file structure
 
-// ✅ CRITICAL: Set notification handler BEFORE any notifications are sent
+// ✅ Set notification handler
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -41,13 +42,12 @@ export const registerForPushNotifications = async (username) => {
       return null;
     }
 
-    // ✅ Get project ID
     const projectId = Constants.expoConfig?.extra?.eas?.projectId || 
                       Constants.easConfig?.projectId ||
                       Constants.manifest?.extra?.eas?.projectId;
 
     if (!projectId) {
-      console.error('❌ No EAS project ID found! Check your app.json');
+      console.error('❌ No EAS project ID found!');
     }
 
     console.log('🔧 Getting Expo push token...');
@@ -66,7 +66,7 @@ export const registerForPushNotifications = async (username) => {
       await saveTokenToFirestore(username, token);
     }
 
-    // ✅ Create notification channels
+    // Create notification channels
     if (Platform.OS === 'android') {
       console.log('🔔 Creating Android notification channels...');
       
@@ -80,7 +80,6 @@ export const registerForPushNotifications = async (username) => {
         enableVibrate: true,
         showBadge: true,
       });
-      console.log('✅ Created channel: default');
 
       await Notifications.setNotificationChannelAsync('earthquake', {
         name: 'Earthquake Alerts',
@@ -93,7 +92,6 @@ export const registerForPushNotifications = async (username) => {
         showBadge: true,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
-      console.log('✅ Created channel: earthquake');
 
       await Notifications.setNotificationChannelAsync('weather', {
         name: 'Weather Alerts',
@@ -106,7 +104,6 @@ export const registerForPushNotifications = async (username) => {
         showBadge: true,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
-      console.log('✅ Created channel: weather');
 
       await Notifications.setNotificationChannelAsync('incident', {
         name: 'Incident Reports',
@@ -118,7 +115,6 @@ export const registerForPushNotifications = async (username) => {
         enableVibrate: true,
         showBadge: true,
       });
-      console.log('✅ Created channel: incident');
 
       await Notifications.setNotificationChannelAsync('schedules', {
         name: 'Food Distribution Schedules',
@@ -131,7 +127,6 @@ export const registerForPushNotifications = async (username) => {
         showBadge: true,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
-      console.log('✅ Created channel: schedules');
       
       console.log('🎉 All notification channels created successfully!');
     }
@@ -206,8 +201,7 @@ export const sendLocalNotification = async ({ title, body, data = {}, channelId 
 };
 
 /**
- * ✅ CORRECTED: Send REMOTE push notification with experienceId
- * This is CRITICAL for standalone builds to show your app name, not "Expo Go"
+ * ✅ NEW: Send REMOTE push notification via Supabase Edge Function
  */
 export const sendRemotePushNotification = async (
   pushToken,
@@ -217,51 +211,26 @@ export const sendRemotePushNotification = async (
   channelId = 'default'
 ) => {
   try {
-    console.log('📤 Sending remote push notification...');
+    console.log('📤 Sending push via Supabase Edge Function...');
     console.log('   Channel:', channelId);
     console.log('   Token:', pushToken.substring(0, 30) + '...');
 
-    const isExpoToken = pushToken.startsWith('ExponentPushToken');
-    const isFCMToken = pushToken.includes(':');
-
-    console.log('   Token type:', isExpoToken ? 'Expo' : isFCMToken ? 'FCM' : 'Unknown');
-
-    // ✅ CRITICAL FIX: Add experienceId to route notification to YOUR app
-    const message = {
-      to: pushToken,
-      sound: 'default',
-      title: title,
-      body: body,
-      data: {
-        ...data,
-        experienceId: '@sunadixs98/Kalinga-App', // 🔴 CHANGE THIS TO YOUR EXPO USERNAME
+    const { data: result, error } = await supabase.functions.invoke('send-push-notification', {
+      body: {
+        tokens: [pushToken],
+        title,
+        body,
+        data,
+        channelId,
       },
-      channelId: channelId,
-      categoryId: channelId,
-      priority: 'high',
-      badge: 1,
-    };
-
-    const response = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(message),
     });
 
-    const result = await response.json();
-
-    if (result.data && result.data[0]?.status === 'error') {
-      console.error('❌ Push notification error:', result.data[0]);
-      console.error('   Message:', result.data[0].message);
-      console.error('   Details:', result.data[0].details);
-    } else {
-      console.log('✅ Push notification sent successfully');
+    if (error) {
+      console.error('❌ Supabase error:', error);
+      throw error;
     }
 
+    console.log('✅ Push notification sent via Supabase:', JSON.stringify(result, null, 2));
     return result;
   } catch (error) {
     console.error('❌ Error sending push notification:', error);
@@ -270,7 +239,7 @@ export const sendRemotePushNotification = async (
 };
 
 /**
- * ✅ CORRECTED: Send batch push notifications with experienceId
+ * ✅ NEW: Send batch push notifications via Supabase Edge Function
  */
 export const sendBatchPushNotifications = async (
   tokens,
@@ -294,55 +263,32 @@ export const sendBatchPushNotifications = async (
       return { data: [] };
     }
 
-    console.log(`📤 Sending ${validTokens.length} push notifications...`);
+    console.log(`📤 Sending ${validTokens.length} push notifications via Supabase...`);
     console.log('   Channel:', channelId);
 
-    const expoCount = validTokens.filter(t => t.startsWith('ExponentPushToken')).length;
-    const fcmCount = validTokens.length - expoCount;
-    console.log(`   📱 ${expoCount} Expo tokens, 🔥 ${fcmCount} FCM tokens`);
-
-    // ✅ CRITICAL FIX: Add experienceId to each message
-    const messages = validTokens.map(token => ({
-      to: token,
-      sound: 'default',
-      title: title,
-      body: body,
-      data: {
-        ...data,
-        experienceId: '@sunadixs98/Kalinga-App', // 🔴 CHANGE THIS TO YOUR EXPO USERNAME
+    const { data: result, error } = await supabase.functions.invoke('send-push-notification', {
+      body: {
+        tokens: validTokens,
+        title,
+        body,
+        data,
+        channelId,
       },
-      channelId: channelId,
-      categoryId: channelId,
-      priority: 'high',
-      badge: 1,
-    }));
-
-    const response = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(messages),
     });
 
-    const result = await response.json();
-
-    if (result.data) {
-      const errors = result.data.filter(r => r.status === 'error');
-      const successes = result.data.filter(r => r.status === 'ok');
-
-      console.log(`✅ Sent: ${successes.length} successful, ❌ ${errors.length} failed`);
-
-      if (errors.length > 0) {
-        console.error('Failed notifications:');
-        errors.forEach((err, index) => {
-          console.error(`  ${index + 1}. ${err.message}`, err.details);
-        });
-      }
+    if (error) {
+      console.error('❌ Supabase error:', error);
+      throw error;
     }
 
+    console.log('📦 Full Supabase response:', JSON.stringify(result, null, 2));
+    
+    if (result && typeof result === 'object') {
+      console.log(`✅ Supabase result: ${result.sent || 0} sent, ${result.failed || 0} failed`);
+    } else {
+      console.log('⚠️ Unexpected response format from Supabase');
+    }
+    
     return result;
   } catch (error) {
     console.error('❌ Error sending batch push notifications:', error);
@@ -351,7 +297,7 @@ export const sendBatchPushNotifications = async (
 };
 
 /**
- * ✅ Get all push tokens from Firestore
+ * Get all push tokens from Firestore
  */
 export const getAllPushTokens = async () => {
   try {
@@ -365,7 +311,7 @@ export const getAllPushTokens = async () => {
 };
 
 /**
- * ✅ Get push token for specific user
+ * Get push token for specific user
  */
 export const getUserPushToken = async (username) => {
   try {
@@ -384,7 +330,7 @@ export const getUserPushToken = async (username) => {
 };
 
 /**
- * ✅ Clear all old tokens (for migration)
+ * Clear all old tokens (for migration)
  */
 export const clearAllPushTokens = async () => {
   try {
@@ -425,9 +371,7 @@ export const scheduleNotification = async ({ title, body, data = {}, channelId =
 
     await Notifications.scheduleNotificationAsync({
       content,
-      trigger: {
-        seconds,
-      },
+      trigger: { seconds },
     });
   } catch (error) {
     console.error('Error scheduling notification:', error);
@@ -509,7 +453,7 @@ export const saveNotificationToHistory = async (username, notification) => {
 };
 
 /**
- * Get user's notification history with proper filtering
+ * Get user's notification history
  */
 export const getNotificationHistory = async (username, limit = 50) => {
   try {
@@ -543,9 +487,7 @@ export const getNotificationHistory = async (username, limit = 50) => {
 export const markNotificationAsRead = async (notificationId) => {
   try {
     const notificationRef = doc(db, 'notifications', notificationId);
-    await updateDoc(notificationRef, {
-      read: true,
-    });
+    await updateDoc(notificationRef, { read: true });
   } catch (error) {
     console.error('Error marking notification as read:', error);
   }
@@ -571,7 +513,7 @@ export const markAllNotificationsAsRead = async (username) => {
 };
 
 /**
- * ✅ Send earthquake alert with BOTH local + remote push
+ * Send earthquake alert
  */
 export const sendEarthquakeAlert = async (magnitude, location) => {
   const notification = {
@@ -580,13 +522,11 @@ export const sendEarthquakeAlert = async (magnitude, location) => {
     data: { type: 'earthquake', magnitude, location },
   };
 
-  // 1. Send local notification
   await sendLocalNotification({
     ...notification,
     channelId: 'earthquake',
   });
 
-  // 2. Send REMOTE push notifications to ALL users
   const tokens = await getAllPushTokens();
   console.log(`🌍 Sending earthquake alert to ${tokens.length} users...`);
 
@@ -600,12 +540,11 @@ export const sendEarthquakeAlert = async (magnitude, location) => {
     );
   }
 
-  // 3. Save to history
   await saveNotificationToHistory('all', notification);
 };
 
 /**
- * ✅ Send weather alert with BOTH local + remote push
+ * Send weather alert
  */
 export const sendWeatherAlert = async (alertType, description) => {
   const notification = {
@@ -614,13 +553,11 @@ export const sendWeatherAlert = async (alertType, description) => {
     data: { type: 'weather', alertType },
   };
 
-  // 1. Send local notification
   await sendLocalNotification({
     ...notification,
     channelId: 'weather',
   });
 
-  // 2. Send REMOTE push notifications to ALL users
   const tokens = await getAllPushTokens();
   console.log(`⛈️ Sending weather alert to ${tokens.length} users...`);
 
@@ -634,12 +571,11 @@ export const sendWeatherAlert = async (alertType, description) => {
     );
   }
 
-  // 3. Save to history
   await saveNotificationToHistory('all', notification);
 };
 
 /**
- * ✅ Send incident alert with BOTH local + remote push
+ * Send incident alert
  */
 export const sendIncidentAlert = async (incidentType, distance) => {
   const notification = {
@@ -648,13 +584,11 @@ export const sendIncidentAlert = async (incidentType, distance) => {
     data: { type: 'incident', incidentType },
   };
 
-  // 1. Send local notification
   await sendLocalNotification({
     ...notification,
     channelId: 'incident',
   });
 
-  // 2. Send REMOTE push notifications to ALL users
   const tokens = await getAllPushTokens();
   console.log(`🚨 Sending incident alert to ${tokens.length} users...`);
 
@@ -668,6 +602,5 @@ export const sendIncidentAlert = async (incidentType, distance) => {
     );
   }
 
-  // 3. Save to history
   await saveNotificationToHistory('all', notification);
 };
