@@ -1,4 +1,6 @@
+import './services/FCMBackgroundHandler';
 import { registerRootComponent } from 'expo';
+
 
 import App from './App';
 

@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:536685997944:android:6c591b8b7b31985964628d",
+        "mobilesdk_app_id": "1:536685997944:android:5632b007fa6aa85664628d",
         "android_client_info": {
-          "package_name": "com.sunadixs98.kalingaapp"
+          "package_name": "com.sunadixs98.kalingaapp2"
         }
       },
       "oauth_client": [],

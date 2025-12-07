@@ -241,7 +241,12 @@ export default function HomeScreen({ route, navigation }) {
       }
     })();
   }, []);
-
+  // Add this useEffect after your existing ones
+  useEffect(() => {
+    if (username) {
+      processQueuedNotifications();
+    }
+  }, [username]);
   useEffect(() => {
     if (currentLocation) {
       fetchEarthquakes();
@@ -631,7 +636,45 @@ export default function HomeScreen({ route, navigation }) {
 
     runCatchupCheck();
   }, [username, currentLocation]);
+  const processQueuedNotifications = async () => {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const pendingKeys = keys.filter(key => key.startsWith('pending_notification_'));
 
+      if (pendingKeys.length === 0) {
+        console.log('📭 No queued notifications to process');
+        return;
+      }
+
+      console.log(`📬 Processing ${pendingKeys.length} queued notifications...`);
+
+      for (const key of pendingKeys) {
+        try {
+          const data = await AsyncStorage.getItem(key);
+          if (data) {
+            const notification = JSON.parse(data);
+            console.log('   Processing:', notification.title);
+
+            // Save to history
+            await saveNotificationToHistory(username, notification);
+
+            // Remove from queue
+            await AsyncStorage.removeItem(key);
+            console.log('   ✅ Processed and removed:', key);
+          }
+        } catch (error) {
+          console.error('   ❌ Failed to process:', key, error);
+        }
+      }
+
+      // Reload notification count
+      await loadNotificationCount();
+
+      console.log('✅ All queued notifications processed');
+    } catch (error) {
+      console.error('❌ Error processing queued notifications:', error);
+    }
+  };
   const handleRefresh = async () => {
     setRefreshing(true);
 

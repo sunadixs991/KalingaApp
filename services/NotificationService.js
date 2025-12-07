@@ -33,7 +33,7 @@ export const registerForPushNotifications = async (username) => {
 
   try {
     console.log('🔧 Starting notification registration for:', username);
-    
+
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
@@ -50,31 +50,31 @@ export const registerForPushNotifications = async (username) => {
 
     console.log('✅ Notification permission granted');
 
-    // Try to get FCM token first (only works for custom APKs built with Firebase)
+    // ✅ Try to get FCM token FIRST (Android only)
     if (Platform.OS === 'android') {
-      console.log('📱 Attempting to get FCM token from native Firebase...');
+      console.log('📱 Attempting to get FCM token from Firebase Messaging...');
       try {
         const fcmToken = await getFCMToken();
         if (fcmToken) {
           token = fcmToken;
           tokenType = 'fcm';
-          console.log('✅ Got FCM token:', token);
+          console.log('✅ Successfully got FCM token');
+          console.log('   Token preview:', token.substring(0, 50) + '...');
         } else {
           console.log('⚠️ FCM token not available, falling back to Expo token');
         }
       } catch (fcmError) {
-        console.log('⚠️ FCM token generation failed:', fcmError.message);
+        console.log('⚠️ FCM setup failed:', fcmError.message);
         console.log('   Falling back to Expo token...');
       }
     }
-
     // If no FCM token, get Expo token
     if (!token) {
       console.log('🔧 Getting Expo push token...');
-      
-      const projectId = Constants.expoConfig?.extra?.eas?.projectId || 
-                        Constants.easConfig?.projectId ||
-                        Constants.manifest?.extra?.eas?.projectId;
+
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId ||
+        Constants.easConfig?.projectId ||
+        Constants.manifest?.extra?.eas?.projectId;
 
       if (!projectId) {
         console.error('❌ No EAS project ID found! Checked all paths:');
@@ -84,11 +84,11 @@ export const registerForPushNotifications = async (username) => {
       }
 
       console.log('   Project ID:', projectId);
-      
+
       const expoToken = await Notifications.getExpoPushTokenAsync({
         projectId: projectId
       });
-      
+
       token = expoToken.data;
       tokenType = 'expo';
       console.log('📱 Got Expo push token:', token);
@@ -124,37 +124,47 @@ export const registerForPushNotifications = async (username) => {
  */
 const getFCMToken = async () => {
   try {
-    // Try using react-native-firebase if available
-    if (global.firebase && global.firebase.messaging) {
-      console.log('   Trying react-native-firebase...');
-      const token = await global.firebase.messaging().getToken();
-      return token;
+    // Try to import React Native Firebase Messaging
+    let messaging;
+    try {
+      messaging = require('@react-native-firebase/messaging').default;
+    } catch (importError) {
+      console.log('   ⚠️ @react-native-firebase/messaging not available');
+      return null;
     }
 
-    // For bare React Native or custom Expo builds with Firebase configured
-    // Try accessing native modules
-    const { NativeModules } = require('react-native');
-    
-    if (NativeModules.FirebaseMessaging) {
-      console.log('   Trying NativeModules.FirebaseMessaging...');
-      const token = await NativeModules.FirebaseMessaging.getToken();
-      return token;
+    console.log('   📱 Checking Firebase Messaging authorization...');
+
+    // Request permission for notifications
+    const authStatus = await messaging().requestPermission();
+    const enabled =
+      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+    if (!enabled) {
+      console.log('   ❌ Firebase Messaging permission denied');
+      return null;
     }
 
-    // Try accessing Firebase app instance directly
-    if (global.Firebase && global.Firebase.getInstance) {
-      console.log('   Trying global Firebase instance...');
-      const app = global.Firebase.getInstance();
-      if (app && app.messaging) {
-        const token = await app.messaging().getToken();
-        return token;
-      }
-    }
+    console.log('   ✅ Firebase Messaging authorized, status:', authStatus);
+    console.log('   🔑 Getting FCM token from Firebase...');
 
-    console.log('   ⚠️ No FCM SDK available');
-    return null;
+    // Get FCM registration token
+    const fcmToken = await messaging().getToken();
+
+    if (fcmToken) {
+      console.log('   ✅ Got FCM token:', fcmToken.substring(0, 50) + '...');
+      console.log('   📏 Token length:', fcmToken.length);
+      return fcmToken;
+    } else {
+      console.log('   ❌ No FCM token received from Firebase');
+      return null;
+    }
   } catch (error) {
-    console.error('   FCM token error:', error.message);
+    console.error('   ❌ FCM token error:', error.message);
+    if (error.stack) {
+      console.error('   Stack:', error.stack);
+    }
     return null;
   }
 };
@@ -164,7 +174,7 @@ const getFCMToken = async () => {
  */
 const createNotificationChannels = async () => {
   console.log('🔔 Creating Android notification channels...');
-  
+
   const channels = [
     {
       id: 'default',
@@ -226,7 +236,7 @@ const createNotificationChannels = async () => {
       console.error(`   ❌ Failed to create ${channel.id} channel:`, error);
     }
   }
-  
+
   console.log('🎉 All notification channels created successfully!');
 };
 
@@ -239,13 +249,13 @@ const saveTokenToFirestore = async (username, token, tokenType) => {
     console.log('   Username:', username);
     console.log('   Token type:', tokenType);
     console.log('   Token:', token.substring(0, 40) + '...');
-    
+
     const tokensRef = collection(db, 'pushTokens');
     console.log('   Collection reference created');
-    
+
     const q = query(tokensRef, where('username', '==', username));
     console.log('   Query created, executing...');
-    
+
     const snapshot = await getDocs(q);
     console.log('   Query executed. Docs found:', snapshot.size);
 
@@ -286,7 +296,7 @@ const saveTokenToFirestore = async (username, token, tokenType) => {
 export const sendLocalNotification = async ({ title, body, data = {}, channelId = 'default' }, seconds) => {
   try {
     console.log('📱 Sending local notification:', { title, channelId });
-    
+
     const content = {
       title,
       body,
@@ -303,7 +313,7 @@ export const sendLocalNotification = async ({ title, body, data = {}, channelId 
       content,
       trigger: null,
     });
-    
+
     console.log('✅ Local notification sent successfully, ID:', id);
     return id;
   } catch (error) {
@@ -399,13 +409,13 @@ export const sendBatchPushNotifications = async (
     }
 
     console.log('📦 Full Supabase response:', JSON.stringify(result, null, 2));
-    
+
     if (result && typeof result === 'object') {
       console.log(`✅ Supabase result: ${result.sent || 0} sent, ${result.failed || 0} failed`);
     } else {
       console.log('⚠️ Unexpected response format from Supabase');
     }
-    
+
     return result;
   } catch (error) {
     console.error('❌ Error sending batch push notifications:', error);
@@ -437,7 +447,7 @@ export const getUserPushToken = async (username) => {
     const tokensRef = collection(db, 'pushTokens');
     const q = query(tokensRef, where('username', '==', username));
     const snapshot = await getDocs(q);
-    
+
     if (!snapshot.empty) {
       return snapshot.docs[0].data().token;
     }
@@ -455,15 +465,15 @@ export const clearAllPushTokens = async () => {
   try {
     const tokensRef = collection(db, 'pushTokens');
     const snapshot = await getDocs(tokensRef);
-    
+
     console.log(`🗑️ Deleting ${snapshot.size} old tokens...`);
-    
-    const deletePromises = snapshot.docs.map(doc => 
+
+    const deletePromises = snapshot.docs.map(doc =>
       deleteDoc(doc.ref)
     );
-    
+
     await Promise.all(deletePromises);
-    
+
     console.log('✅ All old tokens cleared');
     return true;
   } catch (error) {
