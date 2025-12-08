@@ -275,15 +275,12 @@ const checkForNewSchedules = async (username, isManualCheck = false) => {
           console.log(`   ✅ Remote push sent to ${otherTokens.length} devices`);
         }
 
-        // 3️⃣ Save to notification history for all users in this location
-        const usersInLocation = await getUsersInLocation(schedule.title, schedule.purok);
-        for (const user of usersInLocation) {
-          await saveNotificationToHistory(user, {
-            title,
-            body,
-            data: notificationData,
-          });
-        }
+        // 3️⃣ Save to notification history (ONCE for all users in location)
+        await saveNotificationToHistory('all', {
+          title,
+          body,
+          data: notificationData,
+        });
 
         // 4️⃣ Mark as notified
         await markScheduleAsNotified(schedule.id);
