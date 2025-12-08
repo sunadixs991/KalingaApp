@@ -344,16 +344,16 @@ const sendScheduleNotificationImmediate = async (scheduleData) => {
     // }
 
     // 2️⃣ Save to notification history for all users in this location
-    const usersInLocation = await getUsersInLocation(scheduleData.title, scheduleData.purok);
-    console.log(`   💾 Saving to history for ${usersInLocation.length} users...`);
+    // const usersInLocation = await getUsersInLocation(scheduleData.title, scheduleData.purok);
+    // console.log(`   💾 Saving to history for ${usersInLocation.length} users...`);
     
-    for (const user of usersInLocation) {
-      await saveNotificationToHistory(user, {
-        title,
-        body,
-        data: notificationData,
-      });
-    }
+    // for (const user of usersInLocation) {
+    //   await saveNotificationToHistory(user, {
+    //     title,
+    //     body,
+    //     data: notificationData,
+    //   });
+    // }
 
     console.log('   ✅ Schedule notification sent successfully!');
     return true;
