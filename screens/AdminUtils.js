@@ -11,9 +11,12 @@ import Icon from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { triggerManualCleanup } from '../services/DeleteService';
+import { useState } from "react";
+
 
 export default function AdminUtils() {
   const navigation = useNavigation();
+  const [updateVersion, setUpdateVersion] = useState(2); // Version identifier for updates
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -30,7 +33,9 @@ export default function AdminUtils() {
         <Text style={styles.topBarTitle}>Admin Utilities</Text>
         <View style={styles.backButton} />
       </View>
-
+      <View style={styles.versionContainer}>
+        <Text style={styles.versionText}>Update Version: {updateVersion}</Text>
+      </View>
       <ScrollView contentContainerStyle={styles.container}>
         {/* Options Section */}
         {/* <TouchableOpacity
@@ -155,7 +160,14 @@ export default function AdminUtils() {
           <Icon name="shield-outline" size={28} color="#d9534f" style={styles.icon} />
           <Text style={styles.optionText}>Security Logs</Text>
         </TouchableOpacity>
-
+        {/* NEW: Disaster Monitor */}
+        <TouchableOpacity
+          style={styles.option}
+          onPress={() => navigation.navigate("DisasterMonitor")}
+        >
+          <Icon name="warning-outline" size={28} color="#e74c3c" style={styles.icon} />
+          <Text style={styles.optionText}>Disaster Monitor</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -217,5 +229,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#333",
     fontWeight: "500",
+  },
+  versionContainer: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  versionText: {
+    fontSize: 12,
+    color: '#999',
+    fontWeight: '500',
   },
 });

@@ -53,6 +53,8 @@ import { startDisasterMonitoring, resetDisasterMonitoring } from '../services/Di
 import { triggerManualCheck } from '../services/DisasterMonitorService';
 import { checkPhilippinesWeatherAlerts } from '../services/PAGASAWeatherService';
 import ScheduleMonitorService from '../services/ScheduleMonitorService';
+// At the top of your HomeScreen.js file
+import { triggerManualDisasterCheck, testDisasterNotification } from '../services/DisasterNotificationService';
 
 // Cache key prefix (bump version if cache format changes)
 const NEARBY_CACHE_PREFIX = "nearby_pins_cache_v1";
@@ -375,7 +377,52 @@ export default function HomeScreen({ route, navigation }) {
       console.error('Error loading notification count:', error);
     }
   };
-
+  // Add this function in your HomeScreen component
+  const handleTestAllNotifications = async () => {
+    Alert.alert(
+      'Test Notifications',
+      'Choose what to test:',
+      [
+        {
+          text: 'Test Local Only',
+          onPress: async () => {
+            // Test local notifications
+            await testDisasterNotification('earthquake');
+            await testDisasterNotification('weather');
+            await testDisasterNotification('typhoon');
+            Alert.alert('Success', 'Local test notifications sent!');
+          }
+        },
+        {
+          text: 'Test Server Check',
+          onPress: async () => {
+            // Trigger server disaster check
+            try {
+              const result = await triggerManualDisasterCheck();
+              if (result.success) {
+                Alert.alert(
+                  'Server Check Complete',
+                  `Earthquakes: ${result.earthquakeNotifications || 0}\n` +
+                  `Weather: ${result.weatherNotifications || 0}\n` +
+                  `Total notifications: ${result.totalNotifications || 0}\n` +
+                  `Users monitored: ${result.usersMonitored || 0}`,
+                  [{ text: 'OK' }]
+                );
+              } else {
+                Alert.alert('Error', result.error || 'Server check failed');
+              }
+            } catch (error) {
+              Alert.alert('Error', error.message);
+            }
+          }
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        }
+      ]
+    );
+  };
   const fetchWeather = async () => {
     if (!currentLocation) return;
 
@@ -1047,63 +1094,17 @@ export default function HomeScreen({ route, navigation }) {
                 />
                 <Text style={styles.cardText}>Evacuation Centers</Text>
               </TouchableOpacity>
+              <View style={styles.cardRow}>
+                {/* Your 3 existing cards */}
 
-
-              <TouchableOpacity
-                style={styles.cardServices}
-                onPress={async () => {
-                  Toast.show({
-                    type: 'info',
-                    text1: 'Testing Notifications...',
-                    text2: 'Resetting and checking for alerts',
-                  });
-
-                  // Clear schedule notification history
-                  await ScheduleMonitorService.clearScheduleNotificationHistory();
-
-                  // Also reset disaster monitoring
-                  await resetDisasterMonitoring();
-
-                  Toast.show({
-                    type: 'info',
-                    text1: 'Checking for all alerts...',
-                    text2: 'This may take a few seconds',
-                  });
-
-                  // ✅ FIXED: Now sendLocalNotification is properly imported
-                  await sendLocalNotification({
-                    title: 'Test Schedule Notification',
-                    body: 'This is a test from HomeScreen',
-                    channelId: 'schedules',
-                    data: { type: 'food_schedule' }
-                  });
-
-                  // Check disasters
-                  const disasterResult = await triggerManualCheck();
-
-                  // Check schedules
-                  const scheduleResult = await ScheduleMonitorService.checkForNewSchedules(username, true);
-
-                  if (disasterResult || scheduleResult) {
-                    Toast.show({
-                      type: 'success',
-                      text1: 'Alerts Found!',
-                      text2: 'Check your notifications for details',
-                      visibilityTime: 4000,
-                    });
-                  } else {
-                    Toast.show({
-                      type: 'info',
-                      text1: 'No New Alerts',
-                      text2: 'No disasters or schedules detected',
-                      visibilityTime: 4000,
-                    });
-                  }
-                }}
-              >
-                <Icon name="flask" size={60} color="#49A5A2" />
-                <Text style={styles.cardText}>Test All Notifications</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.yourButtonStyle}
+                  onPress={handleTestAllNotifications}
+                >
+                  <Icon name="notifications-outline" size={40} color="#fff" />
+                  <Text style={styles.buttonText}>Test All Notifications</Text>
+                </TouchableOpacity>
+              </View>
 
             </View>
           </View>
@@ -1787,7 +1788,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-    versionContainer: {
+  versionContainer: {
     alignItems: 'center',
     paddingVertical: 12,
     marginTop: 8,
@@ -1797,4 +1798,45 @@ const styles = StyleSheet.create({
     color: '#999',
     fontWeight: '500',
   },
+  // Add these to your StyleSheet.create({ ... }) at the bottom
+  yourButtonStyle: {
+    width: wp("44%"),
+    height: wp("44%"),
+    backgroundColor: "#e75e33",  // Orange like your theme
+    borderRadius: 12,
+    padding: wp("5%"),
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  buttonText: {
+    fontSize: 13,
+    textAlign: "center",
+    color: "#fff",  // White text
+    fontWeight: "600",
+  },
+  testButtonStandalone: {
+  flexDirection: 'row',
+  backgroundColor: '#e75e33',
+  padding: 16,
+  borderRadius: 12,
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginTop: 12,
+  shadowColor: "#000",
+  shadowOpacity: 0.1,
+  shadowRadius: 6,
+  shadowOffset: { width: 0, height: 3 },
+  elevation: 4,
+},
+testButtonText: {
+  color: '#fff',
+  fontSize: 16,
+  fontWeight: '600',
+  marginLeft: 8,
+},
 });
