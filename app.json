@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.kalingaapp"
+      "bundleIdentifier": "com.sunadixs98.kalingaapp2"
     },
     "android": {
       "icon": "./assets/kalinga-icon.png",
@@ -24,10 +24,15 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.yourcompany.kalingaapp",
+      "package": "com.sunadixs98.kalingaapp2",
       "permissions": [
         "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
         "NOTIFICATIONS",
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "WAKE_LOCK",
         "SMS"
       ],
       "googleServicesFile": "./google-services.json",
@@ -37,6 +42,16 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0"
+          }
+        }
+      ],
       [
         "expo-notifications",
         {

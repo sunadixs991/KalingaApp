@@ -1,4 +1,4 @@
-package com.yourcompany.kalingaapp
+package com.sunadixs98.kalingaapp2
 
 import android.app.Application
 import android.content.res.Configuration

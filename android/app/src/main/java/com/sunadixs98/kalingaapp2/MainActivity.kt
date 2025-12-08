@@ -1,4 +1,4 @@
-package com.yourcompany.kalingaapp
+package com.sunadixs98.kalingaapp2
 
 import android.os.Build
 import android.os.Bundle
