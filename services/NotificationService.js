@@ -56,7 +56,15 @@ export const initializeOneSignal = async (username) => {
     return false;
   }
 };
-
+export const sendLocalNotification = async (title, body, data = {}) => {
+  console.log('📱 Local notification requested:', { title, body, data });
+  console.log('⚠️ Local notifications are handled by OneSignal in production builds');
+  
+  // In production with OneSignal, this isn't needed
+  // OneSignal handles all notifications automatically
+  
+  return true;
+};
 /**
  * Setup OneSignal notification event handlers
  */
