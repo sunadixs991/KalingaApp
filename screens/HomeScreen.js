@@ -1787,4 +1787,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
+    versionContainer: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  versionText: {
+    fontSize: 12,
+    color: '#999',
+    fontWeight: '500',
+  },
 });
