@@ -1,22 +1,21 @@
-// services/ScheduleMonitorService.js - WITH REMOTE PUSH NOTIFICATIONS
+// services/ScheduleMonitorService.js - FIXED: NO DUPLICATE NOTIFICATIONS
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+import Toast from 'react-native-toast-message';
 import { 
-  sendLocalNotification, 
+  // ❌ REMOVED: sendLocalNotification - causes duplicates
   saveNotificationToHistory,
-  getUserPushToken,
-  sendRemotePushNotification,
-  getAllPushTokens,
-  sendBatchPushNotifications
+  sendBatchPushNotifications,
+  getCurrentDeviceToken
 } from './NotificationService';
 
 const SCHEDULE_MONITOR_TASK = 'SCHEDULE_MONITOR_TASK';
 const LAST_SCHEDULE_CHECK = 'last_schedule_check';
 const NOTIFIED_SCHEDULES_KEY = 'notified_schedules';
-const CHECK_INTERVAL_MINUTES = 15; // Check every 15 minutes
+const CHECK_INTERVAL_MINUTES = 15;
 
 /**
  * Get user data from AsyncStorage
@@ -40,7 +39,7 @@ async function getUserData() {
 async function getLastCheckTime() {
   try {
     const str = await AsyncStorage.getItem(LAST_SCHEDULE_CHECK);
-    return str ? parseInt(str) : Date.now() - 7 * 24 * 60 * 60 * 1000; // Default: 7 days ago
+    return str ? parseInt(str) : Date.now() - 7 * 24 * 60 * 60 * 1000;
   } catch (error) {
     return Date.now() - 7 * 24 * 60 * 60 * 1000;
   }
@@ -54,7 +53,6 @@ async function getNotifiedSchedules() {
     const str = await AsyncStorage.getItem(NOTIFIED_SCHEDULES_KEY);
     const list = str ? JSON.parse(str) : [];
     
-    // Keep only last 200 to prevent list from growing forever
     if (list.length > 200) {
       return list.slice(-200);
     }
@@ -105,7 +103,7 @@ async function getUserLocation(username) {
 }
 
 /**
- * ✅ NEW: Get all users in a specific barangay and purok
+ * Get all users in a specific barangay and purok
  */
 async function getUsersInLocation(barangay, purok) {
   try {
@@ -125,7 +123,7 @@ async function getUsersInLocation(barangay, purok) {
 }
 
 /**
- * ✅ NEW: Get push tokens for users in specific location
+ * Get push tokens for users in specific location
  */
 async function getPushTokensForLocation(barangay, purok) {
   try {
@@ -135,12 +133,9 @@ async function getPushTokensForLocation(barangay, purok) {
       return [];
     }
 
-    // Get push tokens for these users
     const tokensRef = collection(db, 'pushTokens');
     const tokens = [];
 
-    // Firebase doesn't support 'in' queries with more than 10 items,
-    // so we batch the queries
     const batchSize = 10;
     for (let i = 0; i < usernames.length; i += batchSize) {
       const batch = usernames.slice(i, i + batchSize);
@@ -160,7 +155,8 @@ async function getPushTokensForLocation(barangay, purok) {
 }
 
 /**
- * ✅ UPDATED: Check for new food distribution schedules with REMOTE push notifications
+ * ✅ FIXED: Check for new food distribution schedules
+ * Shows TOAST for current user, sends REMOTE PUSH to others
  */
 const checkForNewSchedules = async (username, isManualCheck = false) => {
   try {
@@ -171,7 +167,6 @@ const checkForNewSchedules = async (username, isManualCheck = false) => {
       return false;
     }
 
-    // Get user's location (barangay and purok)
     const userLocation = await getUserLocation(username);
     
     if (!userLocation || !userLocation.barangay || !userLocation.purok) {
@@ -181,11 +176,9 @@ const checkForNewSchedules = async (username, isManualCheck = false) => {
 
     console.log('   📍 User location:', userLocation.barangay, userLocation.purok);
 
-    // Get last check time and notified schedules
     const lastCheck = await getLastCheckTime();
     const notifiedSchedules = await getNotifiedSchedules();
 
-    // Query Firebase for new schedules in user's barangay and purok
     const schedulesRef = collection(db, 'food_schedules');
     const q = query(
       schedulesRef,
@@ -202,19 +195,16 @@ const checkForNewSchedules = async (username, isManualCheck = false) => {
 
     console.log(`   📋 Found ${snapshot.size} total schedules for this location`);
 
-    // Filter for new schedules (created after last check and not yet notified)
     const newSchedules = [];
     
     snapshot.forEach((doc) => {
       const scheduleData = doc.data();
       const scheduleId = doc.id;
       
-      // Check if already notified
       if (notifiedSchedules.includes(scheduleId)) {
         return;
       }
 
-      // Check if created after last check
       const createdAt = scheduleData.createdAt?.toDate?.() || new Date(scheduleData.createdAt);
       
       if (createdAt.getTime() > lastCheck) {
@@ -234,7 +224,10 @@ const checkForNewSchedules = async (username, isManualCheck = false) => {
 
     console.log(`   📢 Found ${newSchedules.length} NEW schedules!`);
 
-    // Send notifications for each new schedule
+    // Get current user's device token to exclude them from remote push
+    const currentDeviceToken = await getCurrentDeviceToken();
+
+    // ✅ FIXED: Send notifications for each new schedule
     for (const schedule of newSchedules) {
       const title = '📅 New Food Distribution Schedule';
       const body = `${schedule.title}, ${schedule.purok}\n📍 ${schedule.location}\n📆 ${schedule.date} at ${schedule.time}`;
@@ -250,27 +243,36 @@ const checkForNewSchedules = async (username, isManualCheck = false) => {
       };
 
       try {
-        // 1️⃣ Send LOCAL notification (for current user if app is open)
-        await sendLocalNotification({
-          title,
-          body,
-          data: notificationData,
-          channelId: 'schedules',
-        });
+        // 1️⃣ Show TOAST for current user (if app is open)
+        if (isManualCheck) {
+          Toast.show({
+            type: 'info',
+            text1: '📅 New Food Distribution Schedule',
+            text2: `${schedule.location} on ${schedule.date} at ${schedule.time}`,
+            visibilityTime: 5000,
+            position: 'top',
+          });
+        }
 
-        // 2️⃣ Send REMOTE push notifications to ALL users in this location
-        const tokens = await getPushTokensForLocation(schedule.title, schedule.purok);
-        console.log(`   📤 Sending to ${tokens.length} users in ${schedule.title}, ${schedule.purok}...`);
+        // 2️⃣ Send REMOTE push to OTHER users in this location (exclude current device)
+        const allTokens = await getPushTokensForLocation(schedule.title, schedule.purok);
         
-        if (tokens.length > 0) {
+        // Filter out current user's token to avoid duplicate
+        const otherTokens = currentDeviceToken 
+          ? allTokens.filter(token => token !== currentDeviceToken)
+          : allTokens;
+        
+        console.log(`   📤 Sending to ${otherTokens.length} other users (${allTokens.length} total, excluded current device)...`);
+        
+        if (otherTokens.length > 0) {
           await sendBatchPushNotifications(
-            tokens,
+            otherTokens,
             title,
             body,
             notificationData,
             'schedules'
           );
-          console.log(`   ✅ Remote push sent to ${tokens.length} devices`);
+          console.log(`   ✅ Remote push sent to ${otherTokens.length} devices`);
         }
 
         // 3️⃣ Save to notification history for all users in this location
@@ -292,7 +294,6 @@ const checkForNewSchedules = async (username, isManualCheck = false) => {
       }
     }
 
-    // Update last check time
     await AsyncStorage.setItem(LAST_SCHEDULE_CHECK, Date.now().toString());
 
     return true;
@@ -304,8 +305,8 @@ const checkForNewSchedules = async (username, isManualCheck = false) => {
 };
 
 /**
- * ✅ NEW: Send immediate schedule notification when admin creates a schedule
- * This is called directly from AddScheduleScreen when a schedule is posted
+ * ✅ FIXED: Send immediate schedule notification when admin creates a schedule
+ * NOW ONLY SENDS REMOTE PUSH NOTIFICATIONS (no duplicates)
  */
 const sendScheduleNotificationImmediate = async (scheduleData) => {
   try {
@@ -325,15 +326,10 @@ const sendScheduleNotificationImmediate = async (scheduleData) => {
       scheduleId: scheduleData.id,
     };
 
-    // 1️⃣ Send LOCAL notification
-    await sendLocalNotification({
-      title,
-      body,
-      data: notificationData,
-      channelId: 'schedules',
-    });
+    // ❌ REMOVED: sendLocalNotification() - This caused duplicates!
+    // ✅ ONLY send REMOTE push notifications via FCM/Supabase
 
-    // 2️⃣ Send REMOTE push notifications to ALL users in this location
+    // 1️⃣ Send REMOTE push notifications to ALL users in this location
     const tokens = await getPushTokensForLocation(scheduleData.title, scheduleData.purok);
     console.log(`   📤 Sending to ${tokens.length} users in ${scheduleData.title}, ${scheduleData.purok}...`);
     
@@ -350,7 +346,7 @@ const sendScheduleNotificationImmediate = async (scheduleData) => {
       console.log('   ⚠️ No push tokens found for this location');
     }
 
-    // 3️⃣ Save to notification history for all users in this location
+    // 2️⃣ Save to notification history for all users in this location
     const usersInLocation = await getUsersInLocation(scheduleData.title, scheduleData.purok);
     console.log(`   💾 Saving to history for ${usersInLocation.length} users...`);
     
@@ -386,7 +382,6 @@ TaskManager.defineTask(SCHEDULE_MONITOR_TASK, async () => {
 
     const { username } = userData;
 
-    // Check for new schedules
     const result = await checkForNewSchedules(username, false);
 
     if (result) {
@@ -497,7 +492,6 @@ const getScheduleMonitoringStatus = async (username) => {
   }
 };
 
-// ✅ UPDATED DEFAULT EXPORT - Added sendScheduleNotificationImmediate
 export default {
   checkForNewSchedules,
   startScheduleMonitoring,
@@ -505,5 +499,5 @@ export default {
   isScheduleMonitoringActive,
   clearScheduleNotificationHistory,
   getScheduleMonitoringStatus,
-  sendScheduleNotificationImmediate, // ✅ NEW: For immediate notifications when admin posts
+  sendScheduleNotificationImmediate,
 };
