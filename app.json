@@ -13,10 +13,6 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.sunadixs98.kalingaapp"
-    },
     "android": {
       "icon": "./assets/kalinga-icon.png",
       "adaptiveIcon": {
@@ -28,17 +24,14 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "NOTIFICATIONS",
-        "POST_NOTIFICATIONS",
+        "USE_FULL_SCREEN_INTENT",
         "RECEIVE_BOOT_COMPLETED",
+        "POST_NOTIFICATIONS",
         "VIBRATE",
         "WAKE_LOCK",
-        "SMS"
-      ],
-      "useNextNotificationsApi": true
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
+        "FOREGROUND_SERVICE",
+        "SCHEDULE_EXACT_ALARM"
+      ]
     },
     "plugins": [
       [
@@ -53,31 +46,12 @@
         }
       ],
       [
-        "expo-notifications",
-        {
-          "icon": "./assets/kalinga-icon.png",
-          "color": "#e75e33",
-          "sounds": [],
-          "androidMode": "default",
-          "androidCollapsedTitle": "Kalinga"
-        }
-      ],
-      [
         "onesignal-expo-plugin",
         {
-          "mode": "production",
-          "devTeam": "KALINGA_DEV_TEAM",
-          "iPhoneDeploymentTarget": "13.0"
+          "mode": "development"
         }
-      ],
-      "expo-asset"
+      ]
     ],
-    "notification": {
-      "icon": "./assets/kalinga-icon.png",
-      "color": "#e75e33",
-      "androidMode": "default",
-      "androidCollapsedTitle": "Kalinga"
-    },
     "scheme": "kalingaapp",
     "updates": {
       "url": "https://u.expo.dev/a00ebb60-4678-4296-acd5-82fde80bea41"
@@ -86,7 +60,7 @@
       "eas": {
         "projectId": "b5d643b6-d684-49b9-8551-b7a5ed7fad3d"
       },
-      "oneSignalAppId": "Y9b05e6b2-89e5-4584-9dba-06817513b4da"
+      "oneSignalAppId": "518decd3-401f-4f61-b27f-b5a2db3e5a1a"
     },
     "owner": "bhean199"
   }

@@ -1,4 +1,4 @@
-// App.js - UPDATED WITH ONESIGNAL
+// App.js - UPDATED FOR ONESIGNAL ONLY
 import React, { useState, useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
@@ -6,7 +6,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LogBox } from "react-native";
-import * as Notifications from 'expo-notifications';
+// ❌ REMOVED: import * as Notifications from 'expo-notifications';
 import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 
 import SplashScreen from "./screens/SplashScreen";
@@ -63,17 +63,8 @@ const Stack = createStackNavigator();
 
 LogBox.ignoreLogs(["shared value's .value inside reanimated inline style"]);
 
-// ✅ CRITICAL: Configure notification handler at app level
-// This ensures notifications show properly when app is in foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,      // Show alert
-    shouldPlaySound: true,       // Play sound
-    shouldSetBadge: true,        // Update badge
-    shouldShowBanner: true,      // Show banner (iOS)
-    shouldShowList: true,        // Show in notification center
-  }),
-});
+// ❌ REMOVED: Expo Notifications handler (using OneSignal instead)
+// Notifications.setNotificationHandler({ ... });
 
 export default function App() {
   const [currentUsername, setCurrentUsername] = useState(null);
@@ -172,77 +163,24 @@ export default function App() {
     initializeServices();
   }, []);
 
-  // ✅ UPDATED: Better notification handling while app is in use
-  useEffect(() => {
-    // Listen for notifications when app is in FOREGROUND
-    const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
-      console.log('📬 Notification received in foreground:', notification);
-
-      // Show Toast notification for better visibility
-      const notificationType = notification.request.content.data?.type || 'info';
-
-      // Map notification types to toast types
-      const toastType = {
-        'earthquake': 'error',
-        'weather': 'warning',
-        'incident': 'warning',
-        'food_schedule': 'info',
-        'schedule': 'info',
-      }[notificationType] || 'info';
-
-      Toast.show({
-        type: toastType,
-        text1: notification.request.content.title,
-        text2: notification.request.content.body,
-        visibilityTime: 5000,
-        autoHide: true,
-        topOffset: 50,
-        onPress: () => {
-          // You can add navigation logic here based on notification type
-          console.log('Toast pressed - navigate to details');
-        }
-      });
-    });
-
-    // Listen for user TAPPING on notifications
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('👆 Notification tapped:', response);
-
-      const data = response.notification.request.content.data;
-
-      // Handle navigation based on notification type
-      if (data?.type === 'food_schedule' || data?.type === 'schedule') {
-        console.log('Navigate to Food Distribution screen');
-        // You can add navigation logic here if needed
-        // navigation.navigate('FoodDistribution');
-      } else if (data?.type === 'earthquake') {
-        console.log('Navigate to Earthquake screen');
-        // navigation.navigate('Earthquake');
-      } else if (data?.type === 'incident') {
-        console.log('Navigate to Map screen');
-        // navigation.navigate('MapScreen');
-      } else if (data?.type === 'weather') {
-        console.log('Navigate to Weather/Alerts screen');
-      }
-    });
-
-    return () => {
-      foregroundSubscription.remove();
-      responseSubscription.remove();
-    };
-  }, []);
+  // ❌ REMOVED: Expo notification listeners (using OneSignal handlers instead)
+  // These are now handled in NotificationService.js via setupNotificationHandlers()
 
   // ✅ Initialize OneSignal when app starts
   useEffect(() => {
     const setupOneSignal = async () => {
       try {
-        // CHANGED: Use 'user' instead of 'username' to match your storage key
         const username = await AsyncStorage.getItem('user');
         
         if (username) {
           console.log('🔧 Setting up OneSignal for user:', username);
-          await initializeOneSignal(username);
-          console.log('✅ OneSignal initialized successfully');
+          const success = await initializeOneSignal(username);
+          
+          if (success) {
+            console.log('✅ OneSignal initialized successfully');
+          } else {
+            console.log('⚠️ OneSignal initialization returned false');
+          }
         } else {
           console.log('⚠️ No user logged in, skipping OneSignal setup');
         }
