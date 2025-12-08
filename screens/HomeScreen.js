@@ -169,6 +169,7 @@ export default function HomeScreen({ route, navigation }) {
   const [notificationCount, setNotificationCount] = useState(0);
   const notificationListener = useRef();
   const responseListener = useRef();
+  const [updateVersion, setUpdateVersion] = useState(1); // Version identifier for updates
 
   useEffect(() => {
     const fetchUserInfo = async () => {
@@ -1002,7 +1003,10 @@ export default function HomeScreen({ route, navigation }) {
               />
             </Swiper>
           </View>
-
+          {/* Update Version Identifier */}
+          <View style={styles.versionContainer}>
+            <Text style={styles.versionText}>Update Version: {updateVersion}</Text>
+          </View>
           {/* Weather Card */}
           {renderWeatherCard()}
           {/* Earthquake Card */}
