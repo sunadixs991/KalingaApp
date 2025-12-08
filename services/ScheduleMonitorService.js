@@ -326,25 +326,25 @@ const sendScheduleNotificationImmediate = async (scheduleData) => {
       scheduleId: scheduleData.id,
     };
 
-    // ❌ REMOVED: sendLocalNotification() - This caused duplicates!
-    // ✅ ONLY send REMOTE push notifications via FCM/Supabase
+    // // ❌ REMOVED: sendLocalNotification() - This caused duplicates!
+    // // ✅ ONLY send REMOTE push notifications via FCM/Supabase
 
-    // 1️⃣ Send REMOTE push notifications to ALL users in this location
-    const tokens = await getPushTokensForLocation(scheduleData.title, scheduleData.purok);
-    console.log(`   📤 Sending to ${tokens.length} users in ${scheduleData.title}, ${scheduleData.purok}...`);
+    // // 1️⃣ Send REMOTE push notifications to ALL users in this location
+    // const tokens = await getPushTokensForLocation(scheduleData.title, scheduleData.purok);
+    // console.log(`   📤 Sending to ${tokens.length} users in ${scheduleData.title}, ${scheduleData.purok}...`);
     
-    if (tokens.length > 0) {
-      await sendBatchPushNotifications(
-        tokens,
-        title,
-        body,
-        notificationData,
-        'schedules'
-      );
-      console.log(`   ✅ Remote push sent to ${tokens.length} devices`);
-    } else {
-      console.log('   ⚠️ No push tokens found for this location');
-    }
+    // if (tokens.length > 0) {
+    //   await sendBatchPushNotifications(
+    //     tokens,
+    //     title,
+    //     body,
+    //     notificationData,
+    //     'schedules'
+    //   );
+    //   console.log(`   ✅ Remote push sent to ${tokens.length} devices`);
+    // } else {
+    //   console.log('   ⚠️ No push tokens found for this location');
+    // }
 
     // 2️⃣ Save to notification history for all users in this location
     const usersInLocation = await getUsersInLocation(scheduleData.title, scheduleData.purok);
