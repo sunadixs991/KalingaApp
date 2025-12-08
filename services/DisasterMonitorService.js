@@ -1,4 +1,4 @@
-// services/DisasterMonitorService.js - WITH REMOTE PUSH NOTIFICATIONS
+// services/DisasterMonitorService.js - UPDATED TO USE BROADCAST
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
 import { fetchNearbyEarthquakes } from './EarthquakeService';
@@ -7,8 +7,7 @@ import { checkPhilippinesWeatherAlerts } from './PAGASAWeatherService';
 import { 
   sendLocalNotification, 
   saveNotificationToHistory,
-  getAllPushTokens,
-  sendBatchPushNotifications 
+  sendBroadcastNotification  // ✅ NEW: Use broadcast instead of manual token fetching
 } from './NotificationService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -114,7 +113,7 @@ function getEarthquakeSeverity(magnitude) {
 }
 
 /**
- * ✅ UPDATED: Check for new earthquakes with REMOTE push notifications
+ * ✅ UPDATED: Check for new earthquakes using sendBroadcastNotification
  */
 async function checkEarthquakes(latitude, longitude, username) {
   try {
@@ -162,35 +161,18 @@ async function checkEarthquakes(latitude, longitude, username) {
         longitude: quake.longitude,
       };
 
-      // 1️⃣ Send LOCAL notification
-      await sendLocalNotification({
-        title,
-        body,
-        data: notificationData,
-        channelId: 'earthquake',
-      });
-
-      // 2️⃣ Send REMOTE push notifications to ALL users
-      const tokens = await getAllPushTokens();
-      console.log(`   🌍 Sending earthquake alert to ${tokens.length} users...`);
+      // ✅ NEW: Use sendBroadcastNotification (handles local + remote + history)
+      const channelId = quake.magnitude >= 7.0 ? 'earthquake_critical' : 'earthquake';
       
-      if (tokens.length > 0) {
-        await sendBatchPushNotifications(
-          tokens,
-          title,
-          body,
-          notificationData,
-          'earthquake'
-        );
-        console.log(`   ✅ Remote push sent to ${tokens.length} devices`);
-      }
-
-      // 3️⃣ Save to notification history
-      await saveNotificationToHistory('all', {
+      await sendBroadcastNotification(
         title,
         body,
-        data: notificationData
-      });
+        notificationData,
+        channelId,
+        true  // excludeCurrentDevice = true
+      );
+
+      console.log(`   ✅ Broadcast sent for ${quake.magnitude.toFixed(1)} magnitude quake`);
 
       notifiedQuakes.push(quake.id);
     }
@@ -207,7 +189,7 @@ async function checkEarthquakes(latitude, longitude, username) {
 }
 
 /**
- * ✅ UPDATED: Check for weather alerts with REMOTE push notifications
+ * ✅ UPDATED: Check for weather alerts using sendBroadcastNotification
  */
 async function checkWeatherAlerts(latitude, longitude, username) {
   try {
@@ -296,35 +278,18 @@ async function checkWeatherAlerts(latitude, longitude, username) {
         alertType: alert.type,
       };
 
-      // 1️⃣ Send LOCAL notification
-      await sendLocalNotification({
-        title: alert.title,
-        body: alert.body,
-        data: notificationData,
-        channelId: 'weather',
-      });
-
-      // 2️⃣ Send REMOTE push notifications to ALL users
-      const tokens = await getAllPushTokens();
-      console.log(`   ⛈️ Sending weather alert to ${tokens.length} users...`);
+      // ✅ NEW: Use sendBroadcastNotification
+      const channelId = alert.type === 'storm' ? 'weather_critical' : 'weather';
       
-      if (tokens.length > 0) {
-        await sendBatchPushNotifications(
-          tokens,
-          alert.title,
-          alert.body,
-          notificationData,
-          'weather'
-        );
-        console.log(`   ✅ Remote push sent to ${tokens.length} devices`);
-      }
+      await sendBroadcastNotification(
+        alert.title,
+        alert.body,
+        notificationData,
+        channelId,
+        true  // excludeCurrentDevice = true
+      );
 
-      // 3️⃣ Save to notification history
-      await saveNotificationToHistory('all', {
-        title: alert.title,
-        body: alert.body,
-        data: notificationData
-      });
+      console.log(`   ✅ Broadcast sent for ${alert.type} alert`);
 
       // Set cooldown timer
       await setLastAlertTime(alert.type);
@@ -341,7 +306,7 @@ async function checkWeatherAlerts(latitude, longitude, username) {
 }
 
 /**
- * ✅ UPDATED: Check for typhoon alerts with REMOTE push notifications
+ * ✅ UPDATED: Check for typhoon alerts using sendBroadcastNotification
  */
 async function checkTyphoonAlerts(latitude, longitude, username) {
   try {
@@ -384,7 +349,7 @@ async function checkTyphoonAlerts(latitude, longitude, username) {
     console.log(`   📢 Found ${newAlerts.length} new typhoon alerts!`);
 
     for (const alert of newAlerts) {
-      const priority = alert.severity === 'severe' || alert.level >= 4 ? 'high' : 'default';
+      const isCritical = alert.severity === 'severe' || alert.level >= 4;
       const notificationBody = alert.details || alert.description || alert.body || 'Check weather advisory';
 
       const notificationData = {
@@ -397,36 +362,18 @@ async function checkTyphoonAlerts(latitude, longitude, username) {
       if (alert.risk) notificationData.risk = alert.risk;
       if (alert.url) notificationData.url = alert.url;
 
-      // 1️⃣ Send LOCAL notification
-      await sendLocalNotification({
-        title: alert.title,
-        body: notificationBody,
-        data: notificationData,
-        channelId: 'weather',
-        priority,
-      });
-
-      // 2️⃣ Send REMOTE push notifications to ALL users
-      const tokens = await getAllPushTokens();
-      console.log(`   🌀 Sending typhoon alert to ${tokens.length} users...`);
+      // ✅ NEW: Use sendBroadcastNotification
+      const channelId = isCritical ? 'weather_critical' : 'weather';
       
-      if (tokens.length > 0) {
-        await sendBatchPushNotifications(
-          tokens,
-          alert.title,
-          notificationBody,
-          notificationData,
-          'weather'
-        );
-        console.log(`   ✅ Remote push sent to ${tokens.length} devices`);
-      }
+      await sendBroadcastNotification(
+        alert.title,
+        notificationBody,
+        notificationData,
+        channelId,
+        true  // excludeCurrentDevice = true
+      );
 
-      // 3️⃣ Save to notification history
-      await saveNotificationToHistory('all', {
-        title: alert.title,
-        body: notificationBody,
-        data: notificationData
-      });
+      console.log(`   ✅ Broadcast sent for typhoon ${alert.risk || 'alert'}`);
 
       // Set cooldown timer
       const alertKey = `typhoon_${alert.risk || 'general'}`;
@@ -507,7 +454,7 @@ export const startDisasterMonitoring = async (latitude, longitude, username) => 
     console.log(`   👤 User: ${username}`);
     console.log('   🌀 PAGASA typhoon monitoring enabled');
     console.log('   ⏱️  Weather alerts have 3-hour cooldown');
-    console.log('   📡 Remote push notifications enabled');
+    console.log('   📡 Broadcast notifications enabled (excludes sender device)');
 
     return true;
   } catch (error) {
