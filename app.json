@@ -13,6 +13,10 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sunadixs98.kalingaapp"
+    },
     "android": {
       "icon": "./assets/kalinga-icon.png",
       "adaptiveIcon": {
