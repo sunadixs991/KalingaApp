@@ -4,7 +4,7 @@ import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../firebase';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc, doc, deleteDoc, orderBy, limit as limitFn } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import Constants from 'expo-constants';
 import { supabase } from './supabaseClient';
 
@@ -39,7 +39,46 @@ const NOTIFICATION_CONFIG = {
     }
   }
 };
+/**
+ * Get unread notification count for a user, including public ('all') notifications.
+ * Safe: performs only reads and returns integer count.
+ */
+/**
+ * Get unread notification count for a user, including public ('all') notifications.
+ * Safe: performs only reads and returns integer count.
+ */
+export const getUnreadCount = async (username) => {
+  try {
+    const notificationsRef = collection(db, 'notifications');
 
+    let personalUnread = 0;
+    if (username) {
+      const personalQuery = query(
+        notificationsRef,
+        where('username', '==', username),
+        where('read', '==', false)
+      );
+      const personalSnap = await getDocs(personalQuery);
+      personalUnread = personalSnap.size || 0;
+    }
+
+    const publicQuery = query(
+      notificationsRef,
+      where('username', '==', 'all'),
+      where('read', '==', false)
+    );
+    const publicSnap = await getDocs(publicQuery);
+    const publicUnread = publicSnap.size || 0;
+
+    // Debug log (optional)
+    console.debug('Unread counts - personal:', personalUnread, 'public:', publicUnread);
+
+    return personalUnread + publicUnread;
+  } catch (error) {
+    console.error('❌ Error getting unread notification count:', error);
+    return 0;
+  }
+};
 // ========== PUSH TOKEN MANAGEMENT ==========
 
 /**
@@ -602,52 +641,20 @@ export const saveNotificationToHistory = async (username, notification) => {
 export const getNotificationHistory = async (username, limit = 50) => {
   try {
     const notificationsRef = collection(db, 'notifications');
+    const q = query(notificationsRef, where('username', '==', username));
+    const snapshot = await getDocs(q);
 
-    // Query personal notifications (if username provided)
-    const personalQuery = username
-      ? query(notificationsRef, where('username', '==', username), orderBy('createdAt', 'desc'), limitFn(limit))
-      : null;
-
-    // Query public notifications saved as username === 'all'
-    const publicQuery = query(notificationsRef, where('username', '==', 'all'), orderBy('createdAt', 'desc'), limitFn(limit));
-
-    const results = [];
-
-    if (personalQuery) {
-      const personalSnap = await getDocs(personalQuery);
-      personalSnap.forEach(docSnap => {
-        results.push({
-          id: docSnap.id,
-          ...docSnap.data(),
-          createdAt: docSnap.data().createdAt?.toDate?.() || new Date(docSnap.data().createdAt),
-        });
-      });
-    }
-
-    const publicSnap = await getDocs(publicQuery);
-    publicSnap.forEach(docSnap => {
-      results.push({
-        id: docSnap.id,
-        ...docSnap.data(),
-        createdAt: docSnap.data().createdAt?.toDate?.() || new Date(docSnap.data().createdAt),
-      });
-    });
-
-    // Remove duplicates (if any) by id and sort descending by createdAt
-    const deduped = Object.values(results.reduce((acc, item) => {
-      acc[item.id] = acc[item.id] && acc[item.id].createdAt > item.createdAt ? acc[item.id] : item;
-      return acc;
-    }, {}));
-
-    deduped.sort((a, b) => b.createdAt - a.createdAt);
-
-    // Apply final limit
-    return deduped.slice(0, limit);
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt),
+    }));
   } catch (error) {
     console.error('❌ Error fetching notifications:', error);
     return [];
   }
 };
+
 /**
  * ✅ Mark notification as read
  */

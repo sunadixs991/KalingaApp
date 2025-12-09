@@ -48,6 +48,7 @@ import {
   getNotificationHistory,
   getBadgeCount,
   sendLocalNotification,
+  getUnreadCount,
 } from '../services/NotificationService';
 import { startDisasterMonitoring, resetDisasterMonitoring } from '../services/DisasterMonitorService';
 import { triggerManualCheck } from '../services/DisasterMonitorService';
@@ -173,7 +174,7 @@ export default function HomeScreen({ route, navigation }) {
   const [notificationCount, setNotificationCount] = useState(0);
   const notificationListener = useRef();
   const responseListener = useRef();
-  const [updateVersion, setUpdateVersion] = useState(7);
+  const [updateVersion, setUpdateVersion] = useState(8);
 
   useEffect(() => {
     const fetchUserInfo = async () => {
@@ -377,10 +378,14 @@ export default function HomeScreen({ route, navigation }) {
   };
   const loadNotificationCount = async () => {
     try {
-      const notifications = await getNotificationHistory(username);
-      const unreadCount = notifications.filter(n => !n.read).length;
+      const unreadCount = await getUnreadCount(username);
+      console.log('loadNotificationCount -> unreadCount:', unreadCount);
       setNotificationCount(unreadCount);
-      setBadgeCount(unreadCount); // optional: updates OS badge
+      try {
+        await setBadgeCount(unreadCount);
+      } catch (e) {
+        console.debug('setBadgeCount failed:', e);
+      }
     } catch (error) {
       console.error('Error loading notification count:', error);
     }
