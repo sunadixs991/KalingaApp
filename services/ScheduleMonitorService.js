@@ -251,12 +251,12 @@ const checkForNewSchedules = async (username, isManualCheck = false) => {
 
       try {
         // 1️⃣ Send LOCAL notification (for current user if app is open)
-        await sendLocalNotification({
-          title,
-          body,
-          data: notificationData,
-          channelId: 'schedules',
-        });
+        // await sendLocalNotification({
+        //   title,
+        //   body,
+        //   data: notificationData,
+        //   channelId: 'schedules',
+        // });
 
         // 2️⃣ Send REMOTE push notifications to ALL users in this location
         const tokens = await getPushTokensForLocation(schedule.title, schedule.purok);
