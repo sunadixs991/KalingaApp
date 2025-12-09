@@ -12,6 +12,9 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
@@ -28,6 +31,8 @@ import {
 } from "../services/securityNotification";
 import Toast from "react-native-toast-message";
 import sessionManager from "../services/sessionManager";
+import { sendOTPSMS, verifyOTP } from "../services/notification";
+
 
 const validatePasswordStrength = (password) => {
   const hasUpperCase = /[A-Z]/.test(password);
@@ -66,6 +71,15 @@ export default function LoginScreen({ navigation, onLogin }) {
   const [isOnline, setIsOnline] = useState(true);
   const [sessionToken, setSessionToken] = useState(null);
 
+  // MFA states
+  const [mfaPending, setMfaPending] = useState(false);
+  const [mfaPhone, setMfaPhone] = useState(null);
+  const [mfaSmsSent, setMfaSmsSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [mfaLoading, setMfaLoading] = useState(false);
+  const [resendCooldownSec, setResendCooldownSec] = useState(0);
+  const [verificationStatus, setVerificationStatus] = useState('idle');
+
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -87,6 +101,17 @@ export default function LoginScreen({ navigation, onLogin }) {
 
     // no local timeouts to clean up here
   }, []);
+
+  // Resend cooldown interval
+  useEffect(() => {
+    let t = null;
+    if (resendCooldownSec > 0) {
+      t = setInterval(() => setResendCooldownSec(s => Math.max(0, s - 1)), 1000);
+    }
+    return () => {
+      if (t) clearInterval(t);
+    };
+  }, [resendCooldownSec]);
 
   const checkAccountLockStatus = async () => {
     try {
@@ -320,6 +345,182 @@ export default function LoginScreen({ navigation, onLogin }) {
     }
   };
 
+  const openMfaModal = (phone, smsSent) => {
+    setMfaPhone(phone || null);
+    setMfaSmsSent(!!smsSent);
+    setOtpCode("");
+    setMfaPending(true);
+    setResendCooldownSec(30); // small cooldown before resend
+  };
+
+const closeMfaModal = () => {
+  setMfaPending(false);
+  setMfaPhone(null);
+  setOtpCode("");
+  setMfaLoading(false);
+  setVerificationStatus('idle'); // Reset status
+};
+
+const handleVerifyOtp = async () => {
+  if (!otpCode || !mfaPhone) {
+    Alert.alert("Invalid Code", "Please enter the verification code sent to your phone.");
+    return;
+  }
+  
+  setVerificationStatus('verifying');
+  setMfaLoading(true);
+  
+  try {
+    const res = await verifyOTP(mfaPhone, otpCode.trim());
+    if (res.success) {
+      // Show verified animation
+      setVerificationStatus('verified');
+      
+      // Wait 1.5 seconds to show the verified animation
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Show logging in status
+      setVerificationStatus('logging-in');
+      
+      // Wait 0.8 seconds before proceeding
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Proceed with login WITHOUT closing modal
+      // Modal will stay visible during navigation
+      if (pendingUserAfterMfa) {
+        await finalizeLoginAfterMfa(pendingUserAfterMfa);
+      } else {
+        Toast.show({ type: "success", text1: "OTP verified" });
+      }
+      
+      // Modal will automatically disappear when screen changes to MainTabs
+    } else {
+      setVerificationStatus('idle');
+      Alert.alert("Invalid or Expired Code", res.error || "The code is invalid or expired.");
+    }
+  } catch (err) {
+    console.warn("verifyOTP error", err);
+    setVerificationStatus('idle');
+    Alert.alert("Verification Error", "Unable to verify the code. Try again.");
+  } finally {
+    setMfaLoading(false);
+  }
+};
+
+
+  const handleResendOtp = async () => {
+    if (!mfaPhone || resendCooldownSec > 0) return;
+    setMfaLoading(true);
+    try {
+      const sendRes = await sendOTPSMS(mfaPhone);
+      if (sendRes.success) {
+        setMfaSmsSent(true);
+        setResendCooldownSec(30);
+        Toast.show({ type: "info", text1: "OTP sent", text2: `A new code was sent to ${sendRes.phone}` });
+      } else {
+        Alert.alert("Failed to Send OTP", sendRes.error || "Failed to send verification code.");
+      }
+    } catch (err) {
+      console.warn("Resend OTP error:", err);
+      Alert.alert("Error", "Failed to resend OTP. Try again later.");
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  // We'll store the userData temporarily while waiting for MFA
+  const [pendingUserAfterMfa, setPendingUserAfterMfa] = useState(null);
+
+  const finalizeLoginAfterMfa = async (userData) => {
+    // This code mirrors the original login success path but runs only after OTP verification.
+    try {
+      // set central session expiry (minutes) — choose 30 or your desired minutes
+      await sessionManager.setSessionExpiry(30);
+
+      // generate session token
+      const token = await generateSessionToken(userData.username || userData.email || "user");
+      if (token) {
+        await AsyncStorage.setItem("sessionToken", token);
+        setSessionToken(token);
+      }
+
+      // reset failed attempts
+      try {
+        await resetFailedLoginAttempts(userData.username);
+      } catch { }
+
+      // persist user info, user, lastLogin
+      try {
+        await AsyncStorage.setItem("userInfo", JSON.stringify(userData));
+        await AsyncStorage.setItem("user", (userData.username || "").trim());
+        await AsyncStorage.setItem("lastLogin", new Date().toISOString());
+      } catch (e) {
+        console.warn("Failed to persist user data:", e);
+      }
+
+      await logLoginActivity(userData.username || "", true, userData.userType);
+
+      // update firestore last login info
+      try {
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where("username", "==", (userData.username || "").trim()));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const userDocId = querySnapshot.docs[0].id;
+          await updateDoc(doc(db, "users", userDocId), {
+            accountStatus: "active",
+            lastLoginTime: serverTimestamp(),
+            lastLoginDevice: Platform.OS,
+          });
+        }
+      } catch (e) {
+        console.warn("Failed to update lastLogin on Firestore:", e);
+      }
+
+      if (onLogin) onLogin();
+
+      // Build toast text based on user type / first name (post-MFA)
+      const ut = (userData.userType || "").trim();
+      const firstName =
+        (userData.firstName && userData.firstName.trim()) ||
+        (userData.userFullName && userData.userFullName.split(" ")[0]) ||
+        (userData.username ? userData.username.split(/[\s@.]/)[0] : "");
+
+      let toastText1 = "Login Successful";
+      let toastText2 = "";
+
+      // Admin roles
+      if (ut === "DRRM Admin" || ut === "DDRM Admin") {
+        toastText1 = "Welcome back DRRM Admin";
+      } else if (ut === "CSWD Admin") {
+        toastText1 = "Welcome back CSWD Admin";
+      } else if (ut === "Super Admin") {
+        toastText1 = "Welcome back Admin";
+      } else {
+        // Default for normal users and any other roles: show "Welcome back <FirstName>"
+        const namePart = firstName || "";
+        toastText1 = namePart ? `Welcome back ${namePart}` : "Welcome back";
+      }
+
+      Toast.show({
+        type: "success",
+        text1: toastText1,
+        text2: toastText2,
+      });
+
+      navigation.replace("MainTabs", {
+        username: userData.username,
+        isAdmin: !!userData.isAdmin,
+        userType: userData.userType,
+        sessionToken: token,
+      });
+    } catch (err) {
+      console.error("finalizeLoginAfterMfa error:", err);
+      Alert.alert("Login Error", "An unexpected error occurred after MFA. Please try again.");
+    }
+  };
+
+  // ---------- Main handleLogin (password verification) ----------
   const handleLogin = async () => {
     if (!isOnline) {
       Alert.alert("⚠️ No Internet", "Please check your internet connection.");
@@ -349,37 +550,57 @@ export default function LoginScreen({ navigation, onLogin }) {
     setLoading(true);
 
     try {
-      const { success, userData } = await loginWithUsernameAndPassword(username, password);
+      const resp = await loginWithUsernameAndPassword(username, password);
+      // resp shape:
+      // { success: true, userData, requiresMFA?: true, mfaPhone?: string, mfaSmsSent?: bool }
 
-      if (success && userData) {
-        // set central session expiry (minutes)
-        await sessionManager.setSessionExpiry(30);
+      if (!resp.success) {
+        // login failed => record failed attempt
+        await recordFailedLoginAttempt(username);
+        await logLoginActivity(username, false, null);
+        setLoading(false);
+        return;
+      }
 
-        const isTrusted = await checkSuspiciousActivity(username);
-        if (!isTrusted) {
-          await logSecurityEvent("suspicious_activity_rejected", username, "User denied suspicious login");
-          setLoading(false);
-          return;
-        }
+      const userData = resp.userData;
 
-        const token = await generateSessionToken(username);
-        if (token) {
-          await AsyncStorage.setItem("sessionToken", token);
-          setSessionToken(token);
-        }
+      // If MFA required, pause here and show modal
+      if (resp.requiresMFA) {
+        setPendingUserAfterMfa(userData || { username });
+        openMfaModal(resp.mfaPhone || userData?.phone || null, !!resp.mfaSmsSent);
+        setLoading(false);
+        return;
+      }
 
-        await resetFailedLoginAttempts(username);
+      // non-MFA path: finalize immediately (same as older flow)
+      await sessionManager.setSessionExpiry(30);
 
-        await AsyncStorage.setItem("userInfo", JSON.stringify(userData));
-        await AsyncStorage.setItem("user", username.trim());
-        await AsyncStorage.setItem("lastLogin", new Date().toISOString());
+      const isTrusted = await checkSuspiciousActivity(username);
+      if (!isTrusted) {
+        await logSecurityEvent("suspicious_activity_rejected", username, "User denied suspicious login");
+        setLoading(false);
+        return;
+      }
 
-        await logLoginActivity(username, true, userData.userType);
+      const token = await generateSessionToken(username);
+      if (token) {
+        await AsyncStorage.setItem("sessionToken", token);
+        setSessionToken(token);
+      }
 
+      await resetFailedLoginAttempts(username);
+
+      await AsyncStorage.setItem("userInfo", JSON.stringify(userData));
+      await AsyncStorage.setItem("user", username.trim());
+      await AsyncStorage.setItem("lastLogin", new Date().toISOString());
+
+      await logLoginActivity(username, true, userData.userType);
+
+      // update lastLogin in Firestore (optional / best-effort)
+      try {
         const usersRef = collection(db, "users");
         const q = query(usersRef, where("username", "==", username.trim()));
         const querySnapshot = await getDocs(q);
-
         if (!querySnapshot.empty) {
           const userDocId = querySnapshot.docs[0].id;
           await updateDoc(doc(db, "users", userDocId), {
@@ -388,34 +609,45 @@ export default function LoginScreen({ navigation, onLogin }) {
             lastLoginDevice: Platform.OS,
           });
         }
+      } catch (e) { }
 
-        if (onLogin) onLogin();
+      if (onLogin) onLogin();
 
-        Toast.show({
-          type: "success",
-          text1: "Login Successful",
-          text2:
-            userData.userType === "CSWD Admin"
-              ? "You have successfully logged in as CSWD Admin."
-              : userData.isAdmin
-              ? "You have successfully logged in as Administrator."
-              : userData.userType === "DRRM Admin"
-              ? "You have successfully logged in as DRRM Admin."
-              : userData.userType === "Purok Leader"
-              ? "You have successfully logged in as Purok Leader."
-              : "You have successfully logged in.",
-        });
+      // Build toast text based on user type / first name (non-MFA)
+      const ut = (userData.userType || "").trim();
+      const firstName =
+        (userData.firstName && userData.firstName.trim()) ||
+        (userData.userFullName && userData.userFullName.split(" ")[0]) ||
+        (userData.username ? userData.username.split(/[\s@.]/)[0] : "");
 
-        navigation.replace("MainTabs", {
-          username,
-          isAdmin: userData.isAdmin,
-          userType: userData.userType,
-          sessionToken: token,
-        });
+      let toastText1 = "Login Successful";
+      let toastText2 = "";
+
+      // Admin roles
+      if (ut === "DRRM Admin" || ut === "DDRM Admin") {
+        toastText1 = "Welcome back DRRM Admin";
+      } else if (ut === "CSWD Admin") {
+        toastText1 = "Welcome back CSWD Admin";
+      } else if (ut === "Super Admin") {
+        toastText1 = "Welcome back Admin";
       } else {
-        await recordFailedLoginAttempt(username);
-        await logLoginActivity(username, false, null);
+        // Default for normal users and any other roles: show "Welcome back <FirstName>"
+        const namePart = firstName || "";
+        toastText1 = namePart ? `Welcome back ${namePart}` : "Welcome back";
       }
+
+      Toast.show({
+        type: "success",
+        text1: toastText1,
+        text2: toastText2,
+      });
+
+      navigation.replace("MainTabs", {
+        username,
+        isAdmin: userData.isAdmin,
+        userType: userData.userType,
+        sessionToken: token,
+      });
     } catch (error) {
       await logLoginActivity(username, false, null);
       Alert.alert(
@@ -427,6 +659,7 @@ export default function LoginScreen({ navigation, onLogin }) {
     }
   };
 
+  // ---------- UI with MFA modal ----------
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
@@ -526,6 +759,128 @@ export default function LoginScreen({ navigation, onLogin }) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+   {/* MFA Modal */}
+<Modal visible={mfaPending} animationType="fade" transparent>
+  <View style={styles.mfaOverlay}>
+    <View style={styles.mfaModalContainer}>
+      {/* Header with Icon */}
+      <View style={styles.mfaIconContainer}>
+        <View style={styles.mfaIconCircle}>
+          <Icon name="shield-checkmark" size={40} color="#225B64" />
+        </View>
+      </View>
+
+      {/* Title and Description */}
+      <Text style={styles.mfaTitle}>Verify Your Identity</Text>
+      <Text style={styles.mfaDescription}>
+        Enter the 6-digit verification code sent to your registered phone number
+      </Text>
+
+      {/* OTP Input with Icon */}
+      <View style={styles.mfaInputContainer}>
+        <Icon name="lock-closed-outline" size={20} color="#225B64" style={styles.mfaInputIcon} />
+        <TextInput
+          value={otpCode}
+          onChangeText={setOtpCode}
+          placeholder="000000"
+          keyboardType="numeric"
+          maxLength={6}
+          style={styles.mfaInput}
+          placeholderTextColor="#999"
+          editable={verificationStatus === 'idle'}
+        />
+        {otpCode.length === 6 && verificationStatus === 'idle' && (
+          <Icon name="checkmark-circle" size={20} color="#4CAF50" />
+        )}
+      </View>
+
+      {/* Verify Button with Status */}
+      <TouchableOpacity
+        onPress={handleVerifyOtp}
+        disabled={verificationStatus !== 'idle' || otpCode.length !== 6}
+        style={[
+          styles.mfaVerifyButton,
+          verificationStatus === 'verified' && styles.mfaVerifyButtonSuccess,
+          verificationStatus === 'logging-in' && styles.mfaVerifyButtonLoggingIn,
+          (verificationStatus === 'idle' && otpCode.length !== 6) && styles.mfaVerifyButtonDisabled,
+        ]}
+      >
+        {verificationStatus === 'verifying' && (
+          <View style={styles.verifyingContainer}>
+            <ActivityIndicator color="#fff" size="small" />
+            <Text style={styles.mfaVerifyButtonText}>Verifying...</Text>
+          </View>
+        )}
+        
+        {verificationStatus === 'verified' && (
+          <View style={styles.verifiedContainer}>
+            <Icon name="checkmark-circle" size={24} color="#fff" />
+            <Text style={styles.mfaVerifyButtonText}>Verified!</Text>
+          </View>
+        )}
+        
+        {verificationStatus === 'logging-in' && (
+          <View style={styles.loggingInContainer}>
+            <ActivityIndicator color="#fff" size="small" />
+            <Text style={styles.mfaVerifyButtonText}>Logging in...</Text>
+          </View>
+        )}
+        
+        {verificationStatus === 'idle' && (
+          <Text style={styles.mfaVerifyButtonText}>Verify Code</Text>
+        )}
+      </TouchableOpacity>
+
+      {/* Resend and Cancel Row - Only show when idle */}
+      {verificationStatus === 'idle' && (
+        <View style={styles.mfaActionRow}>
+          <TouchableOpacity
+            onPress={handleResendOtp}
+            disabled={resendCooldownSec > 0 || mfaLoading}
+            style={styles.mfaActionButton}
+          >
+            <Icon
+              name="reload-outline"
+              size={16}
+              color={resendCooldownSec > 0 ? "#999" : "#225B64"}
+              style={{ marginRight: 4 }}
+            />
+            <Text
+              style={[
+                styles.mfaActionText,
+                resendCooldownSec > 0 && styles.mfaActionTextDisabled,
+              ]}
+            >
+              {resendCooldownSec > 0
+                ? `Resend in ${resendCooldownSec}s`
+                : 'Resend Code'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={closeMfaModal}
+            style={styles.mfaActionButton}
+            disabled={mfaLoading}
+          >
+            <Icon name="close-outline" size={16} color="#999" style={{ marginRight: 4 }} />
+            <Text style={styles.mfaCancelText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Security Note - Only show when idle */}
+      {verificationStatus === 'idle' && (
+        <View style={styles.mfaSecurityNote}>
+          <Icon name="information-circle-outline" size={16} color="#666" />
+          <Text style={styles.mfaSecurityNoteText}>
+            Never share this code with anyone
+          </Text>
+        </View>
+      )}
+    </View>
+  </View>
+</Modal>
     </SafeAreaView>
   );
 }
@@ -662,4 +1017,159 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textDecorationLine: "underline",
   },
+  // Add these styles before the closing });
+
+  // MFA Modal Styles
+  mfaOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: wp('5%'),
+  },
+  mfaModalContainer: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: wp('6%'),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  mfaIconContainer: {
+    alignItems: 'center',
+    marginBottom: hp('2%'),
+  },
+  mfaIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#E8F4F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mfaTitle: {
+    fontSize: wp('5.5%'),
+    fontWeight: '700',
+    color: '#225B64',
+    textAlign: 'center',
+    marginBottom: hp('1%'),
+  },
+  mfaDescription: {
+    fontSize: wp('3.8%'),
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: hp('3%'),
+    paddingHorizontal: wp('2%'),
+  },
+  mfaInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8F9FA',
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    borderRadius: 12,
+    paddingHorizontal: wp('4%'),
+    height: hp('6.5%'),
+    marginBottom: hp('2.5%'),
+  },
+  mfaInputIcon: {
+    marginRight: wp('3%'),
+  },
+  mfaInput: {
+    flex: 1,
+    fontSize: wp('4.5%'),
+    color: '#333',
+    fontWeight: '600',
+    letterSpacing: 8,
+    textAlign: 'center',
+  },
+  mfaVerifyButton: {
+    backgroundColor: '#225B64',
+    paddingVertical: hp('1.8%'),
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: hp('2%'),
+    shadowColor: '#225B64',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  mfaVerifyButtonDisabled: {
+    backgroundColor: '#B0BEC5',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  mfaVerifyButtonText: {
+    color: '#fff',
+    fontSize: wp('4.2%'),
+    fontWeight: '700',
+  },
+  mfaActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: hp('2%'),
+  },
+  mfaActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: hp('1%'),
+    paddingHorizontal: wp('2%'),
+  },
+  mfaActionText: {
+    color: '#225B64',
+    fontSize: wp('3.8%'),
+    fontWeight: '600',
+  },
+  mfaActionTextDisabled: {
+    color: '#999',
+  },
+  mfaCancelText: {
+    color: '#999',
+    fontSize: wp('3.8%'),
+    fontWeight: '600',
+  },
+  mfaSecurityNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF9E6',
+    padding: hp('1.5%'),
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#FFC107',
+  },
+  mfaSecurityNoteText: {
+    color: '#666',
+    fontSize: wp('3.2%'),
+    marginLeft: wp('2%'),
+    fontWeight: '500',
+  },
+  verifyingContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 8,
+},
+verifiedContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 8,
+},
+loggingInContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 8,
+},
+mfaVerifyButtonSuccess: {
+  backgroundColor: '#4CAF50',
+},
+mfaVerifyButtonLoggingIn: {
+  backgroundColor: '#2196F3',
+},
 });

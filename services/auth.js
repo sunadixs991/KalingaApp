@@ -1,8 +1,14 @@
 import { db } from '../firebase';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { verifyPassword } from '../utils/passwordHash';
+import { sendOTPSMS } from './notification'; // used to send OTP via SMS
 
-const ADMIN_USER_ID = 'USER1756355450115337';
+// Admin userTypes that require MFA
+const ADMIN_TYPES_REQUIRING_MFA = new Set([
+  'DRRM Admin',
+  'CSWD Admin',
+  'Super Admin'
+]);
 
 export async function loginWithUsernameAndPassword(username, password) {
   try {
@@ -24,7 +30,7 @@ export async function loginWithUsernameAndPassword(username, password) {
       return { success: false, userData: null };
     }
 
-    // If verification suggests a migrated hash, persist it once
+    // Persist migrated hash if suggested
     if (migratedHash) {
       try {
         await updateDoc(doc(db, 'users', userDocId), { password: migratedHash });
@@ -33,7 +39,35 @@ export async function loginWithUsernameAndPassword(username, password) {
       }
     }
 
-    const isAdmin = userData.userId === ADMIN_USER_ID;
+    const isAdmin = ADMIN_TYPES_REQUIRING_MFA.has(userData.userType) || !!userData.isAdmin;
+
+    // If admin and MFA is required, send OTP SMS and ask caller to verify OTP
+    if (isAdmin && ADMIN_TYPES_REQUIRING_MFA.has(userData.userType)) {
+      // phone may be stored on user record; fallback to null
+      const phone = userData.phone || null;
+
+      // Attempt to send OTP (sendOTPSMS logs the OTP to Firestore)
+      let sendResult = null;
+      if (phone) {
+        try {
+          sendResult = await sendOTPSMS(phone);
+        } catch (err) {
+          console.warn('Failed to send OTP SMS:', err);
+          sendResult = { success: false, error: String(err) };
+        }
+      }
+
+      // Return indicates password ok but MFA pending
+      return {
+        success: true,
+        userData: { ...userData, isAdmin },
+        requiresMFA: true,
+        mfaPhone: sendResult?.phone || phone || null,
+        mfaSmsSent: !!sendResult?.success
+      };
+    }
+
+    // Non-admin or admin not requiring MFA: treat as normal login success
     return {
       success: true,
       userData: {

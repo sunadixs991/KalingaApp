@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -77,6 +77,7 @@ export default function ProfileScreen() {
 
   const [barangayList, setBarangayList] = useState([]);
   const [purokList, setPurokList] = useState([]);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     checkUserAdminStatus();
@@ -93,6 +94,13 @@ export default function ProfileScreen() {
       }
 
       setCurrentUserId(userId);
+      
+      const isMountedRef = useRef(true);
+      useEffect(() => {
+        return () => {
+          isMountedRef.current = false;
+        };
+      }, []);
 
       // Query by username (since userId is actually username)
       //     const userDoc = await getDoc(doc(db, "users", userId));
@@ -130,7 +138,7 @@ export default function ProfileScreen() {
 
         // Check if user is admin using the utility function
         const isAdminUser = isUserAdmin(userId, userTypeValue);
-        console.log("DEBUG - Full userData:", userData);
+        // console.log("DEBUG - Full userData:", userData);
         console.log("DEBUG - userTypeValue:", userTypeValue);
         console.log("DEBUG - isAdminUser:", isAdminUser);
         console.log("User ID:", userId, "Is Admin:", isAdminUser, "User Type:", userTypeValue);
@@ -273,64 +281,79 @@ export default function ProfileScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editInfo.barangay]);
 
-const handleLogout = async () => {
-  Alert.alert('Log Out', 'Are you sure you want to log out?', [
-    { text: 'Cancel', style: 'cancel' },
-    {
-      text: 'Log Out',
-      style: 'destructive',
-      onPress: async () => {
-        try {
-          // Keys to remove from AsyncStorage
+  const handleLogout = async () => {
+    Alert.alert('Log Out', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log Out',
+        style: 'destructive',
+        onPress: async () => {
+          // Show logout overlay immediately
+          setIsLoggingOut(true);
+
+          // Small delay to ensure overlay is visible
+          await new Promise(resolve => setTimeout(resolve, 100));
+
           const keysToRemove = [
-            'user', // main auth key
-            PROFILE_CACHE_KEY, // profile cache
-            'userInfo', // any stored userInfo
-            'sessionToken', // if you store session IDs
-            'pushToken', // local push token (optionally remove)
+            'user',
+            PROFILE_CACHE_KEY,
+            'userInfo',
+            'sessionToken',
+            'pushToken',
             'pushTokenTimestamp',
-            'notifications_cache', // if you have a notifications cache key
+            'notifications_cache',
           ];
 
-          // Remove keys safely
           try {
-            await AsyncStorage.multiRemove(keysToRemove);
-          } catch (e) {
-            console.warn('Failed to clear some AsyncStorage keys on logout', e);
+            // Remove keys safely (we want to perform this now, but avoid changing UI state until finished)
+            try {
+              await AsyncStorage.multiRemove(keysToRemove);
+            } catch (e) {
+              console.warn('Failed to clear some AsyncStorage keys on logout', e);
+            }
+
+            // Reset notification UI/state
+            try {
+              await setBadgeCount(0);
+              await dismissAllNotifications();
+              await cancelAllNotifications();
+            } catch (e) {
+              console.debug('Notification cleanup on logout failed:', e);
+            }
+
+            // Wait a bit to show the logging out animation
+            await new Promise(resolve => setTimeout(resolve, 800));
+
+            // Now clear local UI state (do this just before navigation so the ProfileScreen appears unchanged until now)
+            if (isMountedRef.current) {
+              setIsLoggedIn(false);
+              setUserInfo(null);
+              setIsAdmin(false);
+              setCurrentUserId(null);
+            }
+
+            // Reset navigation to Splash
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Splash' }],
+            });
+
+            // Do not call setIsLoggingOut(false) here unconditionally — the screen will unmount.
+            // But if we are still mounted for some reason, hide the overlay:
+            if (isMountedRef.current) setIsLoggingOut(false);
+          } catch (err) {
+            console.error('Error during logout:', err);
+            // Still navigate on error
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Splash' }],
+            });
+            if (isMountedRef.current) setIsLoggingOut(false);
           }
-
-          // Clear local state so UI reflects logout immediately
-          setIsLoggedIn(false);
-          setUserInfo(null);
-          setIsAdmin(false);
-          setCurrentUserId(null);
-
-          // Reset notification UI/state: clear badge, dismiss and cancel
-          try {
-            await setBadgeCount(0);
-            await dismissAllNotifications();
-            await cancelAllNotifications();
-          } catch (e) {
-            console.debug('Notification cleanup on logout failed:', e);
-          }
-
-          // Finally reset navigation to Splash (clears navigation state)
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Splash' }],
-          });
-        } catch (err) {
-          console.error('Error during logout:', err);
-          // Still try to navigate home on unexpected error
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Splash' }],
-          });
-        }
+        },
       },
-    },
-  ]);
-};
+    ]);
+  };
 
   const handleEditToggle = () => {
     if (isEditing) {
@@ -587,13 +610,16 @@ const handleLogout = async () => {
 
           {/* Log Out */}
           {userInfo && (
-            <TouchableOpacity
-              style={styles.logoutButton}
-              onPress={handleLogout}
-            >
-              <Icon name="log-out-outline" size={20} color="#e75e33" />
-              <Text style={styles.logoutText}>Log Out</Text>
-            </TouchableOpacity>
+            <View style={styles.logoutSection}>
+              <TouchableOpacity
+                style={[styles.signInButton, styles.logoutSmall]}
+                onPress={handleLogout}
+                activeOpacity={0.8}
+              >
+                <Icon name="log-out-outline" size={18} color="#e75e33" />
+                <Text style={styles.signInText}>Log Out</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
@@ -802,8 +828,23 @@ const handleLogout = async () => {
             </View>
           </View>
         </Modal>
-
+        {/* Logout Overlay */}
+        {isLoggingOut && (
+          <Modal visible={isLoggingOut} animationType="fade" transparent>
+            <View style={styles.logoutOverlay}>
+              <View style={styles.logoutContainer}>
+                <View style={styles.logoutIconCircle}>
+                  <Icon name="log-out-outline" size={50} color="#fff" />
+                </View>
+                <ActivityIndicator size="large" color="#e75e33" style={{ marginTop: 20 }} />
+                <Text style={styles.logoutText}>Logging out...</Text>
+                <Text style={styles.logoutSubtext}>Please wait</Text>
+              </View>
+            </View>
+          </Modal>
+        )}
       </ScrollView>
+
     </SafeAreaView>
   );
 }
@@ -900,20 +941,49 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     fontSize: 16,
   },
+  logoutSection: {
+    marginTop: 18,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingHorizontal: 0,
+  },
   logoutButton: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "center",
-    backgroundColor: "#fff5f0",
-    paddingHorizontal: 15,
-    paddingVertical: 12,
+    justifyContent: "space-between",
+    backgroundColor: "#e75e33",
+    paddingHorizontal: 12,
+    paddingVertical: 10, // reduced from 14
     borderRadius: 10,
+    marginHorizontal: 0,
+    shadowColor: "#e75e33",
+    shadowOffset: { width: 0, height: 3 }, // smaller shadow
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  logoutLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  logoutIconWrapper: {
+    width: 38, // smaller
+    height: 38,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  logoutTextContainer: {
+    flex: 1,
   },
   logoutText: {
-    color: "#e75e33",
-    marginLeft: 8,
-    fontSize: 16,
-    fontWeight: "bold",
+    color: "#fff",
+    fontSize: 15, // slightly smaller
+    fontWeight: "700",
   },
   saveButton: {
     backgroundColor: "#49A5A2",
@@ -986,4 +1056,63 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
   },
+  cancelActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: "#f0f0f0",
+    marginBottom: 10,
+    elevation: 2,
+  },
+  actionText: {
+    fontSize: 16,
+    color: "#fff",
+    fontWeight: "600",
+  },
+  // ADD THESE NEW STYLES BELOW:
+  logoutOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoutContainer: {
+    alignItems: 'center',
+    padding: 32,
+  },
+  logoutIconCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#e75e33',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: '#e75e33',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  logoutText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#fff',
+    marginTop: 20,
+  },
+  logoutSubtext: {
+    fontSize: 14,
+    color: '#ccc',
+    marginTop: 8,
+  },
+  logoutSmall: {
+    alignSelf: "center", // center the button horizontally
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+
 });
