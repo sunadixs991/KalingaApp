@@ -24,7 +24,11 @@ import userProfile from "../assets/user.png";
 import adminProfile from "../assets/admin.png";
 import { useTheme } from "../context/ThemeContext";
 import { db } from "../firebase";
-
+import {
+  setBadgeCount,
+  dismissAllNotifications,
+  cancelAllNotifications,
+} from '../services/NotificationService';
 import {
   query,
   collection,
@@ -114,7 +118,7 @@ export default function ProfileScreen() {
       );
       const userSnap = await getDocs(userQuery);
       let userData = null;
-      
+
       if (!userSnap.empty) {
         userData = userSnap.docs[0].data();
         console.log("Found user data:", userData);
@@ -269,22 +273,64 @@ export default function ProfileScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editInfo.barangay]);
 
-  const handleLogout = async () => {
-    Alert.alert("Log Out", "Are you sure you want to log out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Log Out",
-        style: "destructive",
-        onPress: async () => {
-          await AsyncStorage.removeItem("user");
+const handleLogout = async () => {
+  Alert.alert('Log Out', 'Are you sure you want to log out?', [
+    { text: 'Cancel', style: 'cancel' },
+    {
+      text: 'Log Out',
+      style: 'destructive',
+      onPress: async () => {
+        try {
+          // Keys to remove from AsyncStorage
+          const keysToRemove = [
+            'user', // main auth key
+            PROFILE_CACHE_KEY, // profile cache
+            'userInfo', // any stored userInfo
+            'sessionToken', // if you store session IDs
+            'pushToken', // local push token (optionally remove)
+            'pushTokenTimestamp',
+            'notifications_cache', // if you have a notifications cache key
+          ];
+
+          // Remove keys safely
+          try {
+            await AsyncStorage.multiRemove(keysToRemove);
+          } catch (e) {
+            console.warn('Failed to clear some AsyncStorage keys on logout', e);
+          }
+
+          // Clear local state so UI reflects logout immediately
+          setIsLoggedIn(false);
+          setUserInfo(null);
+          setIsAdmin(false);
+          setCurrentUserId(null);
+
+          // Reset notification UI/state: clear badge, dismiss and cancel
+          try {
+            await setBadgeCount(0);
+            await dismissAllNotifications();
+            await cancelAllNotifications();
+          } catch (e) {
+            console.debug('Notification cleanup on logout failed:', e);
+          }
+
+          // Finally reset navigation to Splash (clears navigation state)
           navigation.reset({
             index: 0,
-            routes: [{ name: "Splash" }],
+            routes: [{ name: 'Splash' }],
           });
-        },
+        } catch (err) {
+          console.error('Error during logout:', err);
+          // Still try to navigate home on unexpected error
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Splash' }],
+          });
+        }
       },
-    ]);
-  };
+    },
+  ]);
+};
 
   const handleEditToggle = () => {
     if (isEditing) {
@@ -340,7 +386,7 @@ export default function ProfileScreen() {
           cleanIdentifier =
             parsed.username || parsed.email || parsed.id || userIdentifier;
         }
-      } catch (e) {}
+      } catch (e) { }
       cleanIdentifier = cleanIdentifier.toString().trim();
 
       const userQuery = query(
@@ -365,7 +411,7 @@ export default function ProfileScreen() {
         setUserInfo(info);
         try {
           await AsyncStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(info));
-        } catch (e) {}
+        } catch (e) { }
         Alert.alert("Success", "Account information updated!");
       }
     } catch (error) {
@@ -373,7 +419,7 @@ export default function ProfileScreen() {
     }
   };
 
- 
+
   if (profileLoading) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -400,12 +446,12 @@ export default function ProfileScreen() {
                     ? userInfo.profilePicUrl
                       ? { uri: userInfo.profilePicUrl }
                       : userInfo.gender === "Female"
-                      ? womanProfile
-                      : userInfo.gender === "Male"
-                      ? boyProfile
-                      : userInfo.gender === "admin"
-                      ? adminProfile
-                      : userProfile
+                        ? womanProfile
+                        : userInfo.gender === "Male"
+                          ? boyProfile
+                          : userInfo.gender === "admin"
+                            ? adminProfile
+                            : userProfile
                     : userProfile
                 }
                 style={styles.profileImage}
@@ -758,11 +804,11 @@ export default function ProfileScreen() {
         </Modal>
 
       </ScrollView>
-     </SafeAreaView>
-   );
- }
- 
- const styles = StyleSheet.create({
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#fff",

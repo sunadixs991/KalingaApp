@@ -4,7 +4,10 @@ import LoginScreen from "../screens/LoginScreen";
 import SignUp from "../screens/SignUp";
 import TabNavigator from "./TabNavigator";
 import HomeScreen from "../screens/HomeScreen";
-import AnalyticsScreen from "./screens/AnalyticsScreen";
+import AnalyticsScreen from "../screens/AnalyticsScreen";
+import { createNavigationContainerRef } from "@react-navigation/native";
+
+export const navigationRef = createNavigationContainerRef();
 
 const Stack = createNativeStackNavigator();
 

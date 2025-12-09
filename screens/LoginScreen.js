@@ -27,7 +27,7 @@ import {
   notifyBruteForceAttempt,
 } from "../services/securityNotification";
 import Toast from "react-native-toast-message";
-
+import sessionManager from "../services/sessionManager";
 
 const validatePasswordStrength = (password) => {
   const hasUpperCase = /[A-Z]/.test(password);
@@ -42,7 +42,7 @@ const validatePasswordStrength = (password) => {
 const logSecurityEvent = async (eventType, username, details) => {
   try {
     await addDoc(collection(db, "security_events"), {
-      eventType: eventType, // "suspicious_activity", "brute_force", "password_change", etc.
+      eventType: eventType,
       username: username || "unknown",
       details: details,
       timestamp: serverTimestamp(),
@@ -65,8 +65,6 @@ export default function LoginScreen({ navigation, onLogin }) {
   const [isLocked, setIsLocked] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [sessionToken, setSessionToken] = useState(null);
-  const sessionTimeoutRef = useRef(null);
-  const isLoggedInRef = useRef(false); // track login state for timeout control
 
   useEffect(() => {
     Animated.parallel([
@@ -85,15 +83,9 @@ export default function LoginScreen({ navigation, onLogin }) {
     // Check if account is locked
     checkAccountLockStatus();
     checkNetworkConnectivity();
-    // session timeout will start only after successful login
+    // session timeout handled centrally by sessionManager (init in App.js)
 
-    // cleanup on unmount: clear any session timeout
-    return () => {
-      if (sessionTimeoutRef.current) {
-        clearTimeout(sessionTimeoutRef.current);
-        sessionTimeoutRef.current = null;
-      }
-    };
+    // no local timeouts to clean up here
   }, []);
 
   const checkAccountLockStatus = async () => {
@@ -103,7 +95,7 @@ export default function LoginScreen({ navigation, onLogin }) {
 
       if (lockStatus && lockTime) {
         const timeDiff = Date.now() - parseInt(lockTime);
-        const lockDurationMs = 0 * 60 * 1000; // 15 minutes
+        const lockDurationMs = 15 * 60 * 1000; // 15 minutes
 
         if (timeDiff < lockDurationMs) {
           setIsLocked(true);
@@ -113,7 +105,6 @@ export default function LoginScreen({ navigation, onLogin }) {
             `Too many failed login attempts. Try again in ${remainingMinutes} minutes.`
           );
         } else {
-          // Unlock account
           await AsyncStorage.removeItem("accountLocked");
           await AsyncStorage.removeItem("lockTime");
           await AsyncStorage.removeItem("loginAttempts");
@@ -165,32 +156,7 @@ export default function LoginScreen({ navigation, onLogin }) {
     }
   };
 
-  const startSessionTimeout = () => {
-    // start only if not already started and user is logged in
-    if (sessionTimeoutRef.current || !isLoggedInRef.current) return;
-    sessionTimeoutRef.current = setTimeout(() => {
-      handleLogout();
-    }, 30 * 60 * 1000); // 30 minutes
-  };
-
-  const clearSessionTimeout = () => {
-    if (sessionTimeoutRef.current) {
-      clearTimeout(sessionTimeoutRef.current);
-      sessionTimeoutRef.current = null;
-    }
-  };
-
-  const handleLogout = async () => {
-    // clear timeout when logging out
-    clearSessionTimeout();
-    isLoggedInRef.current = false;
-    await AsyncStorage.removeItem("user");
-    await AsyncStorage.removeItem("sessionToken");
-    Alert.alert("Session Expired", "Your session has expired. Please log in again.");
-  };
-
   const validateLoginInput = (username, password) => {
-    // Check for SQL injection patterns
     const sqlInjectionPattern = /(\bOR\b|\bAND\b|--|;|\/\*|\*\/|xp_|sp_)/gi;
     if (sqlInjectionPattern.test(username) || sqlInjectionPattern.test(password)) {
       logSecurityEvent("suspicious_activity", username, "SQL injection attempt detected");
@@ -198,7 +164,6 @@ export default function LoginScreen({ navigation, onLogin }) {
       return false;
     }
 
-    // Check for XSS patterns
     const xssPattern = /<script|javascript:|onerror|onclick/gi;
     if (xssPattern.test(username) || xssPattern.test(password)) {
       logSecurityEvent("suspicious_activity", username, "XSS attempt detected");
@@ -206,13 +171,11 @@ export default function LoginScreen({ navigation, onLogin }) {
       return false;
     }
 
-    // Username validation
     if (username.length < 3 || username.length > 50) {
       Alert.alert("⚠️ Invalid Username", "Username must be between 3 and 50 characters.");
       return false;
     }
 
-    // Password validation
     if (password.length < 6) {
       Alert.alert("⚠️ Invalid Password", "Password must be at least 6 characters long.");
       return false;
@@ -236,7 +199,6 @@ export default function LoginScreen({ navigation, onLogin }) {
 
   const checkSuspiciousActivity = async (username) => {
     try {
-      // Check for multiple login attempts from different locations/devices
       const activityRef = collection(db, "login_activity");
       const q = query(
         activityRef,
@@ -252,7 +214,6 @@ export default function LoginScreen({ navigation, onLogin }) {
         if (lastDevice !== Platform.OS) {
           await logSecurityEvent("suspicious_activity", username, `Login from different device: ${Platform.OS}`);
 
-          // Optional: Ask for additional verification
           return new Promise((resolve) => {
             Alert.alert(
               "🔐 Verify Login",
@@ -284,14 +245,11 @@ export default function LoginScreen({ navigation, onLogin }) {
         const failedAttempts = (userData.failedLoginAttempts || 0) + 1;
         const remainingAttempts = 3 - failedAttempts;
 
-        // Log brute force attempts and send SMS notification
         if (failedAttempts >= 2) {
           await logSecurityEvent("brute_force_attempt", username, `Failed attempts: ${failedAttempts}`);
-          // Send SMS to user about brute force attempt
           await notifyBruteForceAttempt(userData.phone, username, failedAttempts);
         }
 
-        // If admin and exceeds 3 attempts, lock account
         if ((userData.userType === "LGU Admin" || userData.isAdmin) && failedAttempts >= 3) {
           await updateDoc(doc(db, "users", userDocId), {
             failedLoginAttempts: failedAttempts,
@@ -313,7 +271,6 @@ export default function LoginScreen({ navigation, onLogin }) {
             device: Platform.OS,
           });
 
-          // Send SMS notification for account lockout
           await sendLockedAccountNotification(username, "Multiple failed login attempts");
 
           Alert.alert(
@@ -385,7 +342,6 @@ export default function LoginScreen({ navigation, onLogin }) {
       return;
     }
 
-    // Validate input for injection attacks
     if (!validateLoginInput(username, password)) {
       return;
     }
@@ -396,11 +352,9 @@ export default function LoginScreen({ navigation, onLogin }) {
       const { success, userData } = await loginWithUsernameAndPassword(username, password);
 
       if (success && userData) {
-        // mark logged in and start session timeout
-        isLoggedInRef.current = true;
-        startSessionTimeout();
+        // set central session expiry (minutes)
+        await sessionManager.setSessionExpiry(30);
 
-        // Check for suspicious activity
         const isTrusted = await checkSuspiciousActivity(username);
         if (!isTrusted) {
           await logSecurityEvent("suspicious_activity_rejected", username, "User denied suspicious login");
@@ -408,17 +362,12 @@ export default function LoginScreen({ navigation, onLogin }) {
           return;
         }
 
-        // Generate session token
         const token = await generateSessionToken(username);
         if (token) {
           await AsyncStorage.setItem("sessionToken", token);
           setSessionToken(token);
         }
-        // restart session timeout on successful login (ensure single timer)
-        clearSessionTimeout();
-        startSessionTimeout();
 
-        // Reset failed attempts on successful login
         await resetFailedLoginAttempts(username);
 
         await AsyncStorage.setItem("userInfo", JSON.stringify(userData));
@@ -442,24 +391,21 @@ export default function LoginScreen({ navigation, onLogin }) {
 
         if (onLogin) onLogin();
 
- Toast.show({
-  type: "success",
-  text1: "Login Successful",
-  text2:
-    userData.userType === "CSWD Admin"
-      ? "You have successfully logged in as CSWD Admin."
-      : userData.isAdmin
-      ? "You have successfully logged in as Administrator."
-      : userData.userType === "DRRM Admin"
-      ? "You have successfully logged in as DRRM Admin."
-      : userData.userType === "Purok Leader"
-      ? "You have successfully logged in as Purok Leader."
-      : "You have successfully logged in.",
-});
+        Toast.show({
+          type: "success",
+          text1: "Login Successful",
+          text2:
+            userData.userType === "CSWD Admin"
+              ? "You have successfully logged in as CSWD Admin."
+              : userData.isAdmin
+              ? "You have successfully logged in as Administrator."
+              : userData.userType === "DRRM Admin"
+              ? "You have successfully logged in as DRRM Admin."
+              : userData.userType === "Purok Leader"
+              ? "You have successfully logged in as Purok Leader."
+              : "You have successfully logged in.",
+        });
 
-
-
-   
         navigation.replace("MainTabs", {
           username,
           isAdmin: userData.isAdmin,
@@ -467,7 +413,6 @@ export default function LoginScreen({ navigation, onLogin }) {
           sessionToken: token,
         });
       } else {
-        // Record failed attempt
         await recordFailedLoginAttempt(username);
         await logLoginActivity(username, false, null);
       }
@@ -512,7 +457,6 @@ export default function LoginScreen({ navigation, onLogin }) {
             <Animated.View
               style={[styles.formContainer, { transform: [{ translateY: slideAnim }] }]}
             >
-              {/* Username Input */}
               <View style={styles.inputWrapper}>
                 <Icon name="person-outline" size={25} color="#225B64" style={styles.inputIcon} />
                 <TextInput
@@ -525,7 +469,6 @@ export default function LoginScreen({ navigation, onLogin }) {
                 />
               </View>
 
-              {/* Password Input */}
               <View style={styles.inputWrapper}>
                 <Icon name="lock-closed-outline" size={25} color="#225B64" style={styles.inputIcon} />
                 <TextInput
@@ -546,7 +489,6 @@ export default function LoginScreen({ navigation, onLogin }) {
                 </TouchableOpacity>
               </View>
 
-              {/* Remember Me & Forgot Password */}
               <View style={styles.rememberForgotRow}>
                 <TouchableOpacity
                   style={styles.rememberMeContainer}
@@ -554,12 +496,6 @@ export default function LoginScreen({ navigation, onLogin }) {
                   activeOpacity={0.7}
                   disabled={loading}
                 >
-                  {/* <View
-                    style={[styles.checkbox, rememberMe && styles.checkboxChecked]}
-                  >
-                    {rememberMe && <Icon name="checkmark" size={16} color="#fff" />}
-                  </View>
-                  <Text style={styles.rememberMeText}>Remember me</Text> */}
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -570,7 +506,6 @@ export default function LoginScreen({ navigation, onLogin }) {
                 </TouchableOpacity>
               </View>
 
-              {/* Login Button */}
               <TouchableOpacity
                 style={[styles.loginButton, (loading || isLocked) && { opacity: 0.6 }]}
                 onPress={handleLogin}
@@ -581,7 +516,6 @@ export default function LoginScreen({ navigation, onLogin }) {
                 </Text>
               </TouchableOpacity>
 
-              {/* Sign Up */}
               <View style={styles.signupContainer}>
                 <Text style={styles.signupText}>Not yet a member?</Text>
                 <TouchableOpacity onPress={() => navigation.navigate("SignUp")} disabled={loading}>

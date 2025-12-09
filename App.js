@@ -9,6 +9,7 @@ import { LogBox } from "react-native";
 import * as Notifications from 'expo-notifications';
 import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 import { setupDisasterNotificationHandlers, setupDisasterNotificationChannels } from './services/DisasterNotificationService';
+import sessionManager from "./services/sessionManager";
 
 import SplashScreen from "./screens/SplashScreen";
 import TabNavigator from "./navigation/TabNavigator";
@@ -59,6 +60,8 @@ import FeedbackModal from "./components/FeedbackModal";
 import CommentsScreen from "./screens/CommentsScreen";
 import NotificationCenterScreen from "./screens/NotificationCenterScreen";
 import DisasterMonitorScreen from './screens/DisasterMonitorScreen';
+import { navigationRef } from "./navigation/RootNavigator";
+import { setBadgeCount, dismissAllNotifications, cancelAllNotifications } from "./services/NotificationService";
 
 const Stack = createStackNavigator();
 
@@ -252,10 +255,65 @@ export default function App() {
     setupDisasterNotificationChannels();
   }, []);
 
+  // Session manager initialization
+  useEffect(() => {
+    sessionManager.init({
+      sessionMinutes: 30,
+      warningThresholds: [20, 10],
+      onWarning: (threshold, minutesLeft) => {
+        console.log("Session warning:", threshold, minutesLeft);
+      },
+      onExpire: async () => {
+        console.log("Session expired - performing logout cleanup");
+
+        // Keys to remove (match ProfileScreen logout)
+        const keysToRemove = [
+          "user",
+          "user_profile_cache_v1", // PROFILE_CACHE_KEY
+          "userInfo",
+          "sessionToken",
+          "pushToken",
+          "pushTokenTimestamp",
+          "notifications_cache",
+          "lastLogin",
+        ];
+
+        try {
+          await AsyncStorage.multiRemove(keysToRemove);
+        } catch (e) {
+          console.warn("onExpire: failed to clear storage keys", e);
+        }
+
+        // Clear badges and dismiss/cancel local notifications
+        try {
+          await setBadgeCount(0);
+          await dismissAllNotifications();
+          await cancelAllNotifications();
+        } catch (e) {
+          console.debug("onExpire: notification cleanup failed", e);
+        }
+
+        // Reset navigation to Splash so user must sign in again
+        try {
+          if (navigationRef?.isReady && navigationRef.isReady()) {
+            navigationRef.reset({
+              index: 0,
+              routes: [{ name: "Splash" }],
+            });
+          } else {
+            console.log("onExpire: navigationRef not ready — unable to reset navigation.");
+          }
+        } catch (e) {
+          console.error("onExpire: navigation reset failed", e);
+        }
+      },
+    });
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Splash" component={SplashScreen} />
             <Stack.Screen name="MainTabs" component={TabNavigator} />
