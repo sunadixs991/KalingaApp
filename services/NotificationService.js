@@ -4,7 +4,7 @@ import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../firebase';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc, doc, deleteDoc, orderBy, limit as limitFn } from 'firebase/firestore';
 import Constants from 'expo-constants';
 import { supabase } from './supabaseClient';
 
@@ -602,7 +602,20 @@ export const saveNotificationToHistory = async (username, notification) => {
 export const getNotificationHistory = async (username, limit = 50) => {
   try {
     const notificationsRef = collection(db, 'notifications');
-    const q = query(notificationsRef, where('username', '==', username));
+
+    // Build a safe 'in' array: include 'all' and the username if present
+    const usernamesToQuery = [];
+    if (username) usernamesToQuery.push(username);
+    usernamesToQuery.push('all');
+
+    // Firestore 'in' requires at least one value; if username is missing, query just 'all'
+    const q = query(
+      notificationsRef,
+      where('username', 'in', usernamesToQuery),
+      orderBy('createdAt', 'desc'),
+      limitFn(limit)
+    );
+
     const snapshot = await getDocs(q);
 
     return snapshot.docs.map(doc => ({

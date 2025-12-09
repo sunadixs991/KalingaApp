@@ -173,7 +173,7 @@ export default function HomeScreen({ route, navigation }) {
   const [notificationCount, setNotificationCount] = useState(0);
   const notificationListener = useRef();
   const responseListener = useRef();
-  const [updateVersion, setUpdateVersion] = useState(6);
+  const [updateVersion, setUpdateVersion] = useState(7);
 
   useEffect(() => {
     const fetchUserInfo = async () => {
