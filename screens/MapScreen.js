@@ -1637,7 +1637,7 @@ export default function MapScreen({ route }) {
             }
 
             // Handle map center updates for crosshair mode
-            if (msg.type === "mapCenterChanged") {
+            if (msg.type === "mapCenterChanged") { b         
               setMapCenter({
                 latitude: msg.latitude,
                 longitude: msg.longitude,

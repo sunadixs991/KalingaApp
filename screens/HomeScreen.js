@@ -477,42 +477,42 @@ export default function HomeScreen({ route, navigation }) {
     }
   };
   const fetchEarthquakes = async () => {
-    if (!currentLocation) return;
+  if (!currentLocation) return;
 
-    setLoadingEarthquakes(true);
-    try {
-      const netState = await NetInfo.fetch();
-      if (!netState.isConnected) {
-        Toast.show({
-          type: "info",
-          text1: "Offline",
-          text2: "Earthquake data unavailable offline",
-        });
-        return;
-      }
-
-      // Fetch ALL earthquakes (1.0+) within 300km, last 30 days
-      const quakes = await fetchNearbyEarthquakes(
-        currentLocation.latitude,
-        currentLocation.longitude,
-        300,  // 300km radius - good for "nearby"
-        1.0,  // magnitude 1.0+ to see ALL small earthquakes
-        100,  // get up to 100 results
-        30    // last 30 days
-      );
-
-      setEarthquakes(quakes);
-    } catch (error) {
-      console.error("Error fetching earthquakes:", error);
+  setLoadingEarthquakes(true);
+  try {
+    const netState = await NetInfo.fetch();
+    if (!netState.isConnected) {
       Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: "Could not load earthquake data",
+        type: "info",
+        text1: "Offline",
+        text2: "Earthquake data unavailable offline",
       });
-    } finally {
-      setLoadingEarthquakes(false);
+      return;
     }
-  };
+
+    // Match EarthquakeScreen's "nearby" filter for consistency
+    const quakes = await fetchNearbyEarthquakes(
+      currentLocation.latitude,
+      currentLocation.longitude,
+      500,   // ← CHANGED: 300 → 500 km (match EarthquakeScreen)
+      2.0,   // ← CHANGED: 1.0 → 2.0 (filter noise, show significant only)
+      100,   // limit - keep same
+      30     // last 30 days - keep same
+    );
+
+    setEarthquakes(quakes);
+  } catch (error) {
+    console.error("Error fetching earthquakes:", error);
+    Toast.show({
+      type: "error",
+      text1: "Error",
+      text2: "Could not load earthquake data",
+    });
+  } finally {
+    setLoadingEarthquakes(false);
+  }
+};
   // Fetch nearby pins when location is available
   useEffect(() => {
     if (currentLocation) {
@@ -849,7 +849,7 @@ export default function HomeScreen({ route, navigation }) {
           style={styles.yourButtonStyle}
           onPress={handleTestAllNotifications}  // ← Change to this
         >
-          <Text style={styles.buttonText}>Test All Notifications</Text>
+          {/* <Text style={styles.buttonText}>Test All Notifications</Text> */}
         </TouchableOpacity>
       </View>
     );
@@ -1104,13 +1104,13 @@ export default function HomeScreen({ route, navigation }) {
               <View style={styles.cardRow}>
                 {/* Your 3 existing cards */}
 
-                <TouchableOpacity
+                {/* <TouchableOpacity
                   style={styles.yourButtonStyle}
                   onPress={handleTestAllNotifications}
                 >
                   <Icon name="notifications-outline" size={40} color="#fff" />
                   <Text style={styles.buttonText}>Test All Notifications</Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
               </View>
 
             </View>
