@@ -2,12 +2,12 @@
   "expo": {
     "name": "Kalinga",
     "slug": "Kalinga-App",
-    "version": "1.0.0",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/Kalinga_logo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "runtimeVersion": "1.0.0",
+    "runtimeVersion": "1.0.4",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
