@@ -18,7 +18,7 @@ import { collection, query, where, getDocs, getDoc, serverTimestamp, doc, update
 import { db } from "../firebase";
 import { sendOTPSMS, formatPhoneNumber } from "../services/notification";
 import * as Crypto from "expo-crypto";
-
+import { hashPassword } from "../utils/passwordHash";
 export default function ForgotPassword({ navigation }) {
   const [step, setStep] = useState(1); // 1 = lookup, 2 = verify OTP, 3 = set new password
   const [identifier, setIdentifier] = useState("");
@@ -210,11 +210,14 @@ export default function ForgotPassword({ navigation }) {
       const resetData = resetSnap.data();
       if (resetData.used) throw new Error("Reset session already used");
 
-      // Update the user's password field directly (no hashing as requested)
+      // Hash the new password before saving
+      const hashedPassword = await hashPassword(newPassword);
+
+      // Update the user's password field with HASHED password
       const targetUserId = resetData.userId || (userDoc && userDoc.id);
       if (!targetUserId) throw new Error("Target user not identified");
       await updateDoc(doc(db, "users", targetUserId), {
-        password: newPassword,
+        password: hashedPassword, // Store hashed password
         passwordUpdatedAt: serverTimestamp(),
       });
 
@@ -222,11 +225,10 @@ export default function ForgotPassword({ navigation }) {
       await updateDoc(resetRef, { used: true, usedAt: serverTimestamp() });
 
       Alert.alert("Success", "Password has been reset. You may now log in.");
-      // Reset navigation stack and go to the correct login screen name
       navigation.dispatch(
         CommonActions.reset({
           index: 0,
-          routes: [{ name: "LoginScreen" }], // <- use exact screen name from App.js
+          routes: [{ name: "LoginScreen" }],
         })
       );
     } catch (err) {

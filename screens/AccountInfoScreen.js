@@ -7,10 +7,11 @@ import {
   ScrollView,
   Alert,
   StyleSheet,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { db } from "../firebase";
 import {
@@ -26,10 +27,11 @@ import { Picker } from "@react-native-picker/picker";
 export default function AccountInfoScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { userInfo, onUpdate } = route.params;
+  const { onUpdate } = route.params || {};
 
   const [uploading, setUploading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [editInfo, setEditInfo] = useState({
     firstName: "",
@@ -46,21 +48,61 @@ export default function AccountInfoScreen() {
   const [barangayList, setBarangayList] = useState([]);
   const [purokList, setPurokList] = useState([]);
 
-  useEffect(() => {
-    if (userInfo) {
-      setEditInfo({
-        firstName: userInfo.firstName || "",
-        lastName: userInfo.lastName || "",
-        email: userInfo.email || "",
-        phone: userInfo.phone || "",
-        dob: userInfo.dob || "",
-        gender: userInfo.gender || "",
-        status: userInfo.status || "",
-        barangay: userInfo.barangay || "",
-        purok: userInfo.purok || "",
-      });
+  // Fetch user data whenever screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      loadUserData();
+    }, [])
+  );
+
+  const loadUserData = async () => {
+    try {
+      setLoading(true);
+      let userIdentifier = await AsyncStorage.getItem("user");
+      
+      if (!userIdentifier) {
+        Alert.alert("Error", "User not found");
+        setLoading(false);
+        return;
+      }
+
+      let cleanIdentifier = userIdentifier;
+      try {
+        const parsed = JSON.parse(userIdentifier);
+        if (typeof parsed === "object" && parsed !== null) {
+          cleanIdentifier =
+            parsed.username || parsed.email || parsed.id || userIdentifier;
+        }
+      } catch (e) {}
+      cleanIdentifier = cleanIdentifier.toString().trim();
+
+      const userQuery = query(
+        collection(db, "users"),
+        where("username", "==", cleanIdentifier)
+      );
+      const userSnap = await getDocs(userQuery);
+
+      if (!userSnap.empty) {
+        const userData = userSnap.docs[0].data();
+        setEditInfo({
+          firstName: userData.firstName || "",
+          lastName: userData.lastName || "",
+          email: userData.email || "",
+          phone: userData.phone || "",
+          dob: userData.dob || "",
+          gender: userData.gender || "",
+          status: userData.status || "",
+          barangay: userData.barangay || "",
+          purok: userData.purok || "",
+        });
+      }
+    } catch (error) {
+      console.error("Error loading user data:", error);
+      Alert.alert("Error", "Failed to load user data");
+    } finally {
+      setLoading(false);
     }
-  }, [userInfo]);
+  };
 
   useEffect(() => {
     const fetchBarangays = async () => {
@@ -79,7 +121,6 @@ export default function AccountInfoScreen() {
     const fetchPuroks = async () => {
       if (!editInfo.barangay) {
         setPurokList([]);
-        setEditInfo((prev) => ({ ...prev, purok: "" }));
         return;
       }
       try {
@@ -157,6 +198,14 @@ export default function AccountInfoScreen() {
     }
   };
 
+  if (loading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#F4F6F8", justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#2AA39A" />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F4F6F8" }}>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
@@ -212,6 +261,29 @@ export default function AccountInfoScreen() {
             onChangeText={(t) => setEditInfo({ ...editInfo, phone: t })}
           />
 
+          <Text style={styles.label}>Date of Birth</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="MM/DD/YYYY"
+            value={editInfo.dob}
+            editable={isEditing}
+            onChangeText={(t) => setEditInfo({ ...editInfo, dob: t })}
+          />
+
+          <Text style={styles.label}>Gender</Text>
+          <View style={styles.pickerBox}>
+            <Picker
+              selectedValue={editInfo.gender}
+              onValueChange={(v) => setEditInfo({ ...editInfo, gender: v })}
+              enabled={isEditing}
+            >
+              <Picker.Item label="Select Gender" value="" />
+              <Picker.Item label="Male" value="Male" />
+              <Picker.Item label="Female" value="Female" />
+              <Picker.Item label="Other" value="Other" />
+            </Picker>
+          </View>
+
           {/* STATUS */}
           <Text style={styles.label}>Civil Status</Text>
           <View style={styles.pickerBox}>
@@ -223,6 +295,8 @@ export default function AccountInfoScreen() {
               <Picker.Item label="Select Status" value="" />
               <Picker.Item label="Single" value="Single" />
               <Picker.Item label="Married" value="Married" />
+              <Picker.Item label="Divorced" value="Divorced" />
+              <Picker.Item label="Widowed" value="Widowed" />
             </Picker>
           </View>
 
@@ -276,8 +350,14 @@ export default function AccountInfoScreen() {
           </TouchableOpacity>
 
           {isEditing && (
-            <TouchableOpacity style={styles.saveButton} onPress={handleSaveEdit}>
-              <Text style={styles.saveButtonText}>Save</Text>
+            <TouchableOpacity 
+              style={[styles.saveButton, uploading && { opacity: 0.6 }]} 
+              onPress={handleSaveEdit}
+              disabled={uploading}
+            >
+              <Text style={styles.saveButtonText}>
+                {uploading ? "Saving..." : "Save"}
+              </Text>
             </TouchableOpacity>
           )}
         </View>

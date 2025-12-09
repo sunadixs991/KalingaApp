@@ -322,6 +322,21 @@ export async function handleSaveEvacPin({
           path: uploadData.path,
         });
       }
+
+      // 🔍 Scan images for inappropriate content
+      Alert.alert("Scanning", "Scanning images for content...", []);
+      for (let i = 0; i < evacMedia.length; i++) {
+        const mediaItem = evacMedia[i];
+        try {
+          const scanResult = await scanImageWithSightengine(mediaItem.uri);
+          if (scanResult.flagged) {
+            Alert.alert("Image Flagged", `Image ${i + 1} contains inappropriate content. Please remove it.`);
+            return;
+          }
+        } catch (scanError) {
+          console.error(`Error scanning image ${i + 1}:`, scanError);
+        }
+      }
     }
 
     // --- Save evacuation pin to Firestore with provided Barangay (may be empty) ---
@@ -543,6 +558,21 @@ export async function handleSavePin({
           path: uploadData.path,
         });
       }
+
+      // 🔍 Scan images for inappropriate content
+      Alert.alert("Scanning", "Scanning images for content...", []);
+      for (let i = 0; i < media.length; i++) {
+        const mediaItem = media[i];
+        try {
+          const scanResult = await scanImageWithSightengine(mediaItem.uri);
+          if (scanResult.flagged) {
+            Alert.alert("Image Flagged", `Image ${i + 1} contains inappropriate content. Please remove it.`);
+            return;
+          }
+        } catch (scanError) {
+          console.error(`Error scanning image ${i + 1}:`, scanError);
+        }
+      }
     }
 
     // 2. Save pin data with verified location to FIRESTORE
@@ -704,6 +734,21 @@ export async function handleSaveMedicalPin({
           path: uploadData.path,
         });
       }
+
+      // 🔍 Scan images for inappropriate content
+      Alert.alert("Scanning", "Scanning images for content...", []);
+      for (let i = 0; i < medicalMedia.length; i++) {
+        const mediaItem = medicalMedia[i];
+        try {
+          const scanResult = await scanImageWithSightengine(mediaItem.uri);
+          if (scanResult.flagged) {
+            Alert.alert("Image Flagged", `Image ${i + 1} contains inappropriate content. Please remove it.`);
+            return;
+          }
+        } catch (scanError) {
+          console.error(`Error scanning image ${i + 1}:`, scanError);
+        }
+      }
     }
 
     await addDoc(collection(db, "medical_pins"), {
@@ -825,6 +870,23 @@ export const handleSaveRequestPin = async ({
         "Unable to determine a precise location for this request. Please:\n\n1. Move the pin to a more specific spot on land\n2. Enable precise location services\n3. Try selecting a different location\n\nRequests cannot be published for water locations."
       );
       return;
+    }
+
+    // 🔍 Scan images for inappropriate content
+    if (payload.media && payload.media.length > 0) {
+      Alert.alert("Scanning", "Scanning images for content...", []);
+      for (let i = 0; i < payload.media.length; i++) {
+        const mediaItem = payload.media[i];
+        try {
+          const scanResult = await scanImageWithSightengine(mediaItem.uri);
+          if (scanResult.flagged) {
+            Alert.alert("Image Flagged", `Image ${i + 1} contains inappropriate content. Please remove it.`);
+            return;
+          }
+        } catch (scanError) {
+          console.error(`Error scanning image ${i + 1}:`, scanError);
+        }
+      }
     }
 
     const docData = {
