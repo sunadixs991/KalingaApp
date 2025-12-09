@@ -341,51 +341,51 @@ export const clearAllPushTokens = async () => {
 /**
  * ✅ Send LOCAL notification with dynamic priority
  */
-// export const sendLocalNotification = async ({
-//   title,
-//   body,
-//   data = {},
-//   channelId = 'default',
-//   priority = 'high',
-//   vibrationPattern = null
-// }) => {
-//   try {
-//     console.log('📱 Sending local notification:', { title, channelId });
+export const sendLocalNotification = async ({
+  title,
+  body,
+  data = {},
+  channelId = 'default',
+  priority = 'high',
+  vibrationPattern = null
+}) => {
+  try {
+    console.log('📱 Sending local notification:', { title, channelId });
 
-//     // Determine channel based on severity
-//     let finalChannelId = channelId;
-//     if (data.type === 'earthquake' && data.magnitude >= 7.0) {
-//       finalChannelId = 'earthquake_critical';
-//     } else if (data.type === 'weather' &&
-//       (data.alertType?.includes('super_typhoon') || data.alertType?.includes('storm'))) {
-//       finalChannelId = 'weather_critical';
-//     }
+    // Determine channel based on severity
+    let finalChannelId = channelId;
+    if (data.type === 'earthquake' && data.magnitude >= 7.0) {
+      finalChannelId = 'earthquake_critical';
+    } else if (data.type === 'weather' &&
+      (data.alertType?.includes('super_typhoon') || data.alertType?.includes('storm'))) {
+      finalChannelId = 'weather_critical';
+    }
 
-//     const content = {
-//       title,
-//       body,
-//       data,
-//       sound: true,
-//       priority: Notifications.AndroidNotificationPriority.HIGH,
-//       vibrate: vibrationPattern || [0, 250, 250, 250],
-//     };
+    const content = {
+      title,
+      body,
+      data,
+      sound: true,
+      priority: Notifications.AndroidNotificationPriority.HIGH,
+      vibrate: vibrationPattern || [0, 250, 250, 250],
+    };
 
-//     if (Platform.OS === 'android') {
-//       content.channelId = finalChannelId;
-//     }
+    if (Platform.OS === 'android') {
+      content.channelId = finalChannelId;
+    }
 
-//     await Notifications.scheduleNotificationAsync({
-//       content,
-//       trigger: null, // Immediate
-//     });
+    await Notifications.scheduleNotificationAsync({
+      content,
+      trigger: null, // Immediate
+    });
 
-//     console.log('✅ Local notification sent');
-//     return true;
-//   } catch (error) {
-//     console.error('❌ Failed to send local notification:', error);
-//     return false;
-//   }
-// };
+    console.log('✅ Local notification sent');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send local notification:', error);
+    return false;
+  }
+};
 
 // ========== REMOTE PUSH NOTIFICATIONS (SUPABASE) ==========
 
