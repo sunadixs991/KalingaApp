@@ -191,27 +191,14 @@ const setupNotificationChannels = async () => {
 /**
  * ✅ Save push token to Firestore with metadata
  */
+/**
+ * ✅ Save push token to Firestore with metadata
+ */
 const saveTokenToFirestore = async (username, token) => {
   try {
     const tokensRef = collection(db, 'pushTokens');
     const q = query(tokensRef, where('username', '==', username));
     const snapshot = await getDocs(q);
-
-    // ✅ NEW: Get current location
-    let locationData = {};
-    try {
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      locationData = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      };
-      console.log('✅ Location captured:', locationData);
-    } catch (locError) {
-      console.warn('⚠️ Could not get location:', locError.message);
-      // Continue without location - don't fail token save
-    }
 
     const tokenData = {
       username,
@@ -220,7 +207,6 @@ const saveTokenToFirestore = async (username, token) => {
       tokenType: token.startsWith('ExponentPushToken') ? 'expo' : 'fcm',
       deviceModel: Device.modelName || 'unknown',
       osVersion: Device.osVersion || 'unknown',
-      ...locationData,  // ✅ Add latitude/longitude if available
       updatedAt: serverTimestamp(),
     };
 
@@ -237,6 +223,26 @@ const saveTokenToFirestore = async (username, token) => {
     }
   } catch (error) {
     console.error('❌ Error saving token to Firestore:', error);
+  }
+};
+
+export const updateTokenWithLocation = async (username, latitude, longitude) => {
+  try {
+    const tokensRef = collection(db, 'pushTokens');
+    const q = query(tokensRef, where('username', '==', username));
+    const snapshot = await getDocs(q);
+
+    if (!snapshot.empty) {
+      const docRef = doc(db, 'pushTokens', snapshot.docs[0].id);
+      await updateDoc(docRef, {
+        latitude,
+        longitude,
+        updatedAt: serverTimestamp(),
+      });
+      console.log('✅ Location added to token');
+    }
+  } catch (error) {
+    console.error('❌ Error updating location:', error);
   }
 };
 

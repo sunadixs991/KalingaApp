@@ -212,7 +212,11 @@ export default function HomeScreen({ route, navigation }) {
 
         let loc = await Location.getCurrentPositionAsync({});
         setCurrentLocation(loc.coords);
-
+        if (username) {
+          const { updateTokenWithLocation } = await import('../services/NotificationService');
+          await updateTokenWithLocation(username, loc.coords.latitude, loc.coords.longitude);
+          console.log('✅ Token updated with location');
+        }
         // Reverse geocode to get place name
         let places = await Location.reverseGeocodeAsync(loc.coords);
         if (places && places.length > 0) {
