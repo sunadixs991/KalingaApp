@@ -57,7 +57,7 @@ import { checkPhilippinesWeatherAlerts } from '../services/PAGASAWeatherService'
 import { triggerManualDisasterCheck, testDisasterNotification } from '../services/DisasterNotificationService';
 import ScheduleMonitorService from '../services/ScheduleMonitorService';
 // At the top of your HomeScreen.js file
-import * as Notifications from 'expo-notifications';
+
 
 
 // Cache key prefix (bump version if cache format changes)
@@ -150,13 +150,6 @@ const SimplePinCard = ({ pin, onPress }) => (
   </TouchableOpacity>
 );
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: false,  // ✅ Disable in-app banner/toast
-    shouldPlaySound: false,   // Sound is handled by system notification
-    shouldSetBadge: true,     // Keep badge count
-  }),
-});
 
 export default function HomeScreen({ route, navigation }) {
   const username = route?.params?.username;
@@ -182,7 +175,7 @@ export default function HomeScreen({ route, navigation }) {
   const [notificationCount, setNotificationCount] = useState(0);
   const notificationListener = useRef();
   const responseListener = useRef();
-  const [updateVersion, setUpdateVersion] = useState(9);
+  const [updateVersion, setUpdateVersion] = useState(10);
 
   useEffect(() => {
     const fetchUserInfo = async () => {

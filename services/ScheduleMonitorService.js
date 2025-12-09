@@ -326,12 +326,12 @@ const sendScheduleNotificationImmediate = async (scheduleData) => {
     };
 
     // 1️⃣ Send LOCAL notification
-    await sendLocalNotification({
-      title,
-      body,
-      data: notificationData,
-      channelId: 'schedules',
-    });
+    // await sendLocalNotification({
+    //   title,
+    //   body,
+    //   data: notificationData,
+    //   channelId: 'schedules',
+    // });
 
     // 2️⃣ Send REMOTE push notifications to ALL users in this location
     const tokens = await getPushTokensForLocation(scheduleData.title, scheduleData.purok);
