@@ -477,42 +477,42 @@ export default function HomeScreen({ route, navigation }) {
     }
   };
   const fetchEarthquakes = async () => {
-  if (!currentLocation) return;
+    if (!currentLocation) return;
 
-  setLoadingEarthquakes(true);
-  try {
-    const netState = await NetInfo.fetch();
-    if (!netState.isConnected) {
+    setLoadingEarthquakes(true);
+    try {
+      const netState = await NetInfo.fetch();
+      if (!netState.isConnected) {
+        Toast.show({
+          type: "info",
+          text1: "Offline",
+          text2: "Earthquake data unavailable offline",
+        });
+        return;
+      }
+
+      // Match EarthquakeScreen's "nearby" filter for consistency
+      const quakes = await fetchNearbyEarthquakes(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        500,   // ← CHANGED: 300 → 500 km (match EarthquakeScreen)
+        2.0,   // ← CHANGED: 1.0 → 2.0 (filter noise, show significant only)
+        100,   // limit - keep same
+        30     // last 30 days - keep same
+      );
+
+      setEarthquakes(quakes);
+    } catch (error) {
+      console.error("Error fetching earthquakes:", error);
       Toast.show({
-        type: "info",
-        text1: "Offline",
-        text2: "Earthquake data unavailable offline",
+        type: "error",
+        text1: "Error",
+        text2: "Could not load earthquake data",
       });
-      return;
+    } finally {
+      setLoadingEarthquakes(false);
     }
-
-    // Match EarthquakeScreen's "nearby" filter for consistency
-    const quakes = await fetchNearbyEarthquakes(
-      currentLocation.latitude,
-      currentLocation.longitude,
-      500,   // ← CHANGED: 300 → 500 km (match EarthquakeScreen)
-      2.0,   // ← CHANGED: 1.0 → 2.0 (filter noise, show significant only)
-      100,   // limit - keep same
-      30     // last 30 days - keep same
-    );
-
-    setEarthquakes(quakes);
-  } catch (error) {
-    console.error("Error fetching earthquakes:", error);
-    Toast.show({
-      type: "error",
-      text1: "Error",
-      text2: "Could not load earthquake data",
-    });
-  } finally {
-    setLoadingEarthquakes(false);
-  }
-};
+  };
   // Fetch nearby pins when location is available
   useEffect(() => {
     if (currentLocation) {
@@ -841,15 +841,18 @@ export default function HomeScreen({ route, navigation }) {
                   <Text style={styles.tsunamiText}>Tsunami Warning</Text>
                 </View>
               )}
+
             </View>
+
           ))}
         </ScrollView>
 
         <TouchableOpacity
-          style={styles.yourButtonStyle}
-          onPress={handleTestAllNotifications}  // ← Change to this
+          style={styles.viewAllEarthquakesButton}
+          onPress={() => navigation.navigate("Earthquake")}
         >
-          {/* <Text style={styles.buttonText}>Test All Notifications</Text> */}
+          <Text style={styles.viewAllEarthquakesText}>View All Earthquakes</Text>
+          <Icon name="chevron-forward" size={16} color="#e75e33" />
         </TouchableOpacity>
       </View>
     );
@@ -1794,47 +1797,6 @@ const styles = StyleSheet.create({
   windSpeedText: {
     fontSize: 18,
     fontWeight: 'bold',
-  },
-  // Add these to your StyleSheet.create({ ... }) at the bottom
-  yourButtonStyle: {
-    width: wp("44%"),
-    height: wp("44%"),
-    backgroundColor: "#e75e33",  // Orange like your theme
-    borderRadius: 12,
-    padding: wp("5%"),
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
-  },
-  buttonText: {
-    fontSize: 13,
-    textAlign: "center",
-    color: "#fff",  // White text
-    fontWeight: "600",
-  },
-  testButtonStandalone: {
-    flexDirection: 'row',
-    backgroundColor: '#e75e33',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
-  },
-  testButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
   },
   versionContainer: {
     alignItems: 'center',
