@@ -380,6 +380,7 @@ export default function HomeScreen({ route, navigation }) {
       const notifications = await getNotificationHistory(username);
       const unreadCount = notifications.filter(n => !n.read).length;
       setNotificationCount(unreadCount);
+      setBadgeCount(unreadCount); // optional: updates OS badge
     } catch (error) {
       console.error('Error loading notification count:', error);
     }

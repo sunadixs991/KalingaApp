@@ -603,32 +603,51 @@ export const getNotificationHistory = async (username, limit = 50) => {
   try {
     const notificationsRef = collection(db, 'notifications');
 
-    // Build a safe 'in' array: include 'all' and the username if present
-    const usernamesToQuery = [];
-    if (username) usernamesToQuery.push(username);
-    usernamesToQuery.push('all');
+    // Query personal notifications (if username provided)
+    const personalQuery = username
+      ? query(notificationsRef, where('username', '==', username), orderBy('createdAt', 'desc'), limitFn(limit))
+      : null;
 
-    // Firestore 'in' requires at least one value; if username is missing, query just 'all'
-    const q = query(
-      notificationsRef,
-      where('username', 'in', usernamesToQuery),
-      orderBy('createdAt', 'desc'),
-      limitFn(limit)
-    );
+    // Query public notifications saved as username === 'all'
+    const publicQuery = query(notificationsRef, where('username', '==', 'all'), orderBy('createdAt', 'desc'), limitFn(limit));
 
-    const snapshot = await getDocs(q);
+    const results = [];
 
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt),
-    }));
+    if (personalQuery) {
+      const personalSnap = await getDocs(personalQuery);
+      personalSnap.forEach(docSnap => {
+        results.push({
+          id: docSnap.id,
+          ...docSnap.data(),
+          createdAt: docSnap.data().createdAt?.toDate?.() || new Date(docSnap.data().createdAt),
+        });
+      });
+    }
+
+    const publicSnap = await getDocs(publicQuery);
+    publicSnap.forEach(docSnap => {
+      results.push({
+        id: docSnap.id,
+        ...docSnap.data(),
+        createdAt: docSnap.data().createdAt?.toDate?.() || new Date(docSnap.data().createdAt),
+      });
+    });
+
+    // Remove duplicates (if any) by id and sort descending by createdAt
+    const deduped = Object.values(results.reduce((acc, item) => {
+      acc[item.id] = acc[item.id] && acc[item.id].createdAt > item.createdAt ? acc[item.id] : item;
+      return acc;
+    }, {}));
+
+    deduped.sort((a, b) => b.createdAt - a.createdAt);
+
+    // Apply final limit
+    return deduped.slice(0, limit);
   } catch (error) {
     console.error('❌ Error fetching notifications:', error);
     return [];
   }
 };
-
 /**
  * ✅ Mark notification as read
  */
