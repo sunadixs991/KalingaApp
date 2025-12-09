@@ -175,7 +175,7 @@ export default function HomeScreen({ route, navigation }) {
   const [notificationCount, setNotificationCount] = useState(0);
   const notificationListener = useRef();
   const responseListener = useRef();
-  const [updateVersion, setUpdateVersion] = useState(10);
+  const [updateVersion, setUpdateVersion] = useState(11);
 
   useEffect(() => {
     const fetchUserInfo = async () => {
@@ -197,7 +197,22 @@ export default function HomeScreen({ route, navigation }) {
       fetchUserInfo();
     }
   }, [username]);
+  useEffect(() => {
+    console.log('🔍 Setting up Toast interceptor...');
 
+    const originalToastShow = Toast.show;
+    Toast.show = (config) => {
+      console.log('🚨🚨🚨 TOAST CALLED! 🚨🚨🚨');
+      console.log('Toast config:', JSON.stringify(config, null, 2));
+      console.trace('Call stack:');
+      // Don't show the toast
+      // originalToastShow(config);
+    };
+
+    return () => {
+      Toast.show = originalToastShow;
+    };
+  }, []);
   // Fetch device location and place name
   useEffect(() => {
     (async () => {
@@ -278,28 +293,28 @@ export default function HomeScreen({ route, navigation }) {
     };
   }, [username]);
 
-  useEffect(() => {
-    const startMonitoring = async () => {
-      if (username) {
-        console.log('📅 Starting schedule monitoring...');
-        console.log('   Username:', username);
+  // useEffect(() => {
+  //   const startMonitoring = async () => {
+  //     if (username) {
+  //       console.log('📅 Starting schedule monitoring...');
+  //       console.log('   Username:', username);
 
-        try {
-          const started = await ScheduleMonitorService.startScheduleMonitoring(username);
+  //       try {
+  //         const started = await ScheduleMonitorService.startScheduleMonitoring(username);
 
-          if (started) {
-            console.log('✅ Schedule monitoring initialized successfully');
-          } else {
-            console.log('❌ Failed to start schedule monitoring');
-          }
-        } catch (error) {
-          console.error('❌ Error starting schedule monitoring:', error);
-        }
-      }
-    };
+  //         if (started) {
+  //           console.log('✅ Schedule monitoring initialized successfully');
+  //         } else {
+  //           console.log('❌ Failed to start schedule monitoring');
+  //         }
+  //       } catch (error) {
+  //         console.error('❌ Error starting schedule monitoring:', error);
+  //       }
+  //     }
+  //   };
 
-    startMonitoring();
-  }, [username]);
+  //   startMonitoring();
+  // }, [username]);
 
 
   // useEffect(() => {
