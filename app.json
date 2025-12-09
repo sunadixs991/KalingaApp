@@ -71,12 +71,9 @@
       "androidCollapsedTitle": "Kalinga"
     },
     "scheme": "kalingaapp",
-    "updates": {
-      "url": "https://u.expo.dev/b5d643b6-d684-49b9-8551-b7a5ed7fad3d"
-    },
     "extra": {
       "eas": {
-        "projectId": "b5d643b6-d684-49b9-8551-b7a5ed7fad3d"
+        "projectId": "cfc946eb-f5ef-42f6-bdc4-411072361416"
       }
     }
   }
