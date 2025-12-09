@@ -381,170 +381,179 @@ function MedicalInfoModal({
   return (
     <>
       <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-        <TouchableWithoutFeedback onPress={onClose}>
-          <View style={styles.backdrop}>
-            <Pressable style={styles.card} onPress={() => {}}>
-              {/* Header */}
-              <View style={styles.headerSection}>
-                <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                  <Icon name="close" size={20} color="#fff" />
+        <View style={styles.backdrop}>
+          {/* Invisible full-screen tappable area to close modal when tapping outside the card */}
+          <TouchableWithoutFeedback onPress={onClose}>
+            <View style={StyleSheet.absoluteFill} />
+          </TouchableWithoutFeedback>
+
+          {/* Card is a sibling rendered after the backdrop-catcher so it's top-most and receives gestures */}
+          <View style={styles.card}>
+            {/* Header */}
+            <View style={styles.headerSection}>
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                <Icon name="close" size={20} color="#fff" />
+              </TouchableOpacity>
+
+              <View style={styles.headerContent}>
+                <View style={styles.iconBadge}>
+                  <MaterialCommunityIcons name="hospital-box" size={28} color="#fff" />
+                </View>
+
+                <View style={styles.categoryBadge}>
+                  <View style={styles.categoryDot} />
+                  <Text style={styles.categoryText}>
+                    {selectedPin.category || "Medical Support"}
+                  </Text>
+                </View>
+
+                {selectedPin.facilityName && (
+                  <Text style={styles.facilityName} numberOfLines={2}>
+                    {selectedPin.facilityName}
+                  </Text>
+                )}
+              </View>
+            </View>
+
+            {/* Content */}
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled={true}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 28 }}
+            >
+              <View style={styles.content}>
+                {/* Info Grid - Open Time */}
+                {selectedPin.openTime && (
+                  <View style={styles.infoGrid}>
+                    <View style={styles.infoCard}>
+                      <View style={[styles.infoCardAccent, { backgroundColor: "#FF9800" }]} />
+                      <View style={[styles.infoIconContainer, { backgroundColor: "#fff3e0" }]}>
+                        <MaterialCommunityIcons
+                          name="clock-outline"
+                          size={20}
+                          color="#FF9800"
+                        />
+                      </View>
+                      <Text style={styles.infoLabel}>Operating Hours</Text>
+                      <Text style={styles.infoValue}>{selectedPin.openTime}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Description Card */}
+                <View style={styles.descriptionCard}>
+                  <View style={styles.descriptionHeader}>
+                    <View style={styles.descriptionIconCircle}>
+                      <Icon name="information" size={13} color="#fff" />
+                    </View>
+                    <Text style={styles.descriptionTitle}>About this Facility</Text>
+                  </View>
+                  <Text style={styles.descriptionText}>
+                    {selectedPin.description || "No description provided."}
+                  </Text>
+                </View>
+
+                {/* Navigation Button */}
+                <TouchableOpacity
+                  style={styles.navButton}
+                  onPress={() => {
+                    fetchRoute(location, {
+                      latitude: selectedPin.latitude,
+                      longitude: selectedPin.longitude,
+                    });
+                    onClose();
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <MaterialCommunityIcons name="navigation" size={20} color="#fff" />
+                  <Text style={styles.navButtonText}>Get Directions</Text>
                 </TouchableOpacity>
 
-                <View style={styles.headerContent}>
-                  <View style={styles.iconBadge}>
-                    <MaterialCommunityIcons name="hospital-box" size={28} color="#fff" />
+                {/* Media Section */}
+                <View style={styles.mediaHeader}>
+                  <View style={styles.mediaTitleRow}>
+                    <Icon
+                      name="images"
+                      size={18}
+                      color="#FF9800"
+                      style={styles.mediaTitleIcon}
+                    />
+                    <Text style={styles.sectionTitle}>Gallery</Text>
                   </View>
-
-                  <View style={styles.categoryBadge}>
-                    <View style={styles.categoryDot} />
-                    <Text style={styles.categoryText}>
-                      {selectedPin.category || "Medical Support"}
-                    </Text>
-                  </View>
-
-                  {selectedPin.facilityName && (
-                    <Text style={styles.facilityName} numberOfLines={2}>
-                      {selectedPin.facilityName}
-                    </Text>
+                  {selectedPin.media && selectedPin.media.length > 0 && (
+                    <View style={styles.mediaCount}>
+                      <Text style={styles.mediaCountText}>{selectedPin.media.length}</Text>
+                    </View>
                   )}
                 </View>
-              </View>
 
-              {/* Content */}
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <View style={styles.content}>
-                  {/* Info Grid - Open Time */}
-                  {selectedPin.openTime && (
-                    <View style={styles.infoGrid}>
-                      <View style={styles.infoCard}>
-                        <View style={[styles.infoCardAccent, { backgroundColor: "#FF9800" }]} />
-                        <View style={[styles.infoIconContainer, { backgroundColor: "#fff3e0" }]}>
-                          <MaterialCommunityIcons
-                            name="clock-outline"
-                            size={20}
-                            color="#FF9800"
-                          />
-                        </View>
-                        <Text style={styles.infoLabel}>Operating Hours</Text>
-                        <Text style={styles.infoValue}>{selectedPin.openTime}</Text>
-                      </View>
-                    </View>
-                  )}
-
-                  {/* Description Card */}
-                  <View style={styles.descriptionCard}>
-                    <View style={styles.descriptionHeader}>
-                      <View style={styles.descriptionIconCircle}>
-                        <Icon name="information" size={13} color="#fff" />
-                      </View>
-                      <Text style={styles.descriptionTitle}>About this Facility</Text>
-                    </View>
-                    <Text style={styles.descriptionText}>
-                      {selectedPin.description || "No description provided."}
-                    </Text>
-                  </View>
-
-                  {/* Navigation Button */}
-                  <TouchableOpacity
-                    style={styles.navButton}
-                    onPress={() => {
-                      fetchRoute(location, {
-                        latitude: selectedPin.latitude,
-                        longitude: selectedPin.longitude,
-                      });
-                      onClose();
-                    }}
-                    activeOpacity={0.85}
-                  >
-                    <MaterialCommunityIcons name="navigation" size={20} color="#fff" />
-                    <Text style={styles.navButtonText}>Get Directions</Text>
-                  </TouchableOpacity>
-
-                  {/* Media Section */}
-                  <View style={styles.mediaHeader}>
-                    <View style={styles.mediaTitleRow}>
-                      <Icon
-                        name="images"
-                        size={18}
-                        color="#FF9800"
-                        style={styles.mediaTitleIcon}
-                      />
-                      <Text style={styles.sectionTitle}>Gallery</Text>
-                    </View>
-                    {selectedPin.media && selectedPin.media.length > 0 && (
-                      <View style={styles.mediaCount}>
-                        <Text style={styles.mediaCountText}>{selectedPin.media.length}</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  <TouchableOpacity
+                <TouchableOpacity
+                  style={[
+                    styles.mediaToggle,
+                    (!selectedPin.media || selectedPin.media.length === 0) &&
+                      styles.mediaToggleDisabled,
+                  ]}
+                  onPress={() => setShowMedia(!showMedia)}
+                  disabled={!selectedPin.media || selectedPin.media.length === 0}
+                  activeOpacity={0.7}
+                >
+                  <Text
                     style={[
-                      styles.mediaToggle,
+                      styles.mediaToggleText,
                       (!selectedPin.media || selectedPin.media.length === 0) &&
-                        styles.mediaToggleDisabled,
+                        styles.mediaToggleTextDisabled,
                     ]}
-                    onPress={() => setShowMedia(!showMedia)}
-                    disabled={!selectedPin.media || selectedPin.media.length === 0}
-                    activeOpacity={0.7}
                   >
-                    <Text
-                      style={[
-                        styles.mediaToggleText,
-                        (!selectedPin.media || selectedPin.media.length === 0) &&
-                          styles.mediaToggleTextDisabled,
-                      ]}
-                    >
-                      {!selectedPin.media || selectedPin.media.length === 0
-                        ? "No photos available"
-                        : showMedia
-                          ? "Hide Photos"
-                          : "View Photos"}
-                    </Text>
-                    {selectedPin.media && selectedPin.media.length > 0 && (
-                      <Icon
-                        name={showMedia ? "chevron-up" : "chevron-down"}
-                        size={20}
-                        color="#FF9800"
-                      />
-                    )}
-                  </TouchableOpacity>
-
-                  {showMedia && selectedPin.media && selectedPin.media.length > 0 && (
-                    <FlatList
-                      data={selectedPin.media}
-                      keyExtractor={(item, idx) => item?.url || item?.uri || `media-${idx}`}
-                      renderItem={({ item, index }) => {
-                        const mediaUrl = item?.url || item?.uri;
-                        return mediaUrl ? (
-                          <TouchableOpacity
-                            onPress={() => openImage(index)}
-                            activeOpacity={0.9}
-                            style={styles.mediaItem}
-                          >
-                            <Image
-                              source={{ uri: mediaUrl }}
-                              style={styles.mediaImage}
-                              resizeMode="cover"
-                            />
-                            <View style={styles.mediaOverlay}>
-                              <View style={styles.expandIcon}>
-                                <Icon name="expand" size={20} color="#fff" />
-                              </View>
-                            </View>
-                          </TouchableOpacity>
-                        ) : null;
-                      }}
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.mediaScroll}
+                    {!selectedPin.media || selectedPin.media.length === 0
+                      ? "No photos available"
+                      : showMedia
+                        ? "Hide Photos"
+                        : "View Photos"}
+                  </Text>
+                  {selectedPin.media && selectedPin.media.length > 0 && (
+                    <Icon
+                      name={showMedia ? "chevron-up" : "chevron-down"}
+                      size={20}
+                      color="#FF9800"
                     />
                   )}
-                </View>
-              </ScrollView>
-            </Pressable>
+                </TouchableOpacity>
+
+                {showMedia && selectedPin.media && selectedPin.media.length > 0 && (
+                  <FlatList
+                    data={selectedPin.media}
+                    keyExtractor={(item, idx) => item?.url || item?.uri || `media-${idx}`}
+                    renderItem={({ item, index }) => {
+                      const mediaUrl = item?.url || item?.uri;
+                      return mediaUrl ? (
+                        <TouchableOpacity
+                          onPress={() => openImage(index)}
+                          activeOpacity={0.9}
+                          style={styles.mediaItem}
+                        >
+                          <Image
+                            source={{ uri: mediaUrl }}
+                            style={styles.mediaImage}
+                            resizeMode="cover"
+                          />
+                          <View style={styles.mediaOverlay}>
+                            <View style={styles.expandIcon}>
+                              <Icon name="expand" size={20} color="#fff" />
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      ) : null;
+                    }}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.mediaScroll}
+                  />
+                )}
+              </View>
+            </ScrollView>
           </View>
-        </TouchableWithoutFeedback>
+        </View>
       </Modal>
 
       {/* Image Viewer */}

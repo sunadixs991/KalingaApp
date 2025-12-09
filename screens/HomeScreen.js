@@ -197,22 +197,7 @@ export default function HomeScreen({ route, navigation }) {
       fetchUserInfo();
     }
   }, [username]);
-  useEffect(() => {
-    console.log('🔍 Setting up Toast interceptor...');
 
-    const originalToastShow = Toast.show;
-    Toast.show = (config) => {
-      console.log('🚨🚨🚨 TOAST CALLED! 🚨🚨🚨');
-      console.log('Toast config:', JSON.stringify(config, null, 2));
-      console.trace('Call stack:');
-      // Don't show the toast
-      // originalToastShow(config);
-    };
-
-    return () => {
-      Toast.show = originalToastShow;
-    };
-  }, []);
   // Fetch device location and place name
   useEffect(() => {
     (async () => {

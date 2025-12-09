@@ -26,6 +26,7 @@ import {
   limit,
 } from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { hashPassword, verifyPassword } from '../utils/passwordHash';
 
 export default function PrivacyScreen({ navigation }) {
   const [changePasswordVisible, setChangePasswordVisible] = useState(false);
@@ -171,16 +172,20 @@ export default function PrivacyScreen({ navigation }) {
       const userData = userDoc.data();
       console.log("Found user data with fields:", Object.keys(userData));
 
-      // Verify current password
-      if (userData.password !== currentPassword) {
+      // Verify current password using salted hash helper (supports legacy plaintext)
+      const { match } = await verifyPassword(currentPassword, userData.password);
+      if (!match) {
         Alert.alert("Error", "Current password is incorrect.");
         setLoading(false);
         return;
       }
 
+      // Hash the new password before storing it
+      const newHashedPassword = await hashPassword(newPassword);
+
       // Update password in Firestore using the actual document ID
       const userRef = doc(db, "users", userDocId);
-      await updateDoc(userRef, { password: newPassword });
+      await updateDoc(userRef, { password: newHashedPassword });
 
       Alert.alert("Success", "Password updated successfully!");
       setChangePasswordVisible(false);

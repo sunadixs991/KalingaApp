@@ -27,7 +27,6 @@ import {
   notifyBruteForceAttempt,
 } from "../services/securityNotification";
 import Toast from "react-native-toast-message";
-import { verifyPassword } from '../utils/passwordHash';
 
 
 const validatePasswordStrength = (password) => {
@@ -434,41 +433,29 @@ export default function LoginScreen({ navigation, onLogin }) {
 
         if (!querySnapshot.empty) {
           const userDocId = querySnapshot.docs[0].id;
-          const stored = querySnapshot.docs[0].data().password;
-          const { match, migratedHash } = await verifyPassword(password, stored);
-          if (!match) {
-            // wrong password
-            Alert.alert("⚠️ Invalid Password", "The password you entered is incorrect.");
-            return;
-          } else {
-            // correct password: if `migratedHash` exists, update user doc to save it
-            if (migratedHash) {
-              await updateDoc(doc(db, 'users', userDocId), { password: migratedHash });
-            }
-            await updateDoc(doc(db, "users", userDocId), {
-              accountStatus: "active",
-              lastLoginTime: serverTimestamp(),
-              lastLoginDevice: Platform.OS,
-            });
-          }
+          await updateDoc(doc(db, "users", userDocId), {
+            accountStatus: "active",
+            lastLoginTime: serverTimestamp(),
+            lastLoginDevice: Platform.OS,
+          });
         }
 
         if (onLogin) onLogin();
 
-        Toast.show({
-          type: "success",
-          text1: "Login Successful",
-          text2:
-            userData.userType === "CSWD Admin"
-              ? "You have successfully logged in as CSWD Admin."
-              : userData.isAdmin
-              ? "You have successfully logged in as Administrator."
-              : userData.userType === "DRRM Admin"
-              ? "You have successfully logged in as DRRM Admin."
-              : userData.userType === "Purok Leader"
-              ? "You have successfully logged in as Purok Leader."
-              : "You have successfully logged in.",
-        });
+ Toast.show({
+  type: "success",
+  text1: "Login Successful",
+  text2:
+    userData.userType === "CSWD Admin"
+      ? "You have successfully logged in as CSWD Admin."
+      : userData.isAdmin
+      ? "You have successfully logged in as Administrator."
+      : userData.userType === "DRRM Admin"
+      ? "You have successfully logged in as DRRM Admin."
+      : userData.userType === "Purok Leader"
+      ? "You have successfully logged in as Purok Leader."
+      : "You have successfully logged in.",
+});
 
 
 

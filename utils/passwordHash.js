@@ -1,6 +1,5 @@
 // utils/passwordHash.js
 import * as Crypto from "expo-crypto";
-import * as Random from "expo-random";
 
 const SALT_BYTES = 16;
 
@@ -10,12 +9,13 @@ const toHex = (bytes) =>
     .join("");
 
 /**
- * Create a salted SHA-256 hash and return "salt$hash"
+ * Create a salted SHA-256 hash and return "saltHex$sha256Hex"
  * @param {string} password
  * @returns {Promise<string>} saltedHash (format: saltHex$sha256Hex)
  */
 export const hashPassword = async (password) => {
-  const saltBytes = await Random.getRandomBytesAsync(SALT_BYTES);
+  // Use expo-crypto's random bytes (preferred over expo-random)
+  const saltBytes = await Crypto.getRandomBytesAsync(SALT_BYTES);
   const saltHex = toHex(saltBytes);
   const hash = await Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
@@ -26,12 +26,12 @@ export const hashPassword = async (password) => {
 
 /**
  * Verify a plain password against stored value.
- * - If stored is in "salt$hash" format, it verifies using the salt.
+ * - If stored is in "saltHex$hash" format, it verifies using the salt.
  * - If stored appears to be legacy plain-text, it verifies by direct compare
  *   and also returns a migratedHash so you can update the DB.
  *
  * @param {string} plainPassword
- * @param {string} stored  // either "salt$hash" or legacy plain password
+ * @param {string} stored  // either "saltHex$hash" or legacy plain password
  * @returns {Promise<{match: boolean, migratedHash: string|null}>}
  */
 export const verifyPassword = async (plainPassword, stored) => {

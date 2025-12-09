@@ -18,7 +18,7 @@ import { collection, query, where, getDocs, getDoc, serverTimestamp, doc, update
 import { db } from "../firebase";
 import { sendOTPSMS, formatPhoneNumber } from "../services/notification";
 import * as Crypto from "expo-crypto";
-import { hashPassword } from "../utils/passwordHash";
+import { hashPassword, verifyPassword } from '../utils/passwordHash';
 export default function ForgotPassword({ navigation }) {
   const [step, setStep] = useState(1); // 1 = lookup, 2 = verify OTP, 3 = set new password
   const [identifier, setIdentifier] = useState("");
@@ -210,14 +210,21 @@ export default function ForgotPassword({ navigation }) {
       const resetData = resetSnap.data();
       if (resetData.used) throw new Error("Reset session already used");
 
-      // Hash the new password before saving
-      const hashedPassword = await hashPassword(newPassword);
+      // Verify current password (supports legacy plaintext and migration)
+      const { match } = await verifyPassword(currentPassword, userData.password || "");
+      if (!match) {
+        Alert.alert("Error", "Current password is incorrect.");
+        setLoading(false);
+        return;
+      }
 
-      // Update the user's password field with HASHED password
-      const targetUserId = resetData.userId || (userDoc && userDoc.id);
-      if (!targetUserId) throw new Error("Target user not identified");
-      await updateDoc(doc(db, "users", targetUserId), {
-        password: hashedPassword, // Store hashed password
+      // Hash the new password before saving
+      const newHashedPassword = await hashPassword(newPassword);
+
+      // Update password in Firestore using the actual document ID
+      const userRef = doc(db, "users", userDocId);
+      await updateDoc(userRef, {
+        password: newHashedPassword,
         passwordUpdatedAt: serverTimestamp(),
       });
 
