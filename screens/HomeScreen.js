@@ -173,7 +173,7 @@ export default function HomeScreen({ route, navigation }) {
   const [notificationCount, setNotificationCount] = useState(0);
   const notificationListener = useRef();
   const responseListener = useRef();
-  const [updateVersion, setUpdateVersion] = useState(5);
+  const [updateVersion, setUpdateVersion] = useState(6);
 
   useEffect(() => {
     const fetchUserInfo = async () => {
@@ -300,40 +300,40 @@ export default function HomeScreen({ route, navigation }) {
   }, [username]);
 
 
-  useEffect(() => {
-    const runScheduleCatchupCheck = async () => {
-      if (username) {
-        console.log('📅 Running catch-up check for missed schedules...');
+  // useEffect(() => {
+  //   const runScheduleCatchupCheck = async () => {
+  //     if (username) {
+  //       console.log('📅 Running catch-up check for missed schedules...');
 
-        try {
-          // Wait a bit for everything to initialize
-          await new Promise(resolve => setTimeout(resolve, 2500));
+  //       try {
+  //         // Wait a bit for everything to initialize
+  //         await new Promise(resolve => setTimeout(resolve, 2500));
 
-          console.log('📅 About to call checkForNewSchedules with username:', username);
-          const result = await ScheduleMonitorService.checkForNewSchedules(username, true);
-          console.log('📅 checkForNewSchedules returned:', result);
+  //         console.log('📅 About to call checkForNewSchedules with username:', username);
+  //         const result = await ScheduleMonitorService.checkForNewSchedules(username, true);
+  //         console.log('📅 checkForNewSchedules returned:', result);
 
-          if (result) {
-            console.log('✅ Caught up - found schedules that were created while app was closed');
-            Toast.show({
-              type: 'info',
-              text1: '📅 New Food Schedule',
-              text2: 'Check notifications for distribution details',
-              visibilityTime: 5000,
-            });
-          } else {
-            console.log('✅ Caught up - no missed schedules');
-          }
-        } catch (error) {
-          console.error('❌ Schedule catch-up check failed:', error);
-        }
-      } else {
-        console.log('⚠️ No username available for schedule catch-up check');
-      }
-    };
+  //         if (result) {
+  //           console.log('✅ Caught up - found schedules that were created while app was closed');
+  //           Toast.show({
+  //             type: 'info',
+  //             text1: '📅 New Food Schedule',
+  //             text2: 'Check notifications for distribution details',
+  //             visibilityTime: 5000,
+  //           });
+  //         } else {
+  //           console.log('✅ Caught up - no missed schedules');
+  //         }
+  //       } catch (error) {
+  //         console.error('❌ Schedule catch-up check failed:', error);
+  //       }
+  //     } else {
+  //       console.log('⚠️ No username available for schedule catch-up check');
+  //     }
+  //   };
 
-    runScheduleCatchupCheck();
-  }, [username]);
+  //   runScheduleCatchupCheck();
+  // }, [username]);
   const initializeNotifications = async () => {
     // Register for push notifications
     const token = await registerForPushNotifications(username);
@@ -386,51 +386,7 @@ export default function HomeScreen({ route, navigation }) {
   };
   // Add this function in your HomeScreen component
   // Add this function in your HomeScreen component
-  const handleTestAllNotifications = async () => {
-    Alert.alert(
-      'Test Notifications',
-      'Choose what to test:',
-      [
-        {
-          text: 'Test Local Only',
-          onPress: async () => {
-            // Test local notifications
-            await testDisasterNotification('earthquake');
-            await testDisasterNotification('weather');
-            await testDisasterNotification('typhoon');
-            Alert.alert('Success', 'Local test notifications sent!');
-          }
-        },
-        {
-          text: 'Test Server Check',
-          onPress: async () => {
-            // Trigger server disaster check
-            try {
-              const result = await triggerManualDisasterCheck();
-              if (result.success) {
-                Alert.alert(
-                  'Server Check Complete',
-                  `Earthquakes: ${result.earthquakeNotifications || 0}\n` +
-                  `Weather: ${result.weatherNotifications || 0}\n` +
-                  `Total notifications: ${result.totalNotifications || 0}\n` +
-                  `Users monitored: ${result.usersMonitored || 0}`,
-                  [{ text: 'OK' }]
-                );
-              } else {
-                Alert.alert('Error', result.error || 'Server check failed');
-              }
-            } catch (error) {
-              Alert.alert('Error', error.message);
-            }
-          }
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel'
-        }
-      ]
-    );
-  };
+
   const fetchWeather = async () => {
     if (!currentLocation) return;
 
@@ -582,67 +538,67 @@ export default function HomeScreen({ route, navigation }) {
   // Add this new useEffect AFTER your existing location and username useEffects
 
   // Start disaster monitoring when BOTH username AND location are ready
-  useEffect(() => {
-    const startMonitoring = async () => {
-      if (username && currentLocation) {
-        console.log('📍 Starting disaster monitoring...');
-        console.log('   Username:', username);
-        console.log('   Location:', currentLocation.latitude, currentLocation.longitude);
+  // useEffect(() => {
+  //   const startMonitoring = async () => {
+  //     if (username && currentLocation) {
+  //       console.log('📍 Starting disaster monitoring...');
+  //       console.log('   Username:', username);
+  //       console.log('   Location:', currentLocation.latitude, currentLocation.longitude);
 
-        const started = await startDisasterMonitoring(
-          currentLocation.latitude,
-          currentLocation.longitude,
-          username
-        );
+  //       const started = await startDisasterMonitoring(
+  //         currentLocation.latitude,
+  //         currentLocation.longitude,
+  //         username
+  //       );
 
-        if (started) {
-          console.log('✅ Disaster monitoring initialized successfully');
-          // Toast.show({
-          //   type: 'success',
-          //   text1: 'Monitoring Active',
-          //   text2: 'You will be alerted about disasters in your area',
-          //   visibilityTime: 3000,
-          // });
-        } else {
-          // console.log('❌ Failed to start disaster monitoring');
-          // Toast.show({
-          //   type: 'error',
-          //   text1: 'Monitoring Failed',
-          //   text2: 'Could not start disaster monitoring',
-          // });
-        }
-      }
-    };
+  //       if (started) {
+  //         console.log('✅ Disaster monitoring initialized successfully');
+  //         // Toast.show({
+  //         //   type: 'success',
+  //         //   text1: 'Monitoring Active',
+  //         //   text2: 'You will be alerted about disasters in your area',
+  //         //   visibilityTime: 3000,
+  //         // });
+  //       } else {
+  //         // console.log('❌ Failed to start disaster monitoring');
+  //         // Toast.show({
+  //         //   type: 'error',
+  //         //   text1: 'Monitoring Failed',
+  //         //   text2: 'Could not start disaster monitoring',
+  //         // });
+  //       }
+  //     }
+  //   };
 
-    startMonitoring();
-  }, [username, currentLocation]); // Re-run when either changes
-  useEffect(() => {
-    // Run a check when app first opens (after location and username are ready)
-    const runCatchupCheck = async () => {
-      if (username && currentLocation) {
-        console.log('🔄 Running catch-up check for missed disasters...');
+  //   startMonitoring();
+  // }, [username, currentLocation]); // Re-run when either changes
+  // useEffect(() => {
+  //   // Run a check when app first opens (after location and username are ready)
+  //   const runCatchupCheck = async () => {
+  //     if (username && currentLocation) {
+  //       console.log('🔄 Running catch-up check for missed disasters...');
 
-        // Wait a bit for everything to initialize
-        await new Promise(resolve => setTimeout(resolve, 2000));
+  //       // Wait a bit for everything to initialize
+  //       await new Promise(resolve => setTimeout(resolve, 2000));
 
-        const result = await triggerManualCheck();
+  //       const result = await triggerManualCheck();
 
-        if (result) {
-          console.log('✅ Caught up - found disasters that happened while app was closed');
-          Toast.show({
-            type: 'warning',
-            text1: 'Disaster Alert',
-            text2: 'Check notifications for important updates',
-            visibilityTime: 5000,
-          });
-        } else {
-          console.log('✅ Caught up - no missed disasters');
-        }
-      }
-    };
+  //       if (result) {
+  //         console.log('✅ Caught up - found disasters that happened while app was closed');
+  //         Toast.show({
+  //           type: 'warning',
+  //           text1: 'Disaster Alert',
+  //           text2: 'Check notifications for important updates',
+  //           visibilityTime: 5000,
+  //         });
+  //       } else {
+  //         console.log('✅ Caught up - no missed disasters');
+  //       }
+  //     }
+  //   };
 
-    runCatchupCheck();
-  }, [username, currentLocation]);
+  //   runCatchupCheck();
+  // }, [username, currentLocation]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
