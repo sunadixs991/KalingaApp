@@ -156,6 +156,15 @@ export default function AdminUtils() {
           <Text style={styles.optionText}>Security Logs</Text>
         </TouchableOpacity>
 
+        {/* NEW: Disaster Monitor */}
+        <TouchableOpacity
+          style={styles.option}
+          onPress={() => navigation.navigate("DisasterMonitor")}
+        >
+          <Icon name="alert-circle-outline" size={28} color="#e74c3c" style={styles.icon} />
+          <Text style={styles.optionText}>Disaster Monitor</Text>
+        </TouchableOpacity>
+
       </ScrollView>
     </SafeAreaView>
   );

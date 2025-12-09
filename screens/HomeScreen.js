@@ -52,9 +52,11 @@ import {
 import { startDisasterMonitoring, resetDisasterMonitoring } from '../services/DisasterMonitorService';
 import { triggerManualCheck } from '../services/DisasterMonitorService';
 import { checkPhilippinesWeatherAlerts } from '../services/PAGASAWeatherService';
+// At the top of your HomeScreen.js file
+import { triggerManualDisasterCheck, testDisasterNotification } from '../services/DisasterNotificationService';
 import ScheduleMonitorService from '../services/ScheduleMonitorService';
 // At the top of your HomeScreen.js file
-// import { triggerManualDisasterCheck, testDisasterNotification } from '../services/DisasterNotificationService';
+
 
 // Cache key prefix (bump version if cache format changes)
 const NEARBY_CACHE_PREFIX = "nearby_pins_cache_v1";
@@ -171,7 +173,7 @@ export default function HomeScreen({ route, navigation }) {
   const [notificationCount, setNotificationCount] = useState(0);
   const notificationListener = useRef();
   const responseListener = useRef();
-  const [updateVersion, setUpdateVersion] = useState(5); 
+  const [updateVersion, setUpdateVersion] = useState(5);
 
   useEffect(() => {
     const fetchUserInfo = async () => {
@@ -227,7 +229,7 @@ export default function HomeScreen({ route, navigation }) {
               .join(", ")
           );
         }
-        
+
       } catch (error) {
         setLocationMessage(
           "Location is turned off — please enable location services in Settings."
@@ -378,6 +380,7 @@ export default function HomeScreen({ route, navigation }) {
       console.error('Error loading notification count:', error);
     }
   };
+  // Add this function in your HomeScreen component
   // Add this function in your HomeScreen component
   const handleTestAllNotifications = async () => {
     Alert.alert(
@@ -839,11 +842,10 @@ export default function HomeScreen({ route, navigation }) {
         </ScrollView>
 
         <TouchableOpacity
-          style={styles.viewAllEarthquakesButton}
-          onPress={() => navigation.navigate("Earthquake")}
+          style={styles.yourButtonStyle}
+          onPress={handleTestAllNotifications}  // ← Change to this
         >
-          <Text style={styles.viewAllEarthquakesText}>View All Earthquakes</Text>
-          <Icon name="chevron-forward" size={16} color="#e75e33" />
+          <Text style={styles.buttonText}>Test All Notifications</Text>
         </TouchableOpacity>
       </View>
     );
@@ -1811,25 +1813,25 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   testButtonStandalone: {
-  flexDirection: 'row',
-  backgroundColor: '#e75e33',
-  padding: 16,
-  borderRadius: 12,
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginTop: 12,
-  shadowColor: "#000",
-  shadowOpacity: 0.1,
-  shadowRadius: 6,
-  shadowOffset: { width: 0, height: 3 },
-  elevation: 4,
-},
-testButtonText: {
-  color: '#fff',
-  fontSize: 16,
-  fontWeight: '600',
-  marginLeft: 8,
-},
+    flexDirection: 'row',
+    backgroundColor: '#e75e33',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  testButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
   versionContainer: {
     alignItems: 'center',
     paddingVertical: 12,

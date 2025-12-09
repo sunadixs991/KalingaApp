@@ -197,6 +197,22 @@ const saveTokenToFirestore = async (username, token) => {
     const q = query(tokensRef, where('username', '==', username));
     const snapshot = await getDocs(q);
 
+    // ✅ NEW: Get current location
+    let locationData = {};
+    try {
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      locationData = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+      console.log('✅ Location captured:', locationData);
+    } catch (locError) {
+      console.warn('⚠️ Could not get location:', locError.message);
+      // Continue without location - don't fail token save
+    }
+
     const tokenData = {
       username,
       token,
@@ -204,6 +220,7 @@ const saveTokenToFirestore = async (username, token) => {
       tokenType: token.startsWith('ExponentPushToken') ? 'expo' : 'fcm',
       deviceModel: Device.modelName || 'unknown',
       osVersion: Device.osVersion || 'unknown',
+      ...locationData,  // ✅ Add latitude/longitude if available
       updatedAt: serverTimestamp(),
     };
 
