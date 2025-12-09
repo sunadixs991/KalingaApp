@@ -16,7 +16,7 @@ import { useState } from "react";
 
 export default function AdminUtils() {
   const navigation = useNavigation();
-  const [updateVersion, setUpdateVersion] = useState(2); // Version identifier for updates
+  const [updateVersion, setUpdateVersion] = useState(3); // Version identifier for updates
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>

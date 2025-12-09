@@ -57,8 +57,6 @@ import * as DeleteService from './services/DeleteService';
 import FeedbackModal from "./components/FeedbackModal";
 import CommentsScreen from "./screens/CommentsScreen";
 import NotificationCenterScreen from "./screens/NotificationCenterScreen";
-import { setupDisasterNotificationHandlers, setupDisasterNotificationChannels } from './services/DisasterNotificationService';
-import DisasterMonitorScreen from './screens/DisasterMonitorScreen';
 
 const Stack = createStackNavigator();
 
@@ -173,20 +171,15 @@ export default function App() {
     initializeServices();
   }, []);
 
-  useEffect(() => {
-    // Setup handlers once when app loads
-    setupDisasterNotificationHandlers();
-    setupDisasterNotificationChannels();
-  }, []);
   // ✅ UPDATED: Better notification handling while app is in use
   useEffect(() => {
     // Listen for notifications when app is in FOREGROUND
     const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
       console.log('📬 Notification received in foreground:', notification);
-
+      
       // Show Toast notification for better visibility
       const notificationType = notification.request.content.data?.type || 'info';
-
+      
       // Map notification types to toast types
       const toastType = {
         'earthquake': 'error',
@@ -195,7 +188,7 @@ export default function App() {
         'food_schedule': 'info',
         'schedule': 'info',
       }[notificationType] || 'info';
-
+      
       Toast.show({
         type: toastType,
         text1: notification.request.content.title,
@@ -213,9 +206,9 @@ export default function App() {
     // Listen for user TAPPING on notifications
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
       console.log('👆 Notification tapped:', response);
-
+      
       const data = response.notification.request.content.data;
-
+      
       // Handle navigation based on notification type
       if (data?.type === 'food_schedule' || data?.type === 'schedule') {
         console.log('Navigate to Food Distribution screen');
@@ -237,7 +230,7 @@ export default function App() {
       responseSubscription.remove();
     };
   }, []);
-
+  
   // Load username from storage
   useEffect(() => {
     const loadUsername = async () => {
@@ -302,7 +295,6 @@ export default function App() {
             <Stack.Screen name="AdminUtilsDRRM" component={AdminUtilsDRRM} />
             <Stack.Screen name="Earthquake" component={EarthquakeScreen} />
             <Stack.Screen name="NotificationCenter" component={NotificationCenterScreen} />
-            <Stack.Screen name="DisasterMonitor" component={DisasterMonitorScreen} />
           </Stack.Navigator>
 
           <FeedbackModal username={currentUsername} />
