@@ -23,6 +23,7 @@ import {
   heightPercentageToDP as hp,
 } from "react-native-responsive-screen";
 import { sendOTPSMS, verifyOTP, formatPhoneNumber } from "../services/notification";
+import { hashPassword } from '../utils/passwordHash';
 
 export default function SignUp({ navigation }) {
   const [step, setStep] = useState(1);
@@ -346,6 +347,9 @@ export default function SignUp({ navigation }) {
 
       const userId = generateUniqueId();
 
+      // Hash the password before saving
+      const salted = await hashPassword(password);
+
       await addDoc(collection(db, "users"), {
         userId,
         firstName,
@@ -360,7 +364,7 @@ export default function SignUp({ navigation }) {
         city,
         barangay,
         purok,
-        password,
+        password: salted, // save the hashed password
         is_verified: 0,
         createdAt: new Date(),
         accountStatus: "active",
