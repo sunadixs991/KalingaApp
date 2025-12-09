@@ -33,6 +33,14 @@
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
         "WAKE_LOCK",
+        "SMS",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "NOTIFICATIONS",
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "WAKE_LOCK",
         "SMS"
       ],
       "googleServicesFile": "./google-services.json",
@@ -75,6 +83,9 @@
       "eas": {
         "projectId": "cfc946eb-f5ef-42f6-bdc4-411072361416"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/cfc946eb-f5ef-42f6-bdc4-411072361416"
     }
   }
 }
