@@ -1025,7 +1025,7 @@ export default function HomeScreen({ route, navigation }) {
           </View>
           {/* Update Version Identifier */}
           <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>Update Version: {updateVersion}</Text>
+            {/* <Text style={styles.versionText}>Update Version: {updateVersion}</Text> */}
           </View>
           {/* Weather Card */}
           {renderWeatherCard()}
