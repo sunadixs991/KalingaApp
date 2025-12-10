@@ -79,6 +79,14 @@ export default function ProfileScreen() {
   const [purokList, setPurokList] = useState([]);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
+  // mounted ref used by async callbacks to avoid updating unmounted component
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     checkUserAdminStatus();
   }, []);
@@ -95,13 +103,6 @@ export default function ProfileScreen() {
 
       setCurrentUserId(userId);
       
-      const isMountedRef = useRef(true);
-      useEffect(() => {
-        return () => {
-          isMountedRef.current = false;
-        };
-      }, []);
-
       // Query by username (since userId is actually username)
       //     const userDoc = await getDoc(doc(db, "users", userId));
       //     let userData = null;
