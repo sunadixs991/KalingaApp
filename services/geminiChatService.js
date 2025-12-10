@@ -1,4 +1,4 @@
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyBTVVo2wA5zXDLByJxp1ZZrWbsUNYThdWM';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyDh3OoWUTMHuFrQxLEd-IhwUICIn5HlU3w';
 
 export async function getGeminiResponse(prompt) {
   try {
