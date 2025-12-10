@@ -9,8 +9,8 @@ import {
   Alert,
 } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
-// import { getAuth } from "firebase/auth";
 
 // exported helper to save feedback (can be reused elsewhere)
 export async function saveFeedbackToFirestore({ rating = 0, feedback = "", username = null } = {}) {
@@ -36,16 +36,47 @@ const FeedbackModal = ({ username = null }) => {
   const [visible, setVisible] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [rating, setRating] = useState(0);
-  const [submitted, setSubmitted] = useState(false); // ✅ Track if user already submitted
+  const [submitted, setSubmitted] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Show modal every 30 minutes (if not submitted yet)
+  // Check if user is logged in and if feedback was already submitted
   useEffect(() => {
-    if (submitted) return;
+    const checkLoginAndFeedback = async () => {
+      try {
+        // Check if user is logged in
+        const user = await AsyncStorage.getItem("user");
+        const loggedIn = !!user;
+        setIsLoggedIn(loggedIn);
+
+        if (loggedIn) {
+          // Check if feedback was already submitted for this user
+          const feedbackKey = `feedback_submitted_${user}`;
+          const alreadySubmitted = await AsyncStorage.getItem(feedbackKey);
+          setSubmitted(!!alreadySubmitted);
+        } else {
+          setSubmitted(false);
+        }
+      } catch (error) {
+        console.error("Error checking login/feedback status:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkLoginAndFeedback();
+  }, []);
+
+  // Show modal every 30 minutes (only if logged in and not submitted)
+  useEffect(() => {
+    if (loading || submitted || !isLoggedIn) return;
+
     const timer = setInterval(() => {
       setVisible(true);
     }, 1800000); // 30 minutes
+
     return () => clearInterval(timer);
-  }, [submitted]);
+  }, [loading, submitted, isLoggedIn]);
 
   const handleSubmit = async () => {
     try {
@@ -56,8 +87,16 @@ const FeedbackModal = ({ username = null }) => {
         feedback,
         username,
       });
+
       if (res.ok) {
         console.log("✅ Feedback saved!");
+
+        // Persist feedback submission state
+        if (username) {
+          const feedbackKey = `feedback_submitted_${username}`;
+          await AsyncStorage.setItem(feedbackKey, "true");
+        }
+
         setVisible(false);
         setFeedback("");
         setRating(0);
@@ -71,6 +110,11 @@ const FeedbackModal = ({ username = null }) => {
       Alert.alert("Error", "Unable to submit feedback. Please try again.");
     }
   };
+
+  // Don't render if user is not logged in
+  if (!isLoggedIn || loading) {
+    return null;
+  }
 
   return (
     <Modal

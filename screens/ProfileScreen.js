@@ -17,7 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getUserInfo } from "../services/getinfo";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import womanProfile from "../assets/woman.png";
 import boyProfile from "../assets/boy.png";
 import userProfile from "../assets/user.png";
@@ -102,7 +102,7 @@ export default function ProfileScreen() {
       }
 
       setCurrentUserId(userId);
-      
+
       // Query by username (since userId is actually username)
       //     const userDoc = await getDoc(doc(db, "users", userId));
       //     let userData = null;
@@ -443,6 +443,14 @@ export default function ProfileScreen() {
     }
   };
 
+  useFocusEffect(
+    React.useCallback(() => {
+      // Reload user data when returning from AccountInfoScreen
+      checkUserAdminStatus();
+      // Optionally reload profile data too:
+      // fetchProfile();
+    }, [])
+  );
 
   if (profileLoading) {
     return (
@@ -505,10 +513,7 @@ export default function ProfileScreen() {
                 <TouchableOpacity
                   style={styles.settingItem}
                   onPress={() =>
-                    navigation.navigate("AccountInfoScreen", {
-                      userInfo: userInfo,
-                      onUpdate: (updatedInfo) => setUserInfo(updatedInfo),
-                    })
+                    navigation.navigate("AccountInfoScreen")
                   }
                 >
                   <Icon name="person-outline" size={22} color="#555" />
@@ -945,8 +950,6 @@ const styles = StyleSheet.create({
   logoutSection: {
     marginTop: 18,
     paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
     paddingHorizontal: 0,
   },
   logoutButton: {

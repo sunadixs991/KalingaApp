@@ -272,8 +272,6 @@ export default function App() {
           "user_profile_cache_v1", // PROFILE_CACHE_KEY
           "userInfo",
           "sessionToken",
-          "pushToken",
-          "pushTokenTimestamp",
           "notifications_cache",
           "lastLogin",
         ];

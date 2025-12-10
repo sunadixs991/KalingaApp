@@ -27,7 +27,6 @@ import { Picker } from "@react-native-picker/picker";
 export default function AccountInfoScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { onUpdate } = route.params || {};
 
   const [uploading, setUploading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -59,7 +58,7 @@ export default function AccountInfoScreen() {
     try {
       setLoading(true);
       let userIdentifier = await AsyncStorage.getItem("user");
-      
+
       if (!userIdentifier) {
         Alert.alert("Error", "User not found");
         setLoading(false);
@@ -73,7 +72,7 @@ export default function AccountInfoScreen() {
           cleanIdentifier =
             parsed.username || parsed.email || parsed.id || userIdentifier;
         }
-      } catch (e) {}
+      } catch (e) { }
       cleanIdentifier = cleanIdentifier.toString().trim();
 
       const userQuery = query(
@@ -162,7 +161,7 @@ export default function AccountInfoScreen() {
           cleanIdentifier =
             parsed.username || parsed.email || parsed.id || userIdentifier;
         }
-      } catch (e) {}
+      } catch (e) { }
       cleanIdentifier = cleanIdentifier.toString().trim();
 
       const userQuery = query(
@@ -185,8 +184,6 @@ export default function AccountInfoScreen() {
           barangay: editInfo.barangay,
           purok: editInfo.purok,
         });
-
-        if (onUpdate) onUpdate(editInfo);
 
         setIsEditing(false);
         Alert.alert("Success", "Account information updated!");
@@ -350,8 +347,8 @@ export default function AccountInfoScreen() {
           </TouchableOpacity>
 
           {isEditing && (
-            <TouchableOpacity 
-              style={[styles.saveButton, uploading && { opacity: 0.6 }]} 
+            <TouchableOpacity
+              style={[styles.saveButton, uploading && { opacity: 0.6 }]}
               onPress={handleSaveEdit}
               disabled={uploading}
             >
@@ -416,6 +413,8 @@ const styles = StyleSheet.create({
     borderColor: "#D1D5DB",
     backgroundColor: "#F9FAFB",
     marginBottom: 6,
+    height: 50,
+    justifyContent: "center",
   },
 
   buttonRow: {
