@@ -11,6 +11,7 @@ import {
 import Icon from "react-native-vector-icons/FontAwesome";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { Picker } from "@react-native-picker/picker";
 
 // exported helper to save feedback (can be reused elsewhere)
 export async function saveFeedbackToFirestore({ rating = 0, feedback = "", username = null } = {}) {
@@ -39,6 +40,16 @@ const FeedbackModal = ({ username = null }) => {
   const [submitted, setSubmitted] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [editInfo, setEditInfo] = useState({
+    gender: "",
+    status: "",
+    barangay: "",
+    purok: "",
+  });
+
+  // Dummy data for barangay and purok
+  const barangayList = ["Barangay 1", "Barangay 2", "Barangay 3"];
+  const purokList = ["Purok 1", "Purok 2", "Purok 3"];
 
   // Check if user is logged in and if feedback was already submitted
   useEffect(() => {
@@ -161,6 +172,78 @@ const FeedbackModal = ({ username = null }) => {
             multiline
           />
 
+          {/* Gender Picker */}
+          <Text style={styles.label}>Gender</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={editInfo.gender}
+              onValueChange={(v) => setEditInfo({ ...editInfo, gender: v })}
+              enabled={true}
+              style={{ color: "#333" }}
+            >
+              <Picker.Item label="Select Gender" value="" />
+              <Picker.Item label="Male" value="Male" />
+              <Picker.Item label="Female" value="Female" />
+              <Picker.Item label="Other" value="Other" />
+            </Picker>
+          </View>
+
+          {/* STATUS */}
+          <Text style={styles.label}>Civil Status</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={editInfo.status}
+              onValueChange={(v) => setEditInfo({ ...editInfo, status: v })}
+              enabled={true}
+              style={{ color: "#333" }}
+            >
+              <Picker.Item label="Select Status" value="" />
+              <Picker.Item label="Single" value="Single" />
+              <Picker.Item label="Married" value="Married" />
+              <Picker.Item label="Divorced" value="Divorced" />
+              <Picker.Item label="Widowed" value="Widowed" />
+            </Picker>
+          </View>
+
+          {/* BARANGAY */}
+          <Text style={styles.label}>Barangay</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={editInfo.barangay}
+              onValueChange={(v) =>
+                setEditInfo({ ...editInfo, barangay: v, purok: "" })
+              }
+              enabled={true}
+              style={{ color: "#333" }}
+            >
+              <Picker.Item label="Select Barangay" value="" />
+              {barangayList.map((b, idx) => (
+                <Picker.Item key={idx} label={b} value={b} />
+              ))}
+            </Picker>
+          </View>
+
+          {/* PUROK */}
+          <Text style={styles.label}>Purok</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={editInfo.purok}
+              onValueChange={(v) => setEditInfo({ ...editInfo, purok: v })}
+              enabled={true && !!editInfo.barangay}
+              style={{ color: "#333" }}
+            >
+              <Picker.Item
+                label={
+                  editInfo.barangay ? "Select Purok" : "Select Barangay first"
+                }
+                value=""
+              />
+              {purokList.map((p, idx) => (
+                <Picker.Item key={idx} label={p} value={p} />
+              ))}
+            </Picker>
+          </View>
+
           {/* Submit Button */}
           <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
             <Text style={{ color: "#fff", fontWeight: "bold" }}>
@@ -218,6 +301,19 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     borderWidth: 1,
     borderColor: "#ddd",
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 8,
+  },
+  pickerContainer: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    backgroundColor: "#F9FAFB",
+    marginBottom: 12,
+    overflow: 'hidden',  // IMPORTANT: Hide overflow for proper Picker rendering
   },
   submitBtn: {
     backgroundColor: "#334EAC",
